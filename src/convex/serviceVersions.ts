@@ -59,12 +59,21 @@ export const getServiceVersionById = query({
 // ==========================================
 
 export const getOrganizationApprovals = query({
-  args: { organizationId: v.id("organizations") },
+  args: { 
+    organizationId: v.union(v.id("organizations"), v.string()),
+    refreshKey: v.optional(v.number())
+  },
   handler: async (ctx, args) => {
+    // If organizationId is empty string, return empty array
+    if (args.organizationId === "") {
+      return [];
+    }
+    
     const approvals = await ctx.db
       .query("organizationServiceApprovals")
       .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
       .collect();
+
 
     // Join with service version data
     const approvalsWithDetails = await Promise.all(
@@ -263,6 +272,7 @@ export const toggleOrganizationServiceApproval = mutation({
       }
 
       await ctx.db.patch(existingApproval._id, updateData);
+      
       return { action: "updated", id: existingApproval._id, status: newStatus };
     } else {
       // Create new approval

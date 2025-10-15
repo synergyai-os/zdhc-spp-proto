@@ -36,10 +36,12 @@ This is a **Solution Provider Platform** for ZDHC (Zero Discharge of Hazardous C
 src/
 ├── lib/
 │   └── components/           # Reusable UI components
-│       ├── Header.svelte     # Navigation and branding
-│       ├── UserCard.svelte   # User display component
-│       ├── ServiceBox.svelte # Service section container
-│       └── ActionCard.svelte # Dashboard action cards
+│       ├── Header.svelte           # Navigation and branding
+│       ├── UserCard.svelte         # User display component
+│       ├── ServiceBox.svelte       # Service section container
+│       ├── ActionCard.svelte       # Dashboard action cards
+│       ├── ToggleSwitch.svelte     # Service approval toggle component
+│       └── OrganizationSwitcher.svelte # Organization selection dropdown
 ├── convex/                  # Convex backend functions
 │   ├── schema.ts           # Database schema definition
 │   ├── expertAssignments.ts # CRUD operations for experts
@@ -47,7 +49,11 @@ src/
 ├── routes/
 │   ├── +layout.svelte       # Root layout with Convex setup
 │   ├── +page.svelte         # Homepage dashboard
+│   ├── approved-services/   # Service approval management
+│   │   └── +page.svelte     # Service approval toggle interface
 │   ├── test-convex/         # Database testing page
+│   ├── test-service-versioning/ # Service versioning testing
+│   │   └── +page.svelte     # Service data seeding and testing
 │   └── user-management/
 │       ├── +page.svelte     # User management main page
 │       └── add-expert/
@@ -112,6 +118,16 @@ src/
 - **LEAD expert highlighting** - Yellow background and badges
 - **Multi-service indicators** - Blue badges for experts in multiple services
 - **Single "Add Expert" button** - Clean UX with one action point
+
+### Service Approval Management
+- **Approved Services page** - Manage service approvals for organizations
+- **Service toggle interface** - Real-time approval status toggles
+- **Organization context** - Services filtered by selected organization
+- **Service grouping** - Parent-child service relationships (e.g., Assessment Approval → Supplier to Zero Assessment V2)
+- **Approval status tracking** - Visual indicators for approved/rejected services
+- **Real-time updates** - Instant UI updates when approval status changes
+- **Loading states** - Context-aware loading messages and error handling
+- **Data consistency** - Synchronized data between user management and approval pages
 
 ### Add Expert Wizard (5-Step Process)
 - **Step 1: Email Lookup** - Check if user exists in PDC (external platform)
@@ -190,6 +206,45 @@ interface Organization {
   updatedAt: number;
 }
 
+// Service Parents (e.g., "Assessment Approval")
+interface ServiceParent {
+  _id: Id<"serviceParents">;
+  name: string;
+  description: string;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Service Versions (e.g., "Supplier to Zero Assessment V2")
+interface ServiceVersion {
+  _id: Id<"serviceVersions">;
+  parentId: Id<"serviceParents">;
+  version: string; // "V1", "V2", etc.
+  name: string; // "Supplier to Zero Assessment V2"
+  description: string;
+  isActive: boolean;
+  releasedAt: number;
+  deprecatedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Organization Service Approvals
+interface OrganizationServiceApproval {
+  _id: Id<"organizationServiceApprovals">;
+  organizationId: Id<"organizations">;
+  serviceVersionId: Id<"serviceVersions">;
+  status: "pending" | "approved" | "rejected" | "suspended";
+  approvedBy?: string;
+  approvedAt?: number;
+  rejectedAt?: number;
+  notes?: string;
+  rejectionReason?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // Expert Assignments (Links users to organizations)
 interface ExpertAssignment {
   _id: Id<"expertAssignments">;
@@ -203,12 +258,32 @@ interface ExpertAssignment {
   assignedBy: string;
   notes?: string;
 }
+
+// Service Version Expert Assignments
+interface ServiceVersionExpertAssignment {
+  _id: Id<"serviceVersionExpertAssignments">;
+  userId: Id<"users">;
+  organizationId: Id<"organizations">;
+  serviceVersionId: Id<"serviceVersions">;
+  status: "draft" | "approved" | "paid" | "ready_for_training" | "training_started" | "training_completed" | "rejected" | "inactive";
+  assignedAt: number;
+  assignedBy: string;
+  notes?: string;
+}
 ```
 
 ### Data Flow
 ```
 Add Expert Wizard → Convex Mutations → Database → Real-time UI Updates
+Service Approval Management → Organization Context → Conditional Queries → Real-time Updates
 ```
+
+### Organization Context Management
+- **Organization Store** - Centralized state management for current organization
+- **Organization Switcher** - Header dropdown for switching between organizations
+- **Conditional Queries** - Data loading only when organization is selected
+- **Context-aware UI** - Different content based on selected organization
+- **Persistent Selection** - Organization choice saved in localStorage
 
 ## 🎯 User Experience Guidelines
 
@@ -323,6 +398,11 @@ Add Expert Wizard → Convex Mutations → Database → Real-time UI Updates
 - **Reactive UI** - Real-time updates across components using Convex queries
 - **Server-side validation** - Data validation at the database level
 - **Phase 1 MVP** - Simplified prototype approach for rapid development
+- **Service Versioning System** - Parent-child service relationships for better organization
+- **Organization Context** - Centralized organization state management across the app
+- **Conditional Data Loading** - Queries only run when organization is selected
+- **Service Approval Workflow** - Real-time toggle interface for service approvals
+- **Convex-Svelte Integration** - Using empty string fallback instead of "skip" pattern
 
 ### User Preferences (Important!)
 - **Coach-style guidance** - guide user through steps rather than doing everything
@@ -333,6 +413,6 @@ Add Expert Wizard → Convex Mutations → Database → Real-time UI Updates
 
 ---
 
-**Last Updated**: [Current Date]
+**Last Updated**: December 2024
 **Version**: 1.0
 **Maintainer**: Development Team

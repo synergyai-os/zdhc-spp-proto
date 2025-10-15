@@ -66,8 +66,19 @@
 	let approvedServicesForDisplay = $derived.by(() => {
 		if (!organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data) return [];
 		
-		// Get approved service version IDs (filter for approved status)
-		const approvedVersionIds = organizationApprovals.data
+		// Get approved service version IDs (get most recent approval for each service)
+		const serviceVersionApprovals = new Map();
+		
+		// Group approvals by service version ID
+		organizationApprovals.data.forEach((approval: any) => {
+			const existing = serviceVersionApprovals.get(approval.serviceVersionId);
+			if (!existing || approval.updatedAt > existing.updatedAt) {
+				serviceVersionApprovals.set(approval.serviceVersionId, approval);
+			}
+		});
+		
+		// Get approved service version IDs (only most recent approvals with approved status)
+		const approvedVersionIds = Array.from(serviceVersionApprovals.values())
 			.filter((approval: any) => approval.status === 'approved')
 			.map((approval: any) => approval.serviceVersionId);
 		

@@ -25,6 +25,7 @@
 	let isLoading = $state(false);
 	let error = $state('');
 	let successMessage = $state('');
+	let queryRefreshKey = $state(0);
 	
 	// Fetch data - only when organization is selected
 	const serviceParents = useQuery(
@@ -37,7 +38,7 @@
 	);
 	const organizationApprovals = useQuery(
 		(api as any).serviceVersions.getOrganizationApprovals, 
-		() => currentOrgId ? { organizationId: currentOrgId } : { organizationId: "" }
+		() => currentOrgId ? { organizationId: currentOrgId, refreshKey: queryRefreshKey } : { organizationId: "", refreshKey: queryRefreshKey }
 	);
 	
 	// Group service versions by parent with approval status
@@ -47,11 +48,11 @@
 		const versions = serviceVersions?.data;
 		const approvals = organizationApprovals?.data;
 		
-		console.log('=== TOGGLE DEBUG ===');
-		console.log('Parents:', parents);
-		console.log('Versions:', versions);
-		console.log('Approvals:', approvals);
-		console.log('===================');
+		// Force reactivity by accessing the query objects themselves
+		serviceParents;
+		serviceVersions;
+		organizationApprovals;
+		
 		
 		if (!parents || !versions) return [];
 		
@@ -60,13 +61,18 @@
 			const parentVersions = versions.filter((version: any) => 
 				version.parentId === parent._id
 			).map((version: any) => {
-				// Check if this version is approved
-				const isApproved = approvals?.some((approval: any) => 
-					approval.serviceVersionId === version._id && 
-					approval.status === 'approved'
-				) || false;
+				// Check if this version is approved - get the most recent approval record
+				const versionApprovals = approvals?.filter((approval: any) => 
+					approval.serviceVersionId === version._id
+				) || [];
 				
-				console.log(`Version ${version.name} (${version._id}): isApproved = ${isApproved}`);
+				// Sort by updatedAt descending to get the most recent
+				const mostRecentApproval = versionApprovals.sort((a: any, b: any) => 
+					b.updatedAt - a.updatedAt
+				)[0];
+				
+				const isApproved = mostRecentApproval?.status === 'approved' || false;
+				
 				
 				return {
 					...version,
@@ -99,11 +105,17 @@
 				notes: `Toggled by prototype user at ${new Date().toISOString()}`
 			});
 			
+			
 			if (result.status === 'approved') {
 				successMessage = `Approved ${serviceName}`;
 			} else {
 				successMessage = `Removed approval for ${serviceName}`;
 			}
+			
+			// Add a small delay to ensure mutation is committed before query refresh
+			setTimeout(() => {
+				queryRefreshKey++;
+			}, 100);
 		} catch (err) {
 			error = `Failed to update approval: ${err}`;
 		} finally {
