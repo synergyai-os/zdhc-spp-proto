@@ -231,6 +231,57 @@ export const updateOrganizationServiceApproval = mutation({
   },
 });
 
+export const toggleOrganizationServiceApproval = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    serviceVersionId: v.id("serviceVersions"),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    
+    // Check if approval already exists
+    const existingApproval = await ctx.db
+      .query("organizationServiceApprovals")
+      .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
+      .filter((q) => q.eq(q.field("serviceVersionId"), args.serviceVersionId))
+      .first();
+
+    if (existingApproval) {
+      // Toggle the status
+      const newStatus = existingApproval.status === "approved" ? "rejected" : "approved";
+      const updateData: any = {
+        status: newStatus,
+        updatedAt: now,
+        notes: args.notes || `Toggled by prototype user at ${new Date().toISOString()}`,
+      };
+
+      if (newStatus === "approved") {
+        updateData.approvedAt = now;
+      } else {
+        updateData.rejectedAt = now;
+      }
+
+      await ctx.db.patch(existingApproval._id, updateData);
+      return { action: "updated", id: existingApproval._id, status: newStatus };
+    } else {
+      // Create new approval
+      const approvalData = {
+        organizationId: args.organizationId,
+        serviceVersionId: args.serviceVersionId,
+        status: "approved" as const,
+        approvedAt: now,
+        notes: args.notes || "Approved by prototype user",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const id = await ctx.db.insert("organizationServiceApprovals", approvalData);
+      return { action: "created", id, status: "approved" };
+    }
+  },
+});
+
 // ==========================================
 // SEED DATA FOR PROTOTYPE
 // ==========================================

@@ -14,322 +14,242 @@ The SPP manages **Solution Provider organizations** and their **expert teams** w
 ### Key Entities
 - **ZDHC Staff**: Internal platform administrators and managers
 - **Solution Providers**: External organizations providing specific services
-- **Experts**: Individual professionals who provide services (can work for multiple services)
-- **Services**: Specific expertise areas (ETP Assessment, Supplier Assessment, Chemical Management, etc.)
-- **LEAD Experts**: Each service must have at least one designated lead expert per organization
+- **Experts**: Individual professionals who provide services (can work for multiple organizations)
+- **Service Versions**: Specific expertise areas with versioning (ETP Assessment V1, Supplier Assessment V2, etc.)
+- **Staff Members**: Users with SPP platform access (admin/manager/viewer roles)
 
 ---
 
-## 🔐 Data Ownership & Governance Rules
+## 🏢 Organization Management Rules
 
-### Rule 1: PDC Data Ownership
-**Statement**: Users own their DEFAULT DATA in PDC (Platform for Data Collection)
-**Implementation**: 
-- PDC data is **READ-ONLY** in SPP
-- SPP admins **CANNOT** add, edit, or delete PDC data
-- PDC data includes: First Name, Last Name, Email, Country
-- This data is managed by users in the external PDC platform
-
-### Rule 2: SPP Data Ownership
-**Statement**: SPP owns and manages all professional data for legal compliance
+### Rule 1: Multi-Organization Support
+**Statement**: Users can work as different organizations with complete data isolation
 **Implementation**:
-- SPP admins **MUST** create all professional data manually
-- SPP data includes: Professional Experience, Education, Service Assignments
-- SPP is **legally responsible** for employee information
-- This data **CANNOT** be pre-filled or imported from PDC
+- Organization switcher in header allows switching between organizations
+- All expert data is filtered by currently selected organization
+- Data persistence across browser sessions using localStorage
+- Clear visual indication of current organization context
 
-### Rule 3: Data Separation
-**Statement**: PDC and SPP data must remain completely separate
+### Rule 2: Organization Context Switching
+**Statement**: Users must select an organization before accessing expert data
 **Implementation**:
-- No automatic data synchronization between platforms
-- Clear visual indicators distinguish data sources
-- Separate validation rules for each data type
+- Header displays current organization name and user role
+- User management page shows "No Organization Selected" when none chosen
+- Organization switcher dropdown shows all available organizations
+- Status indicators show organization type (SPP/ZDHC) and status (active/inactive/suspended)
+
+### Rule 3: Data Isolation
+**Statement**: Each organization can only see and manage their own expert data
+**Implementation**:
+- Expert queries automatically filter by selected organization
+- No cross-organization data visibility
+- Organization-specific expert counts and statistics
+- Clear messaging when no experts exist for selected organization
 
 ---
 
 ## 👥 User Management Rules
 
-### Rule 4: Expert Addition Workflow
-**Statement**: Adding experts requires a 5-step verification and data collection process
+### Rule 4: Staff Member Roles
+**Statement**: Users have different access levels based on their role in the organization
 **Implementation**:
-1. **Step 1**: Email lookup in PDC
-2. **Step 2**: Confirm PDC data (read-only display)
-3. **Step 3**: Select services and assign roles (LEAD/Regular)
-4. **Step 4**: Add professional experience (SPP-owned)
-5. **Step 5**: Add education (SPP-owned)
+- **Admin**: Full access to manage experts and organization settings
+- **Manager**: Can manage experts but limited organization settings
+- **Viewer**: Read-only access to expert data
+- Role-based permission system with granular controls
 
-### Rule 5: User Existence Handling
-**Statement**: Handle both existing and non-existing PDC users
+### Rule 5: Expert Assignment Workflow
+**Statement**: Expert assignments link users to organizations with specific service versions
 **Implementation**:
-- **User EXISTS**: Proceed to Step 2 with PDC data
-- **User DOESN'T EXIST**: Show invitation option
-- **Invitation**: Send ZDHC invitation email (90-day expiry)
-- **Status Tracking**: "Invited to ZDHC" status until signup or expiry
-
-### Rule 6: Invitation Management
-**Statement**: Invitations have a 90-day expiry period
-**Implementation**:
-- Invitations expire after 90 days if not accepted
-- SPP admins are notified when users sign up
-- Expired invitations are automatically removed
-- Status: "Invited to ZDHC" → "Active" or "Expired"
+- Expert assignments require user, organization, and service version
+- Status tracking through complete workflow lifecycle
+- Professional experience and education data per assignment
+- Assignment metadata (assigned by, assigned at, notes)
 
 ---
 
-## 🎯 Service Assignment Rules
+## 🎯 Service Version Management Rules
 
-### Rule 7: Service Role Requirements
-**Statement**: Organizations need at least one LEAD expert per service to execute it
+### Rule 6: Service Versioning System
+**Statement**: Services are organized in parent-child relationships with versioning
 **Implementation**:
-- Services can have multiple experts (Regular and LEAD)
-- **LEAD Expert**: Required for service execution
-- **Regular Expert**: Can work on the service but not lead it
-- Visual distinction: LEAD = Yellow badges, Regular = Blue badges
+- **Service Parents**: High-level categories (e.g., "Assessment Approval")
+- **Service Versions**: Specific versions (e.g., "Supplier to Zero Assessment V2")
+- Organizations must be approved for each service version
+- Expert assignments are tied to specific service versions
 
-### Rule 8: Service Assignment Flexibility
-**Statement**: Experts can be assigned to multiple services with different roles
+### Rule 7: Organization Service Approvals
+**Statement**: Organizations must be approved for each service version before assigning experts
 **Implementation**:
-- One expert can be LEAD for Service A and Regular for Service B
-- Role assignment is per-service, not global
-- Badge system shows role per service clearly
-
-### Rule 9: Service Validation
-**Statement**: No validation required for service assignments
-**Implementation**:
-- Organizations can assign services without LEAD experts
-- System allows saving with any service configuration
-- Business logic may require LEAD experts, but UI doesn't enforce it
+- Approval workflow: pending → approved/rejected → suspended
+- Approval tracking with timestamps and approver information
+- Expiration dates for approvals
+- Rejection reasons and notes for transparency
 
 ---
 
-## 📝 Data Collection Rules
+## 🔄 Expert Workflow Rules
 
-### Rule 10: Professional Experience Requirements
-**Statement**: Professional experience is mandatory for legal compliance
+### Rule 8: Expert Assignment Status Lifecycle
+**Statement**: Expert assignments follow a defined workflow with status tracking
 **Implementation**:
-- At least one experience entry required
-- Job title is mandatory field (marked with asterisk)
-- Company, location, dates, description are optional
-- Dynamic add/remove functionality
-- "Currently working here" checkbox hides end date
+- **Draft**: Expert being prepared by SPP Admin
+- **Paid**: Payment completed for training
+- **Ready for Training**: Approved for Academy training
+- **Training Started**: Training in progress
+- **Training Completed**: Training finished successfully
+- **Approved**: Expert certified and active
+- **Rejected**: Assignment rejected at any stage
+- **Inactive**: Assignment deactivated
 
-### Rule 11: Education Requirements
-**Statement**: Education information is mandatory for legal compliance
+### Rule 9: Workflow Timestamp Tracking
+**Statement**: All workflow transitions must be tracked with timestamps and responsible parties
 **Implementation**:
-- At least one education entry required
-- School/University name is mandatory field (marked with asterisk)
-- Degree, field, graduation year, description are optional
-- Dynamic add/remove functionality
-
-### Rule 12: Data Entry Validation
-**Statement**: Required fields must be completed before proceeding
-**Implementation**:
-- Step 4: Cannot proceed without at least one experience with job title
-- Step 5: Cannot proceed without at least one education with school name
-- Real-time validation with disabled "Next" buttons
-- Clear error messaging for incomplete required fields
+- Each status change records timestamp and user ID
+- Workflow history maintained for audit purposes
+- Clear tracking of who performed each action
+- Rejection reasons and notes for transparency
 
 ---
 
-## 🔄 Workflow Rules
+## 📊 Data Management Rules
 
-### Rule 13: Step Progression
-**Statement**: Users must complete each step before proceeding
+### Rule 10: Convex Database Integration
+**Statement**: All data is stored in Convex with real-time synchronization
 **Implementation**:
-- Sequential step completion required
-- "Next" button disabled until step requirements met
-- "Back" button allows returning to previous steps
-- Progress tracker shows current step and completion percentage
+- Real-time queries automatically update UI when data changes
+- Optimistic updates for immediate user feedback
+- Error handling for network issues
+- Type-safe database schema with validation
 
-### Rule 14: Data Persistence
-**Statement**: Form data persists during the wizard workflow
+### Rule 11: Data Structure Requirements
+**Statement**: Expert assignments must include complete professional information
 **Implementation**:
-- Data entered in previous steps remains when navigating back
-- No data loss during step navigation
-- Final save only occurs at Step 5 completion
+- Professional experience array with job details
+- Education array with academic credentials
+- Service version assignment with specific version
+- Organization context and assignment metadata
 
-### Rule 15: Cancellation Handling
-**Statement**: Users can cancel the process with confirmation
+### Rule 12: Data Persistence
+**Statement**: Organization selection persists across browser sessions
 **Implementation**:
-- Cancel button shows confirmation dialog
-- Warning: "All progress will be lost"
-- Returns to previous page on confirmation
-- No automatic save on cancellation
+- localStorage stores current organization ID
+- Automatic restoration on page load
+- Graceful fallback when organization no longer exists
+- Clear error handling for invalid stored data
 
 ---
 
 ## 🎨 User Interface Rules
 
-### Rule 16: Visual Data Distinction
-**Statement**: Different data sources must be visually distinct
+### Rule 13: Organization Switcher Design
+**Statement**: Organization switching must be intuitive and accessible
 **Implementation**:
-- PDC data: Blue info boxes with read-only styling
-- SPP data: White form fields with editable styling
-- Warning boxes: Yellow alerts for SPP data ownership
-- Clear labeling of data source and ownership
+- Dropdown in header with organization list
+- Visual indicators for organization type and status
+- Current organization clearly highlighted
+- Click-outside-to-close functionality
+- Loading states and error handling
 
-### Rule 17: Role Badge System
-**Statement**: Service roles must be clearly distinguishable
+### Rule 14: Status-Based Visual Design
+**Statement**: Expert status must be visually distinct and informative
 **Implementation**:
-- LEAD Expert: Yellow badges with hover effects
-- Regular Expert: Blue badges with hover effects
-- Clickable badges with toggle functionality
-- Visual feedback on hover (scale, shadow, cursor)
+- Color-coded status badges (green=active, blue=certified, yellow=training, etc.)
+- Status text with proper formatting (replace underscores with spaces)
+- Clear visual hierarchy for different statuses
+- Consistent styling across all components
 
-### Rule 18: Progress Indication
-**Statement**: Users must always know their current position
-**Implementation**:
-- 5-step progress tracker at top of wizard
-- Active step highlighted in blue
-- Completed steps remain blue
-- Progress bar shows completion percentage
-
----
-
-## 🧪 Development & Testing Rules
-
-### Rule 19: Mock Data Usage
-**Statement**: Development uses mock PDC data for testing
-**Implementation**:
-- 3 test users in mock PDC database
-- Test emails: sarah.johnson@example.com, michael.chen@example.com, emma.wilson@example.com
-- "Fill Test Data" button for development (purple, marked as DEV)
-- Mock data must be replaced with real API integration
-
-### Rule 20: Test Data Limitations
-**Statement**: Test data should not pre-fill SPP-owned fields
-**Implementation**:
-- Test data only fills email and service selections
-- Experience and education remain empty (admin must create)
-- Maintains business rule of SPP data ownership
-
----
-
-## ⚖️ Legal & Compliance Rules
-
-### Rule 21: Legal Responsibility
-**Statement**: SPP organizations are legally responsible for their expert data
-**Implementation**:
-- Clear warnings about legal responsibility
-- SPP data cannot be imported or pre-filled
-- Admin must manually verify and enter all professional data
-- Audit trail requirements for data changes
-
-### Rule 22: Data Accuracy
-**Statement**: SPP admins must ensure data accuracy for legal compliance
-**Implementation**:
-- Manual data entry prevents import errors
-- Required field validation ensures completeness
-- Clear data source labeling prevents confusion
-- Professional data must be verified by SPP admin
-
----
-
-## 🔧 Technical Implementation Rules
-
-### Rule 23: Svelte 5 Runes Usage
-**Statement**: All reactive state must use Svelte 5 runes
-**Implementation**:
-- Use `$state()` for reactive variables
-- Use `$derived()` for computed values
-- Use `$props()` for component props
-- Avoid legacy `$:` syntax
-
-### Rule 24: Accessibility Requirements
-**Statement**: All forms must meet accessibility standards
-**Implementation**:
-- Proper labels for all form fields
-- ARIA attributes where needed
-- Keyboard navigation support
-- Screen reader compatibility
-
-### Rule 25: Responsive Design
+### Rule 15: Responsive Design
 **Statement**: All interfaces must work on mobile and desktop
 **Implementation**:
-- Mobile-first CSS approach
-- Responsive grid layouts
+- Mobile-first CSS approach with Tailwind CSS
+- Responsive grid layouts for expert cards
 - Touch-friendly button sizes
 - Readable text on all screen sizes
 
 ---
 
-## 📊 Data Structure Rules
+## 🔧 Technical Implementation Rules
 
-### Rule 26: Expert Data Structure
-**Statement**: Expert data must follow defined structure
+### Rule 16: Svelte 5 Runes Usage
+**Statement**: All reactive state must use Svelte 5 runes
 **Implementation**:
-```javascript
-{
-  pdcData: {
-    firstName: string,
-    lastName: string,
-    email: string,
-    country: string
-  },
-  services: [
-    {
-      service: string,
-      role: 'regular' | 'lead'
-    }
-  ],
-  experience: [
-    {
-      title: string,
-      company: string,
-      location: string,
-      startDate: string,
-      endDate: string,
-      current: boolean,
-      description: string
-    }
-  ],
-  education: [
-    {
-      school: string,
-      degree: string,
-      field: string,
-      startDate: string,
-      endDate: string,
-      description: string
-    }
-  ]
-}
-```
+- Use `$state()` for reactive variables
+- Use `$derived()` for computed values
+- Use `$effect()` for side effects
+- Use `$props()` for component props
+- Avoid legacy `$:` syntax
+
+### Rule 17: TypeScript Type Safety
+**Statement**: All code must be fully type-safe with no `any` types
+**Implementation**:
+- Strict TypeScript configuration
+- Proper interfaces for all data structures
+- Type-safe Convex queries and mutations
+- End-to-end type safety from database to UI
+
+### Rule 18: Error Handling
+**Statement**: All operations must have proper error handling and user feedback
+**Implementation**:
+- Graceful fallbacks for network errors
+- Clear error messages for users
+- Loading states during async operations
+- Validation errors with actionable feedback
 
 ---
 
-## 🚨 Error Handling Rules
+## 🧪 Development & Testing Rules
 
-### Rule 27: User Not Found Handling
-**Statement**: Graceful handling when PDC user doesn't exist
+### Rule 19: Test Data Seeding
+**Statement**: Development uses comprehensive test data for realistic testing
 **Implementation**:
-- Clear "User Not Found" message
-- Invitation option prominently displayed
-- No error states or broken workflows
-- Positive user experience maintained
+- Three test organizations with different scenarios
+- Sample users with realistic professional data
+- Various expert statuses for testing workflow
+- Easy data reset and reseeding functionality
 
-### Rule 28: Validation Error Display
-**Statement**: Validation errors must be clear and actionable
+### Rule 20: Development Tools
+**Statement**: Development environment must support efficient iteration
 **Implementation**:
-- Required fields marked with asterisks
-- Disabled buttons when requirements not met
-- Clear messaging about what's needed
-- No cryptic error messages
+- Convex test page for database operations
+- Data seeding and clearing functions
+- Real-time query testing
+- Error logging and debugging tools
+
+---
+
+## 🚨 Business Logic Rules
+
+### Rule 21: Organization Approval Requirements
+**Statement**: Organizations must be approved for service versions before expert assignment
+**Implementation**:
+- Expert assignments require valid organization service approval
+- Status checking before allowing expert creation
+- Clear error messages when approvals are missing
+- Workflow prevents invalid assignments
+
+### Rule 22: Expert Assignment Validation
+**Statement**: Expert assignments must have complete required information
+**Implementation**:
+- User, organization, and service version are required
+- Professional experience and education must be provided
+- Assignment metadata must be complete
+- Validation at both UI and database levels
 
 ---
 
 ## 🔮 Future Enhancement Rules
 
-### Rule 29: API Integration Preparation
-**Statement**: Current mock implementation must be replaceable with real APIs
+### Rule 23: API Integration Preparation
+**Statement**: Current implementation must be replaceable with real APIs
 **Implementation**:
-- Mock functions clearly separated
-- API call patterns established
+- Mock functions clearly separated from real logic
+- API call patterns established for easy replacement
 - Error handling prepared for network issues
 - Data transformation ready for real endpoints
 
-### Rule 30: Scalability Considerations
-**Statement**: System must handle growth in users and services
+### Rule 24: Scalability Considerations
+**Statement**: System must handle growth in users, organizations, and services
 **Implementation**:
 - Efficient state management with Svelte stores
 - Component-based architecture for reusability
@@ -340,7 +260,7 @@ The SPP manages **Solution Provider organizations** and their **expert teams** w
 
 ## 📝 Change Management
 
-### Rule 31: Business Rule Updates
+### Rule 25: Business Rule Updates
 **Statement**: All business rule changes must be documented here
 **Implementation**:
 - Update this document when rules change
@@ -348,7 +268,7 @@ The SPP manages **Solution Provider organizations** and their **expert teams** w
 - Communicate changes to development team
 - Maintain rule traceability
 
-### Rule 32: Rule Validation
+### Rule 26: Rule Validation
 **Statement**: All implementations must be validated against these rules
 **Implementation**:
 - Code reviews must check rule compliance
@@ -358,8 +278,8 @@ The SPP manages **Solution Provider organizations** and their **expert teams** w
 
 ---
 
-**Last Updated**: [Current Date]
-**Version**: 1.0
+**Last Updated**: December 2024
+**Version**: 2.0
 **Maintainer**: Development Team
 
-> **Important**: This document is the single source of truth for all business rules in the SPP application. Any changes to application behavior must be reflected here first.
+> **Important**: This document reflects the current implementation of the SPP application with organization switching, service versioning, and workflow management. Any changes to application behavior must be reflected here first.

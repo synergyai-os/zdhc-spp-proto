@@ -23,13 +23,17 @@
 	}
 
 	// Load organizations and initialize organization context
-	const organizations = PUBLIC_CONVEX_URL ? useQuery(api.expertAssignments.getOrganizations, () => ({})) : { data: [], isLoading: false, error: null };
+	const organizations = PUBLIC_CONVEX_URL ? useQuery(api.expertAssignments.getOrganizations, {}) : { data: [], isLoading: false, error: null };
 	
 	// Initialize organization store when organizations are loaded
 	$effect(() => {
 		try {
+			console.log('Organizations query result:', organizations);
 			if (organizations.data && organizations.data.length > 0) {
+				console.log('Setting available organizations:', organizations.data);
 				organizationStore.setAvailableOrganizations(organizations.data);
+			} else {
+				console.log('No organizations data available:', organizations);
 			}
 		} catch (error) {
 			console.error('Error initializing organization store:', error);

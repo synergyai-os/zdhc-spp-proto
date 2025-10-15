@@ -98,6 +98,7 @@ function createOrganizationStore() {
     // Set available organizations (called when data loads from Convex)
     setAvailableOrganizations: (organizations: Organization[]) => {
       try {
+        console.log('Setting available organizations:', organizations);
         update(state => ({
           ...state,
           availableOrganizations: organizations || [],
@@ -105,13 +106,16 @@ function createOrganizationStore() {
         
         // If no current organization is set, try to restore from storage
         const storedOrgId = loadFromStorage();
+        console.log('Stored org ID from localStorage:', storedOrgId);
         if (storedOrgId && organizations && organizations.length > 0) {
           const storedOrg = organizations.find(org => org._id === storedOrgId);
+          console.log('Found stored organization:', storedOrg);
           if (storedOrg) {
             update(state => ({
               ...state,
               currentOrganization: storedOrg,
             }));
+            console.log('Set current organization to:', storedOrg);
           }
         }
       } catch (error) {

@@ -58,6 +58,8 @@ export default defineSchema({
     ),
     approvedAt: v.optional(v.number()),
     approvedBy: v.optional(v.string()), // ZDHC Admin ID
+    rejectedAt: v.optional(v.number()),
+    rejectedBy: v.optional(v.string()), // ZDHC Admin ID
     expiresAt: v.optional(v.number()),
     notes: v.optional(v.string()),
     rejectionReason: v.optional(v.string()),

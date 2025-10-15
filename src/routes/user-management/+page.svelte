@@ -24,6 +24,16 @@
 		() => ({ organizationId: (currentOrgId || "j1j1j1j1j1j1j1j1j1j1j1j1") as any })
 	);
 	
+	// Get organization approvals (same as approved-services page)
+	const organizationApprovals = useQuery(
+		(api as any).serviceVersions.getOrganizationApprovals,
+		() => currentOrgId ? { organizationId: currentOrgId } : { organizationId: "" }
+	);
+	
+	// Get service versions and parents for display
+	const serviceVersions = useQuery((api as any).serviceVersions.getServiceVersions, {});
+	const serviceParents = useQuery((api as any).serviceVersions.getServiceParents, {});
+	
 	// Staff data
 	const staffMembers = [
 		{
@@ -52,42 +62,43 @@
 		}
 	];
 	
-	// Services data
-	const services = [
-		{
-			name: 'ETP Assessment',
-			icon: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-			iconColor: 'green' as const,
-			experts: [
-				{ name: 'Dr. Maria Rodriguez', role: 'Lead Expert', initials: 'MR', isLead: true },
-				{ name: 'Alex Kim', role: 'Senior Expert', initials: 'AK' },
-				{ name: 'Lisa Thompson', role: 'Expert', initials: 'LT' },
-				{ name: 'Robert Brown', role: 'Expert', initials: 'RB' },
-				{ name: 'Emma Wilson', role: 'Junior Expert', initials: 'EW' }
-			]
-		},
-		{
-			name: 'Supplier Assessment',
-			icon: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/></svg>',
-			iconColor: 'purple' as const,
-			experts: [
-				{ name: 'Dr. Maria Rodriguez', role: 'Lead Expert', initials: 'MR', isLead: true },
-				{ name: 'James Smith', role: 'Senior Expert', initials: 'JS' },
-				{ name: 'Alex Kim', role: 'Expert', initials: 'AK', additionalServices: ['ETP'] },
-				{ name: 'Nina Chen', role: 'Expert', initials: 'NC' }
-			]
-		},
-		{
-			name: 'Chemical Management',
-			icon: '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>',
-			iconColor: 'orange' as const,
-			experts: [
-				{ name: 'Dr. David Lee', role: 'Lead Expert', initials: 'DL', isLead: true },
-				{ name: 'Lisa Thompson', role: 'Expert', initials: 'LT', additionalServices: ['ETP'] },
-				{ name: 'Michael Foster', role: 'Expert', initials: 'MF' }
-			]
-		}
-	];
+	// Create approved services for display (same logic as approved-services page)
+	let approvedServicesForDisplay = $derived.by(() => {
+		if (!organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data) return [];
+		
+		// Get approved service version IDs (filter for approved status)
+		const approvedVersionIds = organizationApprovals.data
+			.filter((approval: any) => approval.status === 'approved')
+			.map((approval: any) => approval.serviceVersionId);
+		
+		// Get approved service versions with their parent info
+		const approvedVersions = serviceVersions.data.filter((version: any) => 
+			approvedVersionIds.includes(version._id)
+		);
+		
+		// Group by service parent
+		const groupedByParent = serviceParents.data.map((parent: any) => {
+			const parentVersions = approvedVersions.filter((version: any) => version.parentId === parent._id);
+			return {
+				...parent,
+				versions: parentVersions.map((version: any) => ({
+					...version,
+					// Add experts for this service version (from expert assignments)
+					experts: expertAssignments.data?.filter((assignment: any) => 
+						assignment.serviceVersionId === version._id
+					).map((assignment: any) => ({
+						name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim(),
+						role: 'Expert',
+						initials: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}`,
+						isLead: false,
+						status: assignment.status
+					})) || []
+				}))
+			};
+		}).filter((parent: any) => parent.versions.length > 0);
+		
+		return groupedByParent;
+	});
 	
 	function handleAddStaff() {
 		console.log('Add new staff member');
@@ -201,23 +212,28 @@
 								
 								<div class="space-y-2">
 									<div>
-										<span class="text-xs font-medium text-gray-500">Services:</span>
-										<div class="flex flex-wrap gap-1 mt-1">
-											{#each assignment.services as service}
+										<span class="text-xs font-medium text-gray-500">Service Version:</span>
+										<div class="mt-1">
+											{#if assignment.serviceVersion}
 												<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-													{service}
+													{assignment.serviceVersion.name}
 												</span>
-											{/each}
+											{:else}
+												<span class="text-xs text-gray-500">No service version assigned</span>
+											{/if}
 										</div>
 									</div>
 									
 									<div class="flex items-center justify-between">
 										<span class="px-2 py-1 text-xs rounded-full {
-											assignment.status === 'active' ? 'bg-green-100 text-green-800' :
-											assignment.status === 'certified' ? 'bg-blue-100 text-blue-800' :
-											assignment.status === 'training' ? 'bg-yellow-100 text-yellow-800' :
+											assignment.status === 'approved' ? 'bg-green-100 text-green-800' :
 											assignment.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+											assignment.status === 'paid' ? 'bg-blue-100 text-blue-800' :
+											assignment.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
+											assignment.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
+											assignment.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
 											assignment.status === 'rejected' ? 'bg-red-100 text-red-800' :
+											assignment.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
 											'bg-gray-100 text-gray-800'
 										}">
 											{assignment.status.replace('_', ' ')}
@@ -243,9 +259,121 @@
 				</button>
 			</div>
 			
-			{#each services as service (service.name)}
-				<ServiceBox {service} />
-			{/each}
+			{#if !currentOrgId}
+				<div class="text-center py-8 text-gray-500">
+					<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+					</svg>
+					<p class="text-lg font-medium mb-2">No Organization Selected</p>
+					<p class="text-sm">Select an organization to view approved services</p>
+				</div>
+			{:else if organizationApprovals?.isLoading || serviceVersions?.isLoading || serviceParents?.isLoading}
+				<div class="text-center py-8 text-gray-500">
+					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+					<p>Loading approved services...</p>
+				</div>
+			{:else if organizationApprovals?.error || serviceVersions?.error || serviceParents?.error}
+				<div class="text-center py-8 text-red-500">
+					<p class="text-lg font-medium mb-2">Error loading services</p>
+					<p class="text-sm">{organizationApprovals?.error || serviceVersions?.error || serviceParents?.error}</p>
+				</div>
+			{:else if !organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data}
+				<div class="text-center py-8 text-gray-500">
+					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+					<p>Loading approved services...</p>
+				</div>
+			{:else if approvedServicesForDisplay.length === 0}
+				<div class="text-center py-8 text-gray-500">
+					<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+					</svg>
+					<p class="text-lg font-medium mb-2">No Approved Services</p>
+					<p class="text-sm">This organization has no approved services yet. Go to <a href="/approved-services" class="text-blue-600 hover:underline">Approved Services</a> to manage service approvals.</p>
+				</div>
+			{:else}
+				{#each approvedServicesForDisplay as serviceParent (serviceParent._id)}
+					<div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+						<!-- Service Parent Header -->
+						<div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+							<div class="flex items-center justify-between">
+								<div>
+									<h3 class="text-lg font-semibold text-gray-900">{serviceParent.name}</h3>
+									<p class="text-sm text-gray-600 mt-1">{serviceParent.description}</p>
+								</div>
+								<div class="flex items-center space-x-2">
+									<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+										{serviceParent.versions.length} approved version{serviceParent.versions.length !== 1 ? 's' : ''}
+									</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Service Versions -->
+						<div class="divide-y divide-gray-200">
+							{#each serviceParent.versions as version (version._id)}
+								<div class="px-6 py-4">
+									<div class="flex items-center justify-between mb-4">
+										<div class="flex-1 min-w-0">
+											<div class="flex items-center space-x-3">
+												<h4 class="text-sm font-medium text-gray-900 truncate">
+													{version.name}
+												</h4>
+												<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+													{version.version}
+												</span>
+											</div>
+											<p class="text-sm text-gray-600 mt-1">{version.description}</p>
+										</div>
+									</div>
+									
+									<!-- Experts for this service version -->
+									<div>
+										<div class="flex items-center justify-between mb-3">
+											<span class="text-sm font-medium text-gray-700">Experts ({version.experts.length})</span>
+										</div>
+										
+										{#if version.experts.length === 0}
+											<div class="text-center py-4 text-gray-500">
+												<svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+												</svg>
+												<p class="text-sm">No experts assigned to this service version</p>
+											</div>
+										{:else}
+											<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+												{#each version.experts as expert (expert.name + version._id)}
+													<div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+														<div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-xs">
+															{expert.initials}
+														</div>
+														<div class="flex-1 min-w-0">
+															<p class="text-sm font-medium text-gray-900 truncate">{expert.name}</p>
+															<p class="text-xs text-gray-500">{expert.role}</p>
+														</div>
+														<span class="text-xs px-2 py-1 rounded-full {
+															expert.status === 'approved' ? 'bg-green-100 text-green-800' :
+															expert.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+															expert.status === 'paid' ? 'bg-blue-100 text-blue-800' :
+															expert.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
+															expert.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
+															expert.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
+															expert.status === 'rejected' ? 'bg-red-100 text-red-800' :
+															expert.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+															'bg-gray-100 text-gray-800'
+														}">
+															{expert.status.replace('_', ' ')}
+														</span>
+													</div>
+												{/each}
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			{/if}
 		</div>
 	</div>
 </div>
