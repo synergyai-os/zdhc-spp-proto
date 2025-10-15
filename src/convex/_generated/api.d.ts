@@ -9,6 +9,7 @@
  */
 
 import type * as expertAssignments from "../expertAssignments.js";
+import type * as serviceVersions from "../serviceVersions.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +27,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   expertAssignments: typeof expertAssignments;
+  serviceVersions: typeof serviceVersions;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

@@ -24,6 +24,47 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  // Service Parents table (e.g., "Assessment Approval")
+  serviceParents: defineTable({
+    name: v.string(),
+    description: v.string(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }),
+
+  // Service Versions table (e.g., "Supplier to Zero Assessment V2")
+  serviceVersions: defineTable({
+    parentId: v.id("serviceParents"),
+    version: v.string(), // "V1", "V2", etc.
+    name: v.string(), // "Supplier to Zero Assessment V2"
+    description: v.string(),
+    isActive: v.boolean(),
+    releasedAt: v.number(),
+    deprecatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }),
+
+  // Organization Service Approvals table
+  organizationServiceApprovals: defineTable({
+    organizationId: v.id("organizations"),
+    serviceVersionId: v.id("serviceVersions"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("suspended")
+    ),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.string()), // ZDHC Admin ID
+    expiresAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    rejectionReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }),
+
   // Staff Members table (users with SPP platform access)
   staffMembers: defineTable({
     userId: v.id("users"), // Reference to User
@@ -39,14 +80,14 @@ export default defineSchema({
   expertAssignments: defineTable({
     userId: v.id("users"),
     organizationId: v.id("organizations"),
-    services: v.array(v.string()), // Just service names for now
+    serviceVersionId: v.id("serviceVersions"), // Reference to specific service version
     status: v.union(
       v.literal("draft"),
-      v.literal("submitted"),
-      v.literal("under_review"),
-      v.literal("training"),
-      v.literal("certified"),
-      v.literal("active"),
+      v.literal("paid"),
+      v.literal("ready_for_training"),
+      v.literal("training_started"),
+      v.literal("training_completed"),
+      v.literal("approved"),
       v.literal("rejected"),
       v.literal("inactive")
     ),
@@ -70,6 +111,18 @@ export default defineSchema({
     assignedAt: v.number(),
     assignedBy: v.string(), // User ID who made the assignment
     notes: v.optional(v.string()),
+    
+    // Workflow tracking
+    submittedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    trainingInvitedAt: v.optional(v.number()),
+    trainingStartedAt: v.optional(v.number()),
+    trainingCompletedAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.string()), // ZDHC Admin ID
+    rejectedAt: v.optional(v.number()),
+    rejectedBy: v.optional(v.string()),
+    rejectionReason: v.optional(v.string()),
   }),
 
   // User Sessions table (for organization context switching)

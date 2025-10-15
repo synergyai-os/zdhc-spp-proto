@@ -206,16 +206,22 @@ export const getExpertAssignmentsByOrganizationWithDetails = query({
       .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
       .collect();
     
-    // Enrich with user and organization details
+    // Enrich with user, organization, and service version details
     const enrichedAssignments = await Promise.all(
       assignments.map(async (assignment) => {
         const user = await ctx.db.get(assignment.userId);
         const organization = await ctx.db.get(assignment.organizationId);
+        const serviceVersion = await ctx.db.get(assignment.serviceVersionId);
+        const serviceParent = serviceVersion 
+          ? await ctx.db.get(serviceVersion.parentId)
+          : null;
         
         return {
           ...assignment,
           user,
           organization,
+          serviceVersion,
+          serviceParent,
         };
       })
     );
@@ -229,11 +235,11 @@ export const getExpertAssignmentsByStatus = query({
     organizationId: v.id("organizations"),
     status: v.optional(v.union(
       v.literal("draft"),
-      v.literal("submitted"),
-      v.literal("under_review"),
-      v.literal("training"),
-      v.literal("certified"),
-      v.literal("active"),
+      v.literal("paid"),
+      v.literal("ready_for_training"),
+      v.literal("training_started"),
+      v.literal("training_completed"),
+      v.literal("approved"),
       v.literal("rejected"),
       v.literal("inactive")
     ))
@@ -275,7 +281,7 @@ export const createExpertAssignment = mutation({
   args: {
     userId: v.id("users"),
     organizationId: v.id("organizations"),
-    services: v.array(v.string()),
+    serviceVersionId: v.id("serviceVersions"),
     experience: v.array(v.object({
       title: v.string(),
       company: v.string(),
@@ -297,10 +303,11 @@ export const createExpertAssignment = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
     return await ctx.db.insert("expertAssignments", {
       ...args,
       status: "draft",
-      assignedAt: Date.now(),
+      assignedAt: now,
     });
   },
 });
@@ -310,19 +317,52 @@ export const updateExpertAssignmentStatus = mutation({
     id: v.id("expertAssignments"),
     status: v.union(
       v.literal("draft"),
-      v.literal("submitted"),
-      v.literal("under_review"),
-      v.literal("training"),
-      v.literal("certified"),
-      v.literal("active"),
+      v.literal("paid"),
+      v.literal("ready_for_training"),
+      v.literal("training_started"),
+      v.literal("training_completed"),
+      v.literal("approved"),
       v.literal("rejected"),
       v.literal("inactive")
     ),
+    updatedBy: v.optional(v.string()),
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.patch(args.id, {
+    const now = Date.now();
+    const updateData: any = {
       status: args.status,
-    });
+    };
+
+    // Set appropriate timestamp based on status
+    switch (args.status) {
+      case "paid":
+        updateData.paidAt = now;
+        break;
+      case "ready_for_training":
+        updateData.trainingInvitedAt = now;
+        break;
+      case "training_started":
+        updateData.trainingStartedAt = now;
+        break;
+      case "training_completed":
+        updateData.trainingCompletedAt = now;
+        break;
+      case "approved":
+        updateData.approvedAt = now;
+        if (args.updatedBy) updateData.approvedBy = args.updatedBy;
+        break;
+      case "rejected":
+        updateData.rejectedAt = now;
+        if (args.updatedBy) updateData.rejectedBy = args.updatedBy;
+        break;
+    }
+
+    if (args.notes) {
+      updateData.notes = args.notes;
+    }
+
+    return await ctx.db.patch(args.id, updateData);
   },
 });
 
@@ -432,105 +472,13 @@ export const seedInitialData = mutation({
       joinedAt: now,
     });
 
-    // Create expert assignments
-    const assignment1 = await ctx.db.insert("expertAssignments", {
-      userId: user1,
-      organizationId: org1,
-      services: ["ETP Assessment", "Supplier Assessment"],
-      status: "active",
-      experience: [
-        {
-          title: "Senior Environmental Consultant",
-          company: "TechCorp Solutions",
-          location: "Amsterdam, Netherlands",
-          startDate: "2020-01-01",
-          endDate: "",
-          current: true,
-          description: "Leading environmental assessments and sustainability projects",
-        }
-      ],
-      education: [
-        {
-          school: "University of Amsterdam",
-          degree: "Master of Science",
-          field: "Environmental Science",
-          startDate: "2018-09-01",
-          endDate: "2020-06-30",
-          description: "Specialized in environmental impact assessment",
-        }
-      ],
-      assignedAt: now,
-      assignedBy: user1,
-      notes: "Lead expert for ETP assessments",
-    });
-
-    const assignment2 = await ctx.db.insert("expertAssignments", {
-      userId: user2,
-      organizationId: org2,
-      services: ["Chemical Management", "ETP Assessment"],
-      status: "certified",
-      experience: [
-        {
-          title: "Environmental Manager",
-          company: "Green Consulting Group",
-          location: "Berlin, Germany",
-          startDate: "2019-03-01",
-          endDate: "",
-          current: true,
-          description: "Managing chemical compliance and environmental programs",
-        }
-      ],
-      education: [
-        {
-          school: "Technical University of Berlin",
-          degree: "Bachelor of Engineering",
-          field: "Chemical Engineering",
-          startDate: "2015-10-01",
-          endDate: "2019-07-31",
-          description: "Focus on sustainable chemical processes",
-        }
-      ],
-      assignedAt: now,
-      assignedBy: user2,
-      notes: "Expert in chemical management and ETP assessments",
-    });
-
-    const assignment3 = await ctx.db.insert("expertAssignments", {
-      userId: user3,
-      organizationId: org3,
-      services: ["Supplier Assessment", "Chemical Management"],
-      status: "training",
-      experience: [
-        {
-          title: "Sustainability Consultant",
-          company: "EcoSolutions International",
-          location: "Paris, France",
-          startDate: "2021-06-01",
-          endDate: "",
-          current: true,
-          description: "Specializing in supplier sustainability assessments",
-        }
-      ],
-      education: [
-        {
-          school: "Sorbonne University",
-          degree: "Master of Business Administration",
-          field: "Sustainable Business",
-          startDate: "2019-09-01",
-          endDate: "2021-06-30",
-          description: "MBA with focus on sustainable business practices",
-        }
-      ],
-      assignedAt: now,
-      assignedBy: user3,
-      notes: "Currently undergoing training for supplier assessments",
-    });
-
+    // Note: Expert assignments will be created after service versions are set up
+    // For now, we'll skip creating assignments until we have proper service version IDs
     return {
       users: [user1, user2, user3],
       organizations: [org1, org2, org3],
       staffMembers: [staff1, staff2, staff3],
-      expertAssignments: [assignment1, assignment2, assignment3],
+      expertAssignments: [],
     };
   },
 });
