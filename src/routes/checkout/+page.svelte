@@ -46,6 +46,8 @@
 						: 'Unknown User',
 					userEmail: assignment.user?.email || 'unknown@example.com',
 					isUserVerified: assignment.user?.isActive || false,
+					isProfileComplete: assignment.isProfileComplete || false,
+					profileCompletionStep: assignment.profileCompletionStep || 0,
 					assignments: [],
 					totalPrice: 0
 				});
@@ -66,10 +68,17 @@
 		return Array.from(userGroups.values());
 	});
 	
-	// Initialize checkout store with flattened experts data for selection logic
+	// Separate complete and incomplete profiles
+	let completeProfiles = $derived(groupedExperts.filter(expert => expert.isProfileComplete));
+	let incompleteProfiles = $derived(groupedExperts.filter(expert => !expert.isProfileComplete));
+	
+	// Initialize checkout store with flattened experts data for selection logic (only complete profiles)
 	$effect(() => {
 		if (draftExperts?.data && currentOrgId) {
-			const checkoutExperts: CheckoutExpert[] = draftExperts.data.map((assignment: any) => ({
+			// Only include assignments with complete profiles
+			const completeAssignments = draftExperts.data.filter((assignment: any) => assignment.isProfileComplete);
+			
+			const checkoutExperts: CheckoutExpert[] = completeAssignments.map((assignment: any) => ({
 				assignmentId: assignment._id,
 				userId: assignment.userId,
 				userName: assignment.user 
@@ -168,6 +177,18 @@
 					Add New Expert →
 				</a>
 			</div>
+		{:else if completeProfiles.length === 0}
+			<!-- No Complete Profiles -->
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+				<svg class="w-12 h-12 mx-auto mb-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				</svg>
+				<h2 class="text-xl font-semibold text-gray-800 mb-2">No Complete Profiles</h2>
+				<p class="text-gray-600 mb-4">You have {incompleteProfiles.length} expert{incompleteProfiles.length !== 1 ? 's' : ''} with incomplete profiles. Complete their profiles before proceeding to payment.</p>
+				<a href="/user-management" class="text-blue-600 hover:text-blue-800 font-medium">
+					Complete Profiles →
+				</a>
+			</div>
 		{:else}
 			<!-- Main Checkout Content -->
 			<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -187,6 +208,28 @@
 									<p class="text-sm text-yellow-700 mt-1">
 										{verificationSummary.unverified} expert{verificationSummary.unverified !== 1 ? 's' : ''} need{verificationSummary.unverified === 1 ? 's' : ''} to verify their account before payment can be processed.
 									</p>
+								</div>
+							</div>
+						</div>
+					{/if}
+					
+					<!-- Incomplete Profiles Warning -->
+					{#if incompleteProfiles.length > 0}
+						<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+							<div class="flex items-start">
+								<svg class="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+								</svg>
+								<div>
+									<h3 class="text-sm font-medium text-blue-800">Incomplete Profiles</h3>
+									<p class="text-sm text-blue-700 mt-1">
+										{incompleteProfiles.length} expert{incompleteProfiles.length !== 1 ? 's' : ''} have incomplete profiles and cannot proceed to payment. Complete their profiles first.
+									</p>
+									<div class="mt-2">
+										<a href="/user-management" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+											Complete Profiles →
+										</a>
+									</div>
 								</div>
 							</div>
 						</div>

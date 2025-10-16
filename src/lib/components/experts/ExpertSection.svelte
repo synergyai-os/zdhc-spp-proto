@@ -12,9 +12,11 @@
 		onChatExpert?: (expertId: string) => void;
 		onSendReminder?: (expertId: string) => void;
 		onViewDetails?: (expertId: string) => void;
+		onEditExpert?: (expertId: string) => void;
+		onCompleteProfile?: (expertId: string) => void;
 	}
 	
-	let { organizationId, onAddExpert, onContinueToPayment, onChatExpert, onSendReminder, onViewDetails }: Props = $props();
+	let { organizationId, onAddExpert, onContinueToPayment, onChatExpert, onSendReminder, onViewDetails, onEditExpert, onCompleteProfile }: Props = $props();
 	
 	// View state - always table view
 	let viewMode = $state<'table'>('table');
@@ -153,6 +155,7 @@
 			isLoading={isLoading}
 			onSendReminder={handleSendReminder}
 			onViewDetails={handleViewDetails}
+			onCompleteProfile={onCompleteProfile}
 		/>
 		
 		<!-- Active Experts Table -->
@@ -160,7 +163,7 @@
 			experts={expertsForTable}
 			isLoading={isLoading}
 			error={error}
-			onEditExpert={handleEditExpert}
+			onEditExpert={onEditExpert}
 			onChatExpert={handleChatExpert}
 		/>
 	{/if}

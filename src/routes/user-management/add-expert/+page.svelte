@@ -84,6 +84,12 @@
 	let isDraftMode = $state(false);
 	let invitedUserEmail = $state('');
 	
+	// Draft tracking state
+	let userId = $state<string | null>(null);
+	let draftAssignmentIds = $state<any[]>([]);
+	let isSaving = $state(false);
+	let saveError = $state<string | null>(null);
+	
 	// Professional Experience (SPP-owned data)
 	let experience = $state([
 		{
@@ -168,11 +174,247 @@
 	}
 
 	/**
-	 * Navigate to next step
+	 * Save draft after step 1 - create user record and shell assignments
 	 */
-	function nextStep() {
-		if (currentStep < totalSteps) {
-			currentStep++;
+	async function saveDraftAfterStep1() {
+		if (isSaving) return;
+		
+		try {
+			isSaving = true;
+			saveError = null;
+			
+			if (isDraftMode) {
+				// Create user record for invited user
+				userId = await client.mutation(api.expertAssignments.createUser, {
+					firstName: invitedUserEmail.split('@')[0],
+					lastName: '',
+					email: invitedUserEmail,
+					country: 'Unknown',
+					isActive: false
+				});
+			} else if (pdcUserData) {
+				// Check if user already exists in our database
+				const existingUser = existingUsers?.data?.find(user => user.email.toLowerCase() === pdcUserData!.email.toLowerCase());
+				
+				if (existingUser) {
+					userId = existingUser._id;
+				} else {
+					// Create new user record for PDC user
+					userId = await client.mutation(api.expertAssignments.createUser, {
+						firstName: pdcUserData.firstName,
+						lastName: pdcUserData.lastName,
+						email: pdcUserData.email,
+						country: pdcUserData.country,
+						isActive: true
+					});
+				}
+			} else {
+				throw new Error('No user data found to save');
+			}
+			
+			// Create shell assignment to connect user to organization
+			// This assignment has NO service assigned yet - that happens in step 3
+			if (!currentOrgId) {
+				throw new Error('No organization selected');
+			}
+			
+			// Create a shell assignment without any service
+			// This will be updated in step 3 when actual services are selected
+			const shellAssignment = await client.mutation(api.expertAssignments.createShellAssignment, {
+				userId: userId as Id<"users">,
+				organizationId: currentOrgId as Id<"organizations">,
+				assignedBy: 'current-user-id', // TODO: Get actual user ID
+				notes: 'Shell assignment - services will be assigned in step 3'
+			});
+			
+			draftAssignmentIds = [shellAssignment];
+			console.log('✅ Shell assignment created (no service):', shellAssignment);
+			
+			console.log('✅ User created/saved:', userId);
+		} catch (error) {
+			console.error('Error saving user:', error);
+			saveError = error instanceof Error ? error.message : 'Unknown error';
+			throw error;
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	/**
+	 * Save services step - update shell assignment or create new ones
+	 */
+	async function saveServicesStep() {
+		if (isSaving || !userId || selectedServices.length === 0) return;
+		
+		try {
+			isSaving = true;
+			saveError = null;
+			
+			if (!currentOrgId) {
+				throw new Error('No organization selected');
+			}
+			
+			const serviceAssignments = selectedServices.map(serviceName => {
+				const serviceVersion = serviceVersions?.data?.find((version: any) => version.name === serviceName);
+				if (!serviceVersion) {
+					throw new Error(`Service version not found for: ${serviceName}`);
+				}
+				return {
+					serviceVersionId: serviceVersion._id,
+					role: serviceRoles[serviceName] || 'regular'
+				};
+			});
+			
+			if (draftAssignmentIds.length === 1 && selectedServices.length === 1) {
+				// Update existing shell assignment
+				const serviceVersion = serviceVersions?.data?.find((version: any) => version.name === selectedServices[0]);
+				if (serviceVersion) {
+					await client.mutation(api.expertAssignments.updateExpertAssignmentService, {
+						id: draftAssignmentIds[0] as Id<"expertAssignments">,
+						serviceVersionId: serviceVersion._id,
+						role: serviceRoles[selectedServices[0]] || 'regular',
+						profileCompletionStep: 3
+					});
+					console.log('✅ Shell assignment updated with service:', selectedServices[0]);
+				}
+			} else {
+				// Delete shell assignment and create new ones for multiple services
+				if (draftAssignmentIds.length > 0) {
+					await client.mutation(api.expertAssignments.deleteExpertAssignment, {
+						id: draftAssignmentIds[0] as Id<"expertAssignments">
+					});
+				}
+				
+				draftAssignmentIds = await client.mutation(api.expertAssignments.createExpertAssignmentsForUser, {
+					userId: userId as Id<"users">,
+					organizationId: currentOrgId as Id<"organizations">,
+					serviceAssignments: serviceAssignments,
+					assignedBy: 'current-user-id' // TODO: Get actual user ID
+				});
+				
+				console.log('✅ Services saved, assignment IDs:', draftAssignmentIds);
+			}
+		} catch (error) {
+			console.error('Error saving services:', error);
+			saveError = error instanceof Error ? error.message : 'Unknown error';
+			throw error;
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	/**
+	 * Save experience step
+	 */
+	async function saveExperienceStep() {
+		if (isSaving || draftAssignmentIds.length === 0) return;
+		
+		try {
+			isSaving = true;
+			saveError = null;
+			
+			const experienceData = experience.filter(exp => exp.title.trim() !== '').map(exp => ({
+				title: exp.title,
+				company: exp.company,
+				location: exp.location,
+				startDate: exp.startDate,
+				endDate: exp.endDate,
+				current: exp.current,
+				description: exp.description
+			}));
+			
+			await client.mutation(api.expertAssignments.updateMultipleAssignmentsExperience, {
+				assignmentIds: draftAssignmentIds,
+				experience: experienceData,
+				profileCompletionStep: 4
+			});
+			
+			console.log('✅ Experience saved for assignments:', draftAssignmentIds);
+		} catch (error) {
+			console.error('Error saving experience:', error);
+			saveError = error instanceof Error ? error.message : 'Unknown error';
+			throw error;
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	/**
+	 * Save education step and mark profile as complete
+	 */
+	async function saveEducationStep() {
+		if (isSaving || draftAssignmentIds.length === 0) return;
+		
+		try {
+			isSaving = true;
+			saveError = null;
+			
+			const educationData = education.filter(edu => edu.school.trim() !== '').map(edu => ({
+				school: edu.school,
+				degree: edu.degree,
+				field: edu.field,
+				startDate: edu.startDate,
+				endDate: edu.endDate,
+				description: edu.description
+			}));
+			
+			await client.mutation(api.expertAssignments.updateMultipleAssignmentsEducation, {
+				assignmentIds: draftAssignmentIds,
+				education: educationData,
+				profileCompletionStep: 5,
+				isProfileComplete: true
+			});
+			
+			console.log('✅ Education saved, profile complete for assignments:', draftAssignmentIds);
+			
+			// Store expert name for success page
+			const expertDisplayName = isDraftMode 
+				? invitedUserEmail 
+				: `${pdcUserData?.firstName} ${pdcUserData?.lastName}`.trim();
+			
+			if (typeof window !== 'undefined') {
+				localStorage.setItem('spp_last_added_expert', expertDisplayName);
+			}
+			
+			// Navigate to success page
+			window.location.href = '/user-management/add-expert/success';
+		} catch (error) {
+			console.error('Error saving education:', error);
+			saveError = error instanceof Error ? error.message : 'Unknown error';
+			throw error;
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	/**
+	 * Navigate to next step with auto-save
+	 */
+	async function nextStep() {
+		if (isSaving) return; // Prevent double-clicks
+		
+		try {
+			saveError = null;
+			
+			// Save based on current step before advancing
+			if (currentStep === 1 && canProceedFromStep1) {
+				await saveDraftAfterStep1();
+			} else if (currentStep === 3 && canProceedFromStep3) {
+				await saveServicesStep();
+			} else if (currentStep === 4 && canProceedFromStep4) {
+				await saveExperienceStep();
+			} else if (currentStep === 5 && canProceedFromStep5) {
+				await saveEducationStep();
+				// Navigation handled in saveEducationStep()
+				return;
+			}
+			
+			if (currentStep < totalSteps) {
+				currentStep++;
+			}
+		} catch (error) {
+			console.error('Save failed:', error);
+			// saveError is already set in the save functions
 		}
 	}
 
@@ -262,110 +504,21 @@
 	}
 
 
-	/**
-	 * Save expert (final step)
-	 */
-	async function saveExpert() {
-		try {
-			let userId: any;
-			
-			if (isDraftMode) {
-				// In draft mode, create a new user with the invited email
-				// In a real app, this would be a placeholder until the user accepts the invitation
-				userId = await client.mutation(api.expertAssignments.createUser, {
-					firstName: invitedUserEmail.split('@')[0], // Use email prefix as first name
-					lastName: '', // Empty last name for invited users
-					email: invitedUserEmail,
-					country: 'Unknown' // Placeholder until user completes registration
-				});
-			} else if (pdcUserData) {
-				// Normal flow: check if user already exists in database
-				const existingUser = existingUsers?.data?.find(user => user.email.toLowerCase() === pdcUserData!.email.toLowerCase());
-				
-				if (existingUser) {
-					// Use existing user ID
-					userId = existingUser._id;
-				} else {
-					// Create new user in Convex
-					userId = await client.mutation(api.expertAssignments.createUser, {
-						firstName: pdcUserData.firstName,
-						lastName: pdcUserData.lastName,
-						email: pdcUserData.email,
-						country: pdcUserData.country
-					});
-				}
-			} else {
-				alert('Error: No user data found');
-				return;
-			}
-
-		// Use the currently selected organization
-		if (!currentOrgId) {
-			alert('Error: No organization selected. Please select an organization from the header dropdown.');
-			return;
-		}
-		const orgId = currentOrgId as Id<"organizations">;
-
-			// Create expert assignments for each selected service
-			const assignmentIds = [];
-			for (const serviceName of selectedServices) {
-				// Find the service version ID for this service name
-				const serviceVersion = serviceVersions?.data?.find((version: any) => version.name === serviceName);
-				if (serviceVersion) {
-					const assignmentId = await client.mutation(api.expertAssignments.createExpertAssignment, {
-						userId: userId,
-						organizationId: orgId,
-						serviceVersionId: serviceVersion._id,
-						role: serviceRoles[serviceName] || 'regular', // Use selected role or default to regular
-						experience: experience.filter(exp => exp.title.trim() !== '').map(exp => ({
-							title: exp.title,
-							company: exp.company,
-							location: exp.location,
-							startDate: exp.startDate,
-							endDate: exp.endDate,
-							current: exp.current,
-							description: exp.description
-						})),
-						education: education.filter(edu => edu.school.trim() !== '').map(edu => ({
-							school: edu.school,
-							degree: edu.degree,
-							field: edu.field,
-							startDate: edu.startDate,
-							endDate: edu.endDate,
-							description: edu.description
-						})),
-						assignedBy: 'current-user-id', // TODO: Get actual user ID
-						notes: `Expert added via wizard on ${new Date().toLocaleDateString()}`
-					});
-					assignmentIds.push(assignmentId);
-				}
-			}
-
-			console.log('💾 Expert saved successfully with assignment IDs:', assignmentIds);
-			
-			// Store expert name for success page
-			const expertDisplayName = isDraftMode 
-				? invitedUserEmail 
-				: `${pdcUserData?.firstName} ${pdcUserData?.lastName}`.trim();
-			
-			if (typeof window !== 'undefined') {
-				localStorage.setItem('spp_last_added_expert', expertDisplayName);
-			}
-			
-			// Navigate to success page
-			window.location.href = '/user-management/add-expert/success';
-		} catch (error: any) {
-			console.error('Error saving expert:', error);
-			alert(`Error saving expert: ${error.message}`);
-		}
-	}
 
 	/**
 	 * Cancel and go back
 	 */
 	function handleCancel() {
-		if (confirm('Are you sure? All progress will be lost.')) {
-			window.history.back();
+		if (userId) {
+			// If user has been created, progress is saved
+			if (confirm('Your progress has been saved. You can continue editing this expert profile at any time from the User Management page. Are you sure you want to leave?')) {
+				window.history.back();
+			}
+		} else {
+			// If no user created yet, warn about losing progress
+			if (confirm('Are you sure? All progress will be lost.')) {
+				window.history.back();
+			}
 		}
 	}
 
@@ -478,6 +631,21 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- Save Error Display -->
+		{#if saveError}
+			<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+				<div class="flex items-center">
+					<svg class="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+					</svg>
+					<div>
+						<h3 class="text-sm font-medium text-red-800">Save Error</h3>
+						<p class="text-sm text-red-700 mt-1">{saveError}</p>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Step Content -->
 		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -1046,23 +1214,32 @@
 						type="button"
 						onclick={nextStep}
 						disabled={
+							isSaving ||
 							(currentStep === 1 && !canProceedFromStep1) ||
 							(currentStep === 2 && !canProceedFromStep2) ||
 							(currentStep === 3 && !canProceedFromStep3) ||
 							(currentStep === 4 && !canProceedFromStep4)
 						}
-						class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+						class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
 					>
-						Next →
+						{#if isSaving}
+							<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+							Saving...
+						{:else}
+							Next →
+						{/if}
 					</button>
 				{:else}
 					<button
 						type="button"
-						onclick={saveExpert}
-						disabled={!canProceedFromStep5}
-						class="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+						onclick={nextStep}
+						disabled={isSaving || !canProceedFromStep5}
+						class="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
 					>
-						{#if isDraftMode}
+						{#if isSaving}
+							<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+							Completing...
+						{:else if isDraftMode}
 							📧 Save Draft & Send Invitation
 						{:else}
 							💾 Save Expert

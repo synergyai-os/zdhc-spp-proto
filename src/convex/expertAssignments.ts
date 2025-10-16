@@ -12,13 +12,6 @@ export const getUsers = query({
   },
 });
 
-export const getUserById = query({
-  args: { id: v.id("users") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
-  },
-});
-
 export const createUser = mutation({
   args: {
     firstName: v.string(),
@@ -26,12 +19,13 @@ export const createUser = mutation({
     email: v.string(),
     country: v.string(),
     phone: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     return await ctx.db.insert("users", {
       ...args,
-      isActive: true,
+      isActive: args.isActive ?? true, // Default to true if not specified
       createdAt: now,
       updatedAt: now,
     });
@@ -319,18 +313,12 @@ export const getExpertAssignmentsByStatusWithDetails = query({
   },
 });
 
-export const getExpertAssignmentById = query({
-  args: { id: v.id("expertAssignments") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
-  },
-});
 
 export const createExpertAssignment = mutation({
   args: {
     userId: v.id("users"),
     organizationId: v.id("organizations"),
-    serviceVersionId: v.id("serviceVersions"),
+    serviceVersionId: v.optional(v.id("serviceVersions")), // Now optional for shell assignments
     role: v.optional(v.union(v.literal("lead"), v.literal("regular"))),
     experience: v.array(v.object({
       title: v.string(),
@@ -351,6 +339,8 @@ export const createExpertAssignment = mutation({
     })),
     assignedBy: v.string(),
     notes: v.optional(v.string()),
+    profileCompletionStep: v.optional(v.number()),
+    isProfileComplete: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -358,6 +348,8 @@ export const createExpertAssignment = mutation({
       ...args,
       status: "draft",
       assignedAt: now,
+      profileCompletionStep: args.profileCompletionStep ?? (args.serviceVersionId ? 3 : 2), // Default based on whether service is assigned
+      isProfileComplete: args.isProfileComplete ?? false,
     });
   },
 });
@@ -420,6 +412,249 @@ export const deleteExpertAssignment = mutation({
   args: { id: v.id("expertAssignments") },
   handler: async (ctx, args) => {
     return await ctx.db.delete(args.id);
+  },
+});
+
+export const createShellAssignment = mutation({
+  args: {
+    userId: v.id("users"),
+    organizationId: v.id("organizations"),
+    assignedBy: v.string(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    
+    // Get the first available service version for this organization as a placeholder
+    // We'll update this to the actual selected service in step 3
+    const firstServiceVersion = await ctx.db
+      .query("serviceVersions")
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+    
+    if (!firstServiceVersion) {
+      throw new Error("No service versions available for shell assignment");
+    }
+    
+    return await ctx.db.insert("expertAssignments", {
+      userId: args.userId,
+      organizationId: args.organizationId,
+      serviceVersionId: firstServiceVersion._id, // Use first available service as placeholder
+      role: "regular",
+      experience: [],
+      education: [],
+      assignedBy: args.assignedBy,
+      notes: args.notes || "Shell assignment - services will be assigned in step 3",
+      status: "draft",
+      assignedAt: now,
+      profileCompletionStep: 2, // Step 2 (confirmation completed)
+      isProfileComplete: false,
+    });
+  },
+});
+
+export const updateExpertAssignmentService = mutation({
+  args: {
+    id: v.id("expertAssignments"),
+    serviceVersionId: v.optional(v.id("serviceVersions")),
+    role: v.optional(v.union(v.literal("lead"), v.literal("regular"))),
+    profileCompletionStep: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const updateData: any = {
+      updatedAt: Date.now(),
+    };
+    
+    if (args.serviceVersionId !== undefined) {
+      updateData.serviceVersionId = args.serviceVersionId;
+    }
+    
+    if (args.role !== undefined) {
+      updateData.role = args.role;
+    }
+    
+    if (args.profileCompletionStep !== undefined) {
+      updateData.profileCompletionStep = args.profileCompletionStep;
+    }
+
+    return await ctx.db.patch(args.id, updateData);
+  },
+});
+
+export const getExpertAssignmentById = query({
+  args: { id: v.id("expertAssignments") },
+  handler: async (ctx, args) => {
+    const assignment = await ctx.db.get(args.id);
+    if (!assignment) return null;
+    
+    // Get related data
+    const user = await ctx.db.get(assignment.userId);
+    const serviceVersion = await ctx.db.get(assignment.serviceVersionId);
+    const organization = await ctx.db.get(assignment.organizationId);
+    
+    return {
+      ...assignment,
+      user,
+      serviceVersion,
+      organization,
+      services: serviceVersion ? [{
+        name: serviceVersion.name,
+        isLead: assignment.role === 'lead'
+      }] : []
+    };
+  },
+});
+
+export const getUserById = query({
+  args: { id: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+// ==========================================
+// DRAFT PROFILE MANAGEMENT FUNCTIONS
+// ==========================================
+
+export const createExpertAssignmentsForUser = mutation({
+  args: {
+    userId: v.id("users"),
+    organizationId: v.id("organizations"),
+    serviceAssignments: v.array(v.object({
+      serviceVersionId: v.id("serviceVersions"),
+      role: v.union(v.literal("lead"), v.literal("regular"))
+    })),
+    assignedBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const assignmentIds = [];
+    
+    for (const serviceAssignment of args.serviceAssignments) {
+      const assignmentId = await ctx.db.insert("expertAssignments", {
+        userId: args.userId,
+        organizationId: args.organizationId,
+        serviceVersionId: serviceAssignment.serviceVersionId,
+        role: serviceAssignment.role,
+        experience: [],
+        education: [],
+        assignedBy: args.assignedBy,
+        status: "draft",
+        assignedAt: now,
+        profileCompletionStep: 3, // Services selected
+        isProfileComplete: false,
+      });
+      assignmentIds.push(assignmentId);
+    }
+    
+    return assignmentIds;
+  },
+});
+
+export const updateExpertAssignmentExperience = mutation({
+  args: {
+    assignmentId: v.id("expertAssignments"),
+    experience: v.array(v.object({
+      title: v.string(),
+      company: v.string(),
+      location: v.string(),
+      startDate: v.string(),
+      endDate: v.string(),
+      current: v.boolean(),
+      description: v.string(),
+    })),
+    profileCompletionStep: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.patch(args.assignmentId, {
+      experience: args.experience,
+      profileCompletionStep: args.profileCompletionStep,
+    });
+  },
+});
+
+export const updateExpertAssignmentEducation = mutation({
+  args: {
+    assignmentId: v.id("expertAssignments"),
+    education: v.array(v.object({
+      school: v.string(),
+      degree: v.string(),
+      field: v.string(),
+      startDate: v.string(),
+      endDate: v.string(),
+      description: v.string(),
+    })),
+    profileCompletionStep: v.number(),
+    isProfileComplete: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.patch(args.assignmentId, {
+      education: args.education,
+      profileCompletionStep: args.profileCompletionStep,
+      isProfileComplete: args.isProfileComplete,
+    });
+  },
+});
+
+export const updateMultipleAssignmentsExperience = mutation({
+  args: {
+    assignmentIds: v.array(v.id("expertAssignments")),
+    experience: v.array(v.object({
+      title: v.string(),
+      company: v.string(),
+      location: v.string(),
+      startDate: v.string(),
+      endDate: v.string(),
+      current: v.boolean(),
+      description: v.string(),
+    })),
+    profileCompletionStep: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const results = await Promise.all(
+      args.assignmentIds.map(id => ctx.db.patch(id, {
+        experience: args.experience,
+        profileCompletionStep: args.profileCompletionStep,
+      }))
+    );
+    
+    return {
+      success: true,
+      updatedCount: results.length,
+      profileCompletionStep: args.profileCompletionStep,
+    };
+  },
+});
+
+export const updateMultipleAssignmentsEducation = mutation({
+  args: {
+    assignmentIds: v.array(v.id("expertAssignments")),
+    education: v.array(v.object({
+      school: v.string(),
+      degree: v.string(),
+      field: v.string(),
+      startDate: v.string(),
+      endDate: v.string(),
+      description: v.string(),
+    })),
+    profileCompletionStep: v.number(),
+    isProfileComplete: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const results = await Promise.all(
+      args.assignmentIds.map(id => ctx.db.patch(id, {
+        education: args.education,
+        profileCompletionStep: args.profileCompletionStep,
+        isProfileComplete: args.isProfileComplete,
+      }))
+    );
+    
+    return {
+      success: true,
+      updatedCount: results.length,
+      profileCompletionStep: args.profileCompletionStep,
+      isProfileComplete: args.isProfileComplete,
+    };
   },
 });
 

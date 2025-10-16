@@ -115,6 +115,10 @@ export default defineSchema({
     assignedBy: v.string(), // User ID who made the assignment
     notes: v.optional(v.string()),
     
+    // Profile completion tracking
+    profileCompletionStep: v.optional(v.number()), // Track which step (1-5) completed
+    isProfileComplete: v.optional(v.boolean()), // True only when all 5 steps done
+    
     // Workflow tracking
     submittedAt: v.optional(v.number()),
     paidAt: v.optional(v.number()),

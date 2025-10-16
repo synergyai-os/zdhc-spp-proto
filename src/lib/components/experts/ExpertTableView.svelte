@@ -2,6 +2,14 @@
 	import type { ExpertTableRow } from '$lib/stores/experts.svelte';
 	import { getStatusColor, getPaymentStatusColor } from '$lib/stores/experts.svelte';
 	
+	function getProfileStatusText(expert: ExpertTableRow): string {
+		if (expert.isProfileComplete) return 'Complete';
+		if (expert.profileCompletionStep) {
+			return `Step ${expert.profileCompletionStep}/5`;
+		}
+		return 'Not Started';
+	}
+	
 	interface Props {
 		experts: ExpertTableRow[];
 		isLoading?: boolean;
@@ -61,6 +69,9 @@
 							Services
 						</th>
 						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+							Profile Status
+						</th>
+						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 							Status
 						</th>
 						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -108,9 +119,15 @@
 								<div class="flex flex-wrap gap-1">
 									{#each expert.services as service}
 										<div class="flex items-center gap-1">
-											<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-												{service.name}
-											</span>
+											{#if service.name === 'Awaiting service selection'}
+												<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+													Awaiting service selection
+												</span>
+											{:else}
+												<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+													{service.name}
+												</span>
+											{/if}
 											{#if service.isLead}
 												<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800">
 													L
@@ -122,6 +139,28 @@
 								<div class="text-xs text-gray-500 mt-1">
 									{expert.totalAssignments} assignment{expert.totalAssignments !== 1 ? 's' : ''}
 								</div>
+							</td>
+							
+							<!-- Profile Status -->
+							<td class="px-6 py-4 whitespace-nowrap">
+								{#if expert.isProfileComplete}
+									<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+										Complete
+									</span>
+								{:else if expert.profileCompletionStep}
+									<div class="space-y-1">
+										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+											Draft
+										</span>
+										<div class="text-xs text-gray-500">
+											{getProfileStatusText(expert)}
+										</div>
+									</div>
+								{:else}
+									<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+										Not Started
+									</span>
+								{/if}
 							</td>
 							
 							<!-- Current Status -->
@@ -186,6 +225,8 @@
 			<div class="flex items-center justify-between text-sm text-gray-600">
 				<span>Showing {experts.length} expert{experts.length !== 1 ? 's' : ''}</span>
 				<div class="flex items-center space-x-4">
+					<span>Complete profiles: {experts.filter(e => e.isProfileComplete).length}</span>
+					<span>Draft profiles: {experts.filter(e => !e.isProfileComplete && e.profileCompletionStep).length}</span>
 					<span>LEAD experts: {experts.filter(e => e.hasLeadRole).length}</span>
 					<span>Paid: {experts.filter(e => e.paymentStatus === 'paid').length}</span>
 				</div>

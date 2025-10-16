@@ -22,6 +22,12 @@
 	const users = useQuery(api.expertAssignments.getUsers, () => ({}));
 	const organizations = useQuery(api.expertAssignments.getOrganizations, () => ({}));
 	
+	// Get expert assignments for services section
+	const expertAssignments = useQuery(
+		api.expertAssignments.getExpertAssignmentsByOrganizationWithDetails, 
+		() => ({ organizationId: (currentOrgId || "j1j1j1j1j1j1j1j1j1j1j1j1") as any })
+	);
+	
 	// Get organization approvals (same as approved-services page)
 	const organizationApprovals = useQuery(
 		(api as any).serviceVersions.getOrganizationApprovals,
@@ -92,8 +98,16 @@
 				...parent,
 				versions: parentVersions.map((version: any) => ({
 					...version,
-					// Experts will be loaded separately in the ExpertSection component
-					experts: []
+					// Add experts for this service version (from expert assignments)
+					experts: expertAssignments.data?.filter((assignment: any) => 
+						assignment.serviceVersionId === version._id
+					).map((assignment: any) => ({
+						name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim(),
+						role: assignment.role === 'lead' ? 'Lead Expert' : 'Expert',
+						initials: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}`,
+						isLead: assignment.role === 'lead',
+						status: assignment.status
+					})) || []
 				}))
 			};
 		}).filter((parent: any) => parent.versions.length > 0);
@@ -128,6 +142,14 @@
 	function handleViewDetails(expertId: string) {
 		console.log('View details for expert:', expertId);
 		// TODO: Implement view details functionality
+	}
+	
+	function handleEditExpert(expertId: string) {
+		window.location.href = `/user-management/experts/${expertId}/edit`;
+	}
+	
+	function handleCompleteProfile(expertId: string) {
+		window.location.href = `/user-management/experts/${expertId}/edit`;
 	}
 </script>
 
@@ -211,6 +233,8 @@
 				onChatExpert={handleChatExpert}
 				onSendReminder={handleSendReminder}
 				onViewDetails={handleViewDetails}
+				onEditExpert={handleEditExpert}
+				onCompleteProfile={handleCompleteProfile}
 			/>
 		{/if}
 

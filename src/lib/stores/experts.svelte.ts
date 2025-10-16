@@ -44,6 +44,9 @@ export interface ExpertAssignment {
   assignedAt: number;
   assignedBy: string;
   notes?: string;
+  // Profile completion tracking
+  profileCompletionStep?: number;
+  isProfileComplete?: boolean;
   // Workflow tracking
   submittedAt?: number;
   paidAt?: number;
@@ -58,6 +61,10 @@ export interface ExpertAssignment {
   // Populated fields from Convex queries
   user?: ExpertUser;
   serviceVersion?: ServiceVersion;
+  organization?: {
+    _id: Id<"organizations">;
+    name: string;
+  };
 }
 
 export interface ServiceVersion {
@@ -104,6 +111,10 @@ export interface ExpertTableRow {
   nextAction: string;
   hasLeadRole: boolean;
   totalAssignments: number;
+  // Profile completion tracking
+  isProfileComplete?: boolean;
+  profileCompletionStep?: number;
+  isActive?: boolean; // User's active status
 }
 
 // ==========================================
@@ -261,17 +272,31 @@ export const expertsTableData = derived(
           nextAction: getNextAction(assignment),
           hasLeadRole: assignment.role === 'lead',
           totalAssignments: 0,
+          // Profile completion tracking
+          isProfileComplete: assignment.isProfileComplete,
+          profileCompletionStep: assignment.profileCompletionStep,
+          isActive: assignment.user?.isActive,
         });
       }
       
       const row = userGroups.get(userId)!;
       const serviceVersion = $store.serviceVersions.find(sv => sv._id === assignment.serviceVersionId);
       
-      if (serviceVersion) {
+      // Check if this is a shell assignment (has a service but profileCompletionStep is 2)
+      const isShellAssignment = assignment.profileCompletionStep === 2 && !assignment.experience?.length && !assignment.education?.length;
+      
+      if (serviceVersion && !isShellAssignment) {
         row.services.push({
           name: serviceVersion.name,
           isLead: assignment.role === 'lead',
           status: assignment.status,
+        });
+      } else {
+        // Handle shell assignments (has placeholder service but not actually selected)
+        row.services.push({
+          name: 'Awaiting service selection',
+          isLead: false,
+          status: 'pending_service',
         });
       }
       
@@ -328,17 +353,31 @@ export const pendingVerificationData = derived(
           nextAction: 'Verify PDC Account',
           hasLeadRole: assignment.role === 'lead',
           totalAssignments: 0,
+          // Profile completion tracking
+          isProfileComplete: assignment.isProfileComplete,
+          profileCompletionStep: assignment.profileCompletionStep,
+          isActive: assignment.user?.isActive,
         });
       }
       
       const row = userGroups.get(userId)!;
       const serviceVersion = $store.serviceVersions.find(sv => sv._id === assignment.serviceVersionId);
       
-      if (serviceVersion) {
+      // Check if this is a shell assignment (has a service but profileCompletionStep is 2)
+      const isShellAssignment = assignment.profileCompletionStep === 2 && !assignment.experience?.length && !assignment.education?.length;
+      
+      if (serviceVersion && !isShellAssignment) {
         row.services.push({
           name: serviceVersion.name,
           isLead: assignment.role === 'lead',
           status: 'pending_verification',
+        });
+      } else {
+        // Handle shell assignments (has placeholder service but not actually selected)
+        row.services.push({
+          name: 'Awaiting service selection',
+          isLead: false,
+          status: 'pending_service',
         });
       }
       
@@ -354,9 +393,12 @@ export const pendingVerificationData = derived(
 // ==========================================
 
 function isUserVerified(assignment: ExpertAssignment): boolean {
-  // For now, we'll consider users verified if they have a status beyond 'draft'
-  // In the future, this could check against PDC API or a verification flag
-  return assignment.status !== 'draft' || assignment.user?.isActive === true;
+  // Active users show in main table regardless of draft status
+  if (assignment.user?.isActive === true) {
+    return true;
+  }
+  // Inactive users (invited, not verified) always show in pending section
+  return false;
 }
 
 function getStatusPriority(status: string): number {
