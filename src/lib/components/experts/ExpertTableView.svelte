@@ -1,4 +1,3 @@
-/// file: src/lib/components/experts/ExpertTableView.svelte
 <script lang="ts">
 	import type { ExpertTableRow } from '$lib/stores/experts.svelte';
 	import { getStatusColor, getPaymentStatusColor } from '$lib/stores/experts.svelte';
@@ -8,12 +7,17 @@
 		isLoading?: boolean;
 		error?: string | null;
 		onEditExpert?: (expertId: string) => void;
+		onChatExpert?: (expertId: string) => void;
 	}
 	
-	let { experts, isLoading = false, error = null, onEditExpert }: Props = $props();
+	let { experts, isLoading = false, error = null, onEditExpert, onChatExpert }: Props = $props();
 	
 	function handleEditExpert(expertId: string) {
 		onEditExpert?.(expertId);
+	}
+	
+	function handleChatExpert(expertId: string) {
+		onChatExpert?.(expertId);
 	}
 </script>
 
@@ -143,16 +147,33 @@
 							
 							<!-- Actions -->
 							<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-								<button
-									type="button"
-									onclick={() => handleEditExpert(expert.id)}
-									class="text-gray-400 hover:text-gray-600 transition-colors"
-									title="Edit Expert"
-								>
-									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-									</svg>
-								</button>
+								<div class="flex items-center justify-end space-x-2">
+									<!-- Chat Icon -->
+									<button
+										type="button"
+										onclick={() => handleChatExpert(expert.id)}
+										class="relative text-gray-400 hover:text-gray-600 transition-colors"
+										title="Chat with Expert"
+									>
+										<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+										</svg>
+										<!-- Future: Chat bubble notification -->
+										<!-- <span class="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">3</span> -->
+									</button>
+									
+									<!-- Edit Icon -->
+									<button
+										type="button"
+										onclick={() => handleEditExpert(expert.id)}
+										class="text-gray-400 hover:text-gray-600 transition-colors"
+										title="Edit Expert"
+									>
+										<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+										</svg>
+									</button>
+								</div>
 							</td>
 						</tr>
 					{/each}

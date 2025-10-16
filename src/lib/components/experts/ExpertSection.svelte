@@ -1,21 +1,23 @@
-/// file: src/lib/components/experts/ExpertSection.svelte
 <script lang="ts">
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
-	import { expertStore, expertsGroupedByUser, expertsTableData } from '$lib/stores/experts.svelte';
-	import ExpertCardView from './ExpertCardView.svelte';
+	import { expertStore, expertsTableData, pendingVerificationData } from '$lib/stores/experts.svelte';
 	import ExpertTableView from './ExpertTableView.svelte';
+	import PendingVerificationSection from './PendingVerificationSection.svelte';
 	
 	interface Props {
 		organizationId: string | null;
 		onAddExpert?: () => void;
 		onContinueToPayment?: () => void;
+		onChatExpert?: (expertId: string) => void;
+		onSendReminder?: (expertId: string) => void;
+		onViewDetails?: (expertId: string) => void;
 	}
 	
-	let { organizationId, onAddExpert, onContinueToPayment }: Props = $props();
+	let { organizationId, onAddExpert, onContinueToPayment, onChatExpert, onSendReminder, onViewDetails }: Props = $props();
 	
-	// View state
-	let viewMode = $state<'cards' | 'table'>('cards');
+	// View state - always table view
+	let viewMode = $state<'table'>('table');
 	
 	// Get expert assignments data
 	const expertAssignments = useQuery(
@@ -30,7 +32,7 @@
 	// Update expert store when data changes
 	$effect(() => {
 		if (expertAssignments?.data) {
-			expertStore.setExpertAssignments(expertAssignments.data);
+			expertStore.setExpertAssignments(expertAssignments.data as any);
 		}
 		if (serviceVersions?.data) {
 			expertStore.setServiceVersions(serviceVersions.data);
@@ -48,20 +50,38 @@
 		);
 		
 		// Set error state
-		const error = expertAssignments?.error || serviceVersions?.error || serviceParents?.error;
+		const error = expertAssignments?.error?.message || serviceVersions?.error?.message || serviceParents?.error?.message || null;
 		expertStore.setError(error);
 	});
 	
 	// Derived data
-	let expertsForCards = $derived($expertsGroupedByUser);
 	let expertsForTable = $derived($expertsTableData);
+	let pendingExperts = $derived($pendingVerificationData);
 	let isLoading = $derived(expertAssignments?.isLoading || serviceVersions?.isLoading || serviceParents?.isLoading || false);
-	let error = $derived(expertAssignments?.error || serviceVersions?.error || serviceParents?.error || null);
+	let error = $derived(expertAssignments?.error?.message || serviceVersions?.error?.message || serviceParents?.error?.message || null);
 	
 	// Event handlers
 	function handleEditExpert(expertId: string) {
 		console.log('Edit expert:', expertId);
 		// TODO: Implement edit functionality
+	}
+	
+	function handleChatExpert(expertId: string) {
+		console.log('Chat with expert:', expertId);
+		onChatExpert?.(expertId);
+		// TODO: Implement chat functionality
+	}
+	
+	function handleSendReminder(expertId: string) {
+		console.log('Send verification reminder to expert:', expertId);
+		onSendReminder?.(expertId);
+		// TODO: Implement reminder functionality
+	}
+	
+	function handleViewDetails(expertId: string) {
+		console.log('View details for expert:', expertId);
+		onViewDetails?.(expertId);
+		// TODO: Implement view details functionality
 	}
 	
 	function handleAddExpert() {
@@ -72,9 +92,6 @@
 		onContinueToPayment?.();
 	}
 	
-	function toggleViewMode() {
-		viewMode = viewMode === 'cards' ? 'table' : 'cards';
-	}
 </script>
 
 <div class="space-y-6">
@@ -92,40 +109,8 @@
 		</div>
 		
 		<div class="flex items-center space-x-3">
-			<!-- View Toggle -->
-			<div class="bg-white border border-gray-200 rounded-lg p-1 inline-flex">
-				<button
-					type="button"
-					onclick={() => viewMode = 'cards'}
-					class="px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 {
-						viewMode === 'cards' 
-							? 'bg-blue-500 text-white shadow-sm' 
-							: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-					}"
-					title="Card View"
-				>
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-					</svg>
-				</button>
-				<button
-					type="button"
-					onclick={() => viewMode = 'table'}
-					class="px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 {
-						viewMode === 'table' 
-							? 'bg-blue-500 text-white shadow-sm' 
-							: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-					}"
-					title="Table View"
-				>
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-					</svg>
-				</button>
-			</div>
-			
 			<!-- Action Buttons -->
-			{#if organizationId && expertsForCards.length > 0}
+			{#if organizationId && expertsForTable.length > 0}
 				<button 
 					onclick={handleContinueToPayment}
 					class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
@@ -145,10 +130,9 @@
 	<!-- Expert Count Info -->
 	{#if organizationId && !isLoading && !error}
 		<div class="text-sm text-gray-500">
-			{#if viewMode === 'cards'}
-				Total: {expertsForCards.length} expert{expertsForCards.length !== 1 ? 's' : ''}
-			{:else}
-				Total: {expertsForTable.length} expert{expertsForTable.length !== 1 ? 's' : ''}
+			Active: {expertsForTable.length} expert{expertsForTable.length !== 1 ? 's' : ''}
+			{#if pendingExperts.length > 0}
+				• Pending Verification: {pendingExperts.length} expert{pendingExperts.length !== 1 ? 's' : ''}
 			{/if}
 		</div>
 	{/if}
@@ -162,19 +146,22 @@
 			<p class="text-lg font-medium mb-2">No Organization Selected</p>
 			<p class="text-sm">Use the organization switcher in the header to select an organization</p>
 		</div>
-	{:else if viewMode === 'cards'}
-		<ExpertCardView 
-			experts={expertsForCards}
-			isLoading={isLoading}
-			error={error}
-			onEditExpert={handleEditExpert}
-		/>
 	{:else}
+		<!-- Pending Verification Section -->
+		<PendingVerificationSection 
+			experts={pendingExperts}
+			isLoading={isLoading}
+			onSendReminder={handleSendReminder}
+			onViewDetails={handleViewDetails}
+		/>
+		
+		<!-- Active Experts Table -->
 		<ExpertTableView 
 			experts={expertsForTable}
 			isLoading={isLoading}
 			error={error}
 			onEditExpert={handleEditExpert}
+			onChatExpert={handleChatExpert}
 		/>
 	{/if}
 </div>

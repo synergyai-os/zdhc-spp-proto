@@ -1,4 +1,3 @@
-/// file: src/lib/stores/experts.svelte.ts
 import { writable, derived } from 'svelte/store';
 import type { Id } from '../../convex/_generated/dataModel';
 
@@ -230,7 +229,7 @@ export const expertsGroupedByUser = derived(
   }
 );
 
-// Convert to table format (for table view)
+// Convert to table format (for table view) - only verified/active users
 export const expertsTableData = derived(
   expertStore,
   ($store) => {
@@ -241,6 +240,11 @@ export const expertsTableData = derived(
     
     $store.expertAssignments.forEach((assignment) => {
       const userId = assignment.userId;
+      
+      // Skip users who are not verified/active in PDC
+      if (!isUserVerified(assignment)) {
+        return;
+      }
       
       if (!userGroups.has(userId)) {
         // Find service version for this assignment
@@ -292,9 +296,68 @@ export const expertsTableData = derived(
   }
 );
 
+// Convert to pending verification format (for unverified users)
+export const pendingVerificationData = derived(
+  expertStore,
+  ($store) => {
+    if (!$store.expertAssignments.length) return [];
+    
+    // Group assignments by user ID
+    const userGroups = new Map<string, ExpertTableRow>();
+    
+    $store.expertAssignments.forEach((assignment) => {
+      const userId = assignment.userId;
+      
+      // Only include users who are NOT verified/active in PDC
+      if (isUserVerified(assignment)) {
+        return;
+      }
+      
+      if (!userGroups.has(userId)) {
+        // Find service version for this assignment
+        const serviceVersion = $store.serviceVersions.find(sv => sv._id === assignment.serviceVersionId);
+        
+        userGroups.set(userId, {
+          id: userId,
+          name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim() || assignment.user?.email || 'Unknown',
+          email: assignment.user?.email || '',
+          avatar: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}` || '?',
+          services: [],
+          currentStatus: 'pending_verification',
+          paymentStatus: 'unpaid',
+          nextAction: 'Verify PDC Account',
+          hasLeadRole: assignment.role === 'lead',
+          totalAssignments: 0,
+        });
+      }
+      
+      const row = userGroups.get(userId)!;
+      const serviceVersion = $store.serviceVersions.find(sv => sv._id === assignment.serviceVersionId);
+      
+      if (serviceVersion) {
+        row.services.push({
+          name: serviceVersion.name,
+          isLead: assignment.role === 'lead',
+          status: 'pending_verification',
+        });
+      }
+      
+      row.totalAssignments++;
+    });
+    
+    return Array.from(userGroups.values());
+  }
+);
+
 // ==========================================
 // UTILITY FUNCTIONS
 // ==========================================
+
+function isUserVerified(assignment: ExpertAssignment): boolean {
+  // For now, we'll consider users verified if they have a status beyond 'draft'
+  // In the future, this could check against PDC API or a verification flag
+  return assignment.status !== 'draft' || assignment.user?.isActive === true;
+}
 
 function getStatusPriority(status: string): number {
   const priorities: Record<string, number> = {

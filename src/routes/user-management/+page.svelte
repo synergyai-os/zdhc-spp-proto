@@ -114,6 +114,21 @@
 		// Navigate to checkout page
 		window.location.href = '/checkout';
 	}
+	
+	function handleChatExpert(expertId: string) {
+		console.log('Chat with expert:', expertId);
+		// TODO: Implement chat functionality
+	}
+	
+	function handleSendReminder(expertId: string) {
+		console.log('Send verification reminder to expert:', expertId);
+		// TODO: Implement reminder functionality
+	}
+	
+	function handleViewDetails(expertId: string) {
+		console.log('View details for expert:', expertId);
+		// TODO: Implement view details functionality
+	}
 </script>
 
 <!-- User Management Page -->
@@ -193,6 +208,9 @@
 				organizationId={currentOrgId}
 				onAddExpert={handleAddExpert}
 				onContinueToPayment={handleContinueToPayment}
+				onChatExpert={handleChatExpert}
+				onSendReminder={handleSendReminder}
+				onViewDetails={handleViewDetails}
 			/>
 		{/if}
 
