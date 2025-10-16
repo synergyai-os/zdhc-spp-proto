@@ -9,6 +9,9 @@
 	let currentOrgId = $state<string | null>(null);
 	let orgContext = $derived($organizationStore);
 	
+	// Toggle state for switching between sections
+	let activeSection = $state<'staff' | 'experts' | 'services'>('staff');
+	
 	// Update currentOrgId when organization changes
 	$effect(() => {
 		currentOrgId = orgContext.currentOrganization?._id || null;
@@ -167,301 +170,346 @@
 			<p class="text-gray-600">Manage your staff and Solution Provider experts across different services.</p>
 		</div>
 
-		<!-- Staff Users Section -->
+		<!-- Section Toggle -->
 		<div class="mb-8">
-			<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-				<div class="flex items-center justify-between mb-6">
-					<h2 class="text-xl font-bold text-gray-800">Staff members</h2>
-					<button 
-						onclick={handleAddStaff}
-						class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-					>
-						Add Staff Member
-					</button>
-				</div>
-				
-				<!-- Staff Users Grid -->
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-					{#each staffMembers as staff (staff.name)}
-						<UserCard user={staff} size="lg" />
-					{/each}
-				</div>
+			<div class="bg-white border border-gray-200 rounded-lg p-1 inline-flex">
+				<button
+					type="button"
+					onclick={() => activeSection = 'staff'}
+					class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 {
+						activeSection === 'staff' 
+							? 'bg-blue-500 text-white shadow-sm' 
+							: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+					}"
+				>
+					Staff Members
+				</button>
+				<button
+					type="button"
+					onclick={() => activeSection = 'experts'}
+					class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 {
+						activeSection === 'experts' 
+							? 'bg-blue-500 text-white shadow-sm' 
+							: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+					}"
+				>
+					Experts
+				</button>
+				<button
+					type="button"
+					onclick={() => activeSection = 'services'}
+					class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 {
+						activeSection === 'services' 
+							? 'bg-blue-500 text-white shadow-sm' 
+							: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+					}"
+				>
+					Services
+				</button>
 			</div>
 		</div>
 
-		<!-- Saved Experts Section -->
-		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-			<div class="flex items-center justify-between mb-6">
-				<div>
-					<h2 class="text-xl font-bold text-gray-800">Saved Experts</h2>
-					<p class="text-gray-600">
-						{#if orgContext.currentOrganization}
-							Experts for {orgContext.currentOrganization.name}
-						{:else}
-							Select an organization to view experts
-						{/if}
-					</p>
-				</div>
-				<div class="text-sm text-gray-500">
-					{#if expertAssignments.isLoading}
-						Loading...
-					{:else if !currentOrgId}
-						No organization selected
-					{:else}
-						Total: {expertsGroupedByUser.length} expert{expertsGroupedByUser.length !== 1 ? 's' : ''}
-					{/if}
+		<!-- Staff Users Section -->
+		{#if activeSection === 'staff'}
+			<div class="mb-8">
+				<div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+					<div class="flex items-center justify-between mb-6">
+						<h2 class="text-xl font-bold text-gray-800">Staff members</h2>
+						<button 
+							onclick={handleAddStaff}
+							class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+						>
+							Add Staff Member
+						</button>
+					</div>
+					
+					<!-- Staff Users Grid -->
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+						{#each staffMembers as staff (staff.name)}
+							<UserCard user={staff} size="lg" />
+						{/each}
+					</div>
 				</div>
 			</div>
-			
-			{#if !currentOrgId}
-				<div class="text-center py-8 text-gray-500">
-					<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-					</svg>
-					<p class="text-lg font-medium mb-2">No Organization Selected</p>
-					<p class="text-sm">Use the organization switcher in the header to select an organization</p>
+		{/if}
+
+		<!-- Saved Experts Section -->
+		{#if activeSection === 'experts'}
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+				<div class="flex items-center justify-between mb-6">
+					<div>
+						<h2 class="text-xl font-bold text-gray-800">Saved Experts</h2>
+						<p class="text-gray-600">
+							{#if orgContext.currentOrganization}
+								Experts for {orgContext.currentOrganization.name}
+							{:else}
+								Select an organization to view experts
+							{/if}
+						</p>
+					</div>
+					<div class="text-sm text-gray-500">
+						{#if expertAssignments.isLoading}
+							Loading...
+						{:else if !currentOrgId}
+							No organization selected
+						{:else}
+							Total: {expertsGroupedByUser.length} expert{expertsGroupedByUser.length !== 1 ? 's' : ''}
+						{/if}
+					</div>
 				</div>
-			{:else if expertAssignments.isLoading}
-				<div class="text-center py-8 text-gray-500">
-					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-					<p>Loading experts...</p>
-				</div>
-			{:else if expertAssignments.error}
-				<div class="text-center py-8 text-red-500">
-					<p class="text-lg font-medium mb-2">Error loading experts</p>
-					<p class="text-sm">{expertAssignments.error.message}</p>
-				</div>
-			{:else if expertsGroupedByUser.length === 0}
-				<div class="text-center py-8 text-gray-500">
-					<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
-					</svg>
-					<p class="text-lg font-medium mb-2">No experts for this organization</p>
-					<p class="text-sm">Use the "Add Expert" button below to add your first expert</p>
-				</div>
-			{:else}
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-					{#each expertsGroupedByUser as expertGroup (expertGroup.user._id)}
-						<div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-							<div class="flex items-start justify-between mb-3">
-								<div class="flex items-center">
-									<div class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-										{expertGroup.user.firstName?.[0] || ''}{expertGroup.user.lastName?.[0] || ''}
+				
+				{#if !currentOrgId}
+					<div class="text-center py-8 text-gray-500">
+						<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+						</svg>
+						<p class="text-lg font-medium mb-2">No Organization Selected</p>
+						<p class="text-sm">Use the organization switcher in the header to select an organization</p>
+					</div>
+				{:else if expertAssignments.isLoading}
+					<div class="text-center py-8 text-gray-500">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+						<p>Loading experts...</p>
+					</div>
+				{:else if expertAssignments.error}
+					<div class="text-center py-8 text-red-500">
+						<p class="text-lg font-medium mb-2">Error loading experts</p>
+						<p class="text-sm">{expertAssignments.error.message}</p>
+					</div>
+				{:else if expertsGroupedByUser.length === 0}
+					<div class="text-center py-8 text-gray-500">
+						<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+						</svg>
+						<p class="text-lg font-medium mb-2">No experts for this organization</p>
+						<p class="text-sm">Use the "Add Expert" button below to add your first expert</p>
+					</div>
+				{:else}
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+						{#each expertsGroupedByUser as expertGroup (expertGroup.user._id)}
+							<div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+								<div class="flex items-start justify-between mb-3">
+									<div class="flex items-center">
+										<div class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-sm">
+											{expertGroup.user.firstName?.[0] || ''}{expertGroup.user.lastName?.[0] || ''}
+										</div>
+										<div class="ml-3">
+											<h3 class="font-semibold text-gray-800">
+												{expertGroup.user.firstName && expertGroup.user.lastName 
+													? `${expertGroup.user.firstName} ${expertGroup.user.lastName}`.trim()
+													: expertGroup.user.email
+												}
+											</h3>
+											<p class="text-sm text-gray-600">{expertGroup.user.email}</p>
+										</div>
 									</div>
-									<div class="ml-3">
-										<h3 class="font-semibold text-gray-800">
-											{expertGroup.user.firstName && expertGroup.user.lastName 
-												? `${expertGroup.user.firstName} ${expertGroup.user.lastName}`.trim()
-												: expertGroup.user.email
-											}
-										</h3>
-										<p class="text-sm text-gray-600">{expertGroup.user.email}</p>
-									</div>
-								</div>
-								<div class="flex items-center gap-2">
-									{#if expertGroup.assignments.some((a: any) => a.role === 'lead')}
-										<span class="px-2 py-1 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
-											LEAD EXPERT
+									<div class="flex items-center gap-2">
+										{#if expertGroup.assignments.some((a: any) => a.role === 'lead')}
+											<span class="px-2 py-1 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
+												LEAD EXPERT
+											</span>
+										{/if}
+										<span class="text-xs text-gray-500">
+											{expertGroup.serviceCount} service{expertGroup.serviceCount !== 1 ? 's' : ''}
 										</span>
-									{/if}
-									<span class="text-xs text-gray-500">
-										{expertGroup.serviceCount} service{expertGroup.serviceCount !== 1 ? 's' : ''}
-									</span>
-								</div>
-							</div>
-							
-							<div class="space-y-2">
-								<div>
-									<span class="text-xs font-medium text-gray-500">Services & Roles:</span>
-									<div class="mt-1 flex flex-wrap gap-1">
-										{#each expertGroup.assignments as assignment}
-											<div class="flex items-center gap-1">
-												<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-													{assignment.serviceVersion?.name || 'Unknown Service'}
-												</span>
-												{#if assignment.role === 'lead'}
-													<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
-														LEAD
-													</span>
-												{/if}
-											</div>
-										{/each}
 									</div>
 								</div>
 								
-								<div class="flex items-center justify-between">
-									<span class="text-xs text-gray-500">
-										{expertGroup.assignments.length} assignment{expertGroup.assignments.length !== 1 ? 's' : ''}
-									</span>
-									<div class="flex flex-wrap gap-1">
-										{#each expertGroup.assignments as assignment}
-											<span class="px-2 py-1 text-xs rounded-full {
-												assignment.status === 'approved' ? 'bg-green-100 text-green-800' :
-												assignment.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-												assignment.status === 'paid' ? 'bg-blue-100 text-blue-800' :
-												assignment.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
-												assignment.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
-												assignment.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
-												assignment.status === 'rejected' ? 'bg-red-100 text-red-800' :
-												assignment.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-												'bg-gray-100 text-gray-800'
-											}">
-												{assignment.status.replace('_', ' ')}
-											</span>
-										{/each}
-									</div>
-								</div>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
-		</div>
-
-		<!-- Service Expert Lists -->
-		<div class="space-y-6">
-			<div class="flex items-center justify-between">
-				<h2 class="text-2xl font-bold text-gray-800">Your Services</h2>
-				<div class="flex items-center space-x-3">
-					{#if currentOrgId && expertsGroupedByUser.length > 0}
-						<button 
-							onclick={handleContinueToPayment}
-							class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-						>
-							Continue to Payment
-						</button>
-					{/if}
-					<button 
-						onclick={handleAddExpert}
-						class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
-					>
-						Add Expert
-					</button>
-				</div>
-			</div>
-			
-			{#if !currentOrgId}
-				<div class="text-center py-8 text-gray-500">
-					<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-					</svg>
-					<p class="text-lg font-medium mb-2">No Organization Selected</p>
-					<p class="text-sm">Select an organization to view approved services</p>
-				</div>
-			{:else if organizationApprovals?.isLoading || serviceVersions?.isLoading || serviceParents?.isLoading}
-				<div class="text-center py-8 text-gray-500">
-					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-					<p>Loading approved services...</p>
-				</div>
-			{:else if organizationApprovals?.error || serviceVersions?.error || serviceParents?.error}
-				<div class="text-center py-8 text-red-500">
-					<p class="text-lg font-medium mb-2">Error loading services</p>
-					<p class="text-sm">{organizationApprovals?.error || serviceVersions?.error || serviceParents?.error}</p>
-				</div>
-			{:else if !organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data}
-				<div class="text-center py-8 text-gray-500">
-					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-					<p>Loading approved services...</p>
-				</div>
-			{:else if approvedServicesForDisplay.length === 0}
-				<div class="text-center py-8 text-gray-500">
-					<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-					</svg>
-					<p class="text-lg font-medium mb-2">No Approved Services</p>
-					<p class="text-sm">This organization has no approved services yet. Go to <a href="/approved-services" class="text-blue-600 hover:underline">Approved Services</a> to manage service approvals.</p>
-				</div>
-			{:else}
-				{#each approvedServicesForDisplay as serviceParent (serviceParent._id)}
-					<div class="bg-white border border-gray-200 rounded-lg shadow-sm">
-						<!-- Service Parent Header -->
-						<div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-							<div class="flex items-center justify-between">
-								<div>
-									<h3 class="text-lg font-semibold text-gray-900">{serviceParent.name}</h3>
-									<p class="text-sm text-gray-600 mt-1">{serviceParent.description}</p>
-								</div>
-								<div class="flex items-center space-x-2">
-									<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-										{serviceParent.versions.length} approved version{serviceParent.versions.length !== 1 ? 's' : ''}
-									</span>
-								</div>
-							</div>
-						</div>
-
-						<!-- Service Versions -->
-						<div class="divide-y divide-gray-200">
-							{#each serviceParent.versions as version (version._id)}
-								<div class="px-6 py-4">
-									<div class="flex items-center justify-between mb-4">
-										<div class="flex-1 min-w-0">
-											<div class="flex items-center space-x-3">
-												<h4 class="text-sm font-medium text-gray-900 truncate">
-													{version.name}
-												</h4>
-												<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-													{version.version}
-												</span>
-											</div>
-											<p class="text-sm text-gray-600 mt-1">{version.description}</p>
+								<div class="space-y-2">
+									<div>
+										<span class="text-xs font-medium text-gray-500">Services & Roles:</span>
+										<div class="mt-1 flex flex-wrap gap-1">
+											{#each expertGroup.assignments as assignment}
+												<div class="flex items-center gap-1">
+													<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+														{assignment.serviceVersion?.name || 'Unknown Service'}
+													</span>
+													{#if assignment.role === 'lead'}
+														<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
+															LEAD
+														</span>
+													{/if}
+												</div>
+											{/each}
 										</div>
 									</div>
 									
-									<!-- Experts for this service version -->
-									<div>
-										<div class="flex items-center justify-between mb-3">
-											<span class="text-sm font-medium text-gray-700">Experts ({version.experts.length})</span>
+									<div class="flex items-center justify-between">
+										<span class="text-xs text-gray-500">
+											{expertGroup.assignments.length} assignment{expertGroup.assignments.length !== 1 ? 's' : ''}
+										</span>
+										<div class="flex flex-wrap gap-1">
+											{#each expertGroup.assignments as assignment}
+												<span class="px-2 py-1 text-xs rounded-full {
+													assignment.status === 'approved' ? 'bg-green-100 text-green-800' :
+													assignment.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+													assignment.status === 'paid' ? 'bg-blue-100 text-blue-800' :
+													assignment.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
+													assignment.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
+													assignment.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
+													assignment.status === 'rejected' ? 'bg-red-100 text-red-800' :
+													assignment.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+													'bg-gray-100 text-gray-800'
+												}">
+													{assignment.status.replace('_', ' ')}
+												</span>
+											{/each}
 										</div>
-										
-										{#if version.experts.length === 0}
-											<div class="text-center py-4 text-gray-500">
-												<svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
-												</svg>
-												<p class="text-sm">No experts assigned to this service version</p>
-											</div>
-										{:else}
-											<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-												{#each version.experts as expert (expert.name + version._id)}
-													<div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg {expert.isLead ? 'bg-yellow-50 border border-yellow-200' : ''}">
-														<div class="w-8 h-8 {expert.isLead ? 'bg-yellow-500' : 'bg-blue-500'} text-white rounded-full flex items-center justify-center font-semibold text-xs">
-															{expert.isLead ? 'L' : expert.initials}
-														</div>
-														<div class="flex-1 min-w-0">
-															<p class="text-sm font-medium text-gray-900 truncate">{expert.name}</p>
-															<p class="text-xs text-gray-500">{expert.role}</p>
-														</div>
-														<div class="flex flex-col items-end space-y-1">
-															{#if expert.isLead}
-																<span class="text-xs px-2 py-1 rounded-full bg-yellow-200 text-yellow-800 font-semibold">
-																	LEAD
-																</span>
-															{/if}
-															<span class="text-xs px-2 py-1 rounded-full {
-																expert.status === 'approved' ? 'bg-green-100 text-green-800' :
-																expert.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-																expert.status === 'paid' ? 'bg-blue-100 text-blue-800' :
-																expert.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
-																expert.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
-																expert.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
-																expert.status === 'rejected' ? 'bg-red-100 text-red-800' :
-																expert.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-																'bg-gray-100 text-gray-800'
-															}">
-																{expert.status.replace('_', ' ')}
-															</span>
-														</div>
-													</div>
-												{/each}
-											</div>
-										{/if}
 									</div>
 								</div>
-							{/each}
-						</div>
+							</div>
+						{/each}
 					</div>
-				{/each}
-			{/if}
-		</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Service Expert Lists -->
+		{#if activeSection === 'services'}
+			<div class="space-y-6">
+				<div class="flex items-center justify-between">
+					<h2 class="text-2xl font-bold text-gray-800">Your Services</h2>
+					<div class="flex items-center space-x-3">
+						{#if currentOrgId && expertsGroupedByUser.length > 0}
+							<button 
+								onclick={handleContinueToPayment}
+								class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+							>
+								Continue to Payment
+							</button>
+						{/if}
+						<button 
+							onclick={handleAddExpert}
+							class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+						>
+							Add Expert
+						</button>
+					</div>
+				</div>
+				
+				{#if !currentOrgId}
+					<div class="text-center py-8 text-gray-500">
+						<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+						</svg>
+						<p class="text-lg font-medium mb-2">No Organization Selected</p>
+						<p class="text-sm">Select an organization to view approved services</p>
+					</div>
+				{:else if organizationApprovals?.isLoading || serviceVersions?.isLoading || serviceParents?.isLoading}
+					<div class="text-center py-8 text-gray-500">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+						<p>Loading approved services...</p>
+					</div>
+				{:else if organizationApprovals?.error || serviceVersions?.error || serviceParents?.error}
+					<div class="text-center py-8 text-red-500">
+						<p class="text-lg font-medium mb-2">Error loading services</p>
+						<p class="text-sm">{organizationApprovals?.error || serviceVersions?.error || serviceParents?.error}</p>
+					</div>
+				{:else if !organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data}
+					<div class="text-center py-8 text-gray-500">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+						<p>Loading approved services...</p>
+					</div>
+				{:else if approvedServicesForDisplay.length === 0}
+					<div class="text-center py-8 text-gray-500">
+						<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+						</svg>
+						<p class="text-lg font-medium mb-2">No Approved Services</p>
+						<p class="text-sm">This organization has no approved services yet. Go to <a href="/approved-services" class="text-blue-600 hover:underline">Approved Services</a> to manage service approvals.</p>
+					</div>
+				{:else}
+					{#each approvedServicesForDisplay as serviceParent (serviceParent._id)}
+						<div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+							<!-- Service Parent Header -->
+							<div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+								<div class="flex items-center justify-between">
+									<div>
+										<h3 class="text-lg font-semibold text-gray-900">{serviceParent.name}</h3>
+										<p class="text-sm text-gray-600 mt-1">{serviceParent.description}</p>
+									</div>
+									<div class="flex items-center space-x-2">
+										<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+											{serviceParent.versions.length} approved version{serviceParent.versions.length !== 1 ? 's' : ''}
+										</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Service Versions -->
+							<div class="divide-y divide-gray-200">
+								{#each serviceParent.versions as version (version._id)}
+									<div class="px-6 py-4">
+										<div class="flex items-center justify-between mb-4">
+											<div class="flex-1 min-w-0">
+												<div class="flex items-center space-x-3">
+													<h4 class="text-sm font-medium text-gray-900 truncate">
+														{version.name}
+													</h4>
+													<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+														{version.version}
+													</span>
+												</div>
+												<p class="text-sm text-gray-600 mt-1">{version.description}</p>
+											</div>
+										</div>
+										
+										<!-- Experts for this service version -->
+										<div>
+											<div class="flex items-center justify-between mb-3">
+												<span class="text-sm font-medium text-gray-700">Experts ({version.experts.length})</span>
+											</div>
+											
+											{#if version.experts.length === 0}
+												<div class="text-center py-4 text-gray-500">
+													<svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+													</svg>
+													<p class="text-sm">No experts assigned to this service version</p>
+												</div>
+											{:else}
+												<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+													{#each version.experts as expert (expert.name + version._id)}
+														<div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg {expert.isLead ? 'bg-yellow-50 border border-yellow-200' : ''}">
+															<div class="w-8 h-8 {expert.isLead ? 'bg-yellow-500' : 'bg-blue-500'} text-white rounded-full flex items-center justify-center font-semibold text-xs">
+																{expert.isLead ? 'L' : expert.initials}
+															</div>
+															<div class="flex-1 min-w-0">
+																<p class="text-sm font-medium text-gray-900 truncate">{expert.name}</p>
+																<p class="text-xs text-gray-500">{expert.role}</p>
+															</div>
+															<div class="flex flex-col items-end space-y-1">
+																{#if expert.isLead}
+																	<span class="text-xs px-2 py-1 rounded-full bg-yellow-200 text-yellow-800 font-semibold">
+																		LEAD
+																	</span>
+																{/if}
+																<span class="text-xs px-2 py-1 rounded-full {
+																	expert.status === 'approved' ? 'bg-green-100 text-green-800' :
+																	expert.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+																	expert.status === 'paid' ? 'bg-blue-100 text-blue-800' :
+																	expert.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
+																	expert.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
+																	expert.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
+																	expert.status === 'rejected' ? 'bg-red-100 text-red-800' :
+																	expert.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+																	'bg-gray-100 text-gray-800'
+																}">
+																	{expert.status.replace('_', ' ')}
+																</span>
+															</div>
+														</div>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/each}
+				{/if}
+			</div>
+		{/if}
 	</div>
 </div>

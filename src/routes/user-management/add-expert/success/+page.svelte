@@ -12,10 +12,10 @@
 		currentOrgId = orgContext.currentOrganization?._id || null;
 	});
 	
-	// Get draft experts count for current organization
+	// Get draft experts count for current organization (unique experts, not assignments)
 	const draftExperts = useQuery(
-		api.expertAssignments.getExpertAssignmentsByStatus,
-		() => currentOrgId ? { organizationId: currentOrgId, status: "draft" } : { organizationId: "", status: "draft" }
+		api.expertAssignments.getExpertAssignmentsByStatusWithDetails,
+		() => currentOrgId ? { organizationId: currentOrgId as any, status: "draft" as const } : { organizationId: "" as any, status: "draft" as const }
 	);
 	
 	// Get expert name from URL params or localStorage
@@ -46,8 +46,20 @@
 		window.location.href = '/user-management';
 	}
 	
-	// Get draft count
-	let draftCount = $derived(draftExperts?.data?.length || 0);
+	// Get draft count (unique experts, not assignments)
+	let draftCount = $derived.by(() => {
+		if (!draftExperts?.data) return 0;
+		
+		// Count unique experts by userId
+		const uniqueExpertIds = new Set();
+		draftExperts.data.forEach((assignment: any) => {
+			if (assignment.userId) {
+				uniqueExpertIds.add(assignment.userId);
+			}
+		});
+		
+		return uniqueExpertIds.size;
+	});
 </script>
 
 <div class="bg-gray-50 min-h-screen py-8">
@@ -153,23 +165,5 @@
 			</button>
 		</div>
 
-		<!-- Additional Info -->
-		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-			<h3 class="text-lg font-semibold text-gray-900 mb-4">What's Next?</h3>
-			<div class="space-y-3 text-sm text-gray-600">
-				<div class="flex items-start space-x-3">
-					<div class="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">1</div>
-					<p><strong>Expert Verification:</strong> If you added an expert who doesn't have a PDC account yet, they'll need to verify their account before payment can be processed.</p>
-				</div>
-				<div class="flex items-start space-x-3">
-					<div class="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">2</div>
-					<p><strong>Payment Processing:</strong> Once experts are verified, you can proceed to payment to activate their service assignments.</p>
-				</div>
-				<div class="flex items-start space-x-3">
-					<div class="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">3</div>
-					<p><strong>Training & Approval:</strong> After payment, experts will be invited to training and eventually approved for their services.</p>
-				</div>
-			</div>
-		</div>
 	</div>
 </div>

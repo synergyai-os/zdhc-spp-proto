@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
+	import type { Id } from '../../../convex/_generated/dataModel';
 	import { organizationStore } from '$lib/stores/organization.svelte';
 	
 	// Get Convex client
@@ -260,31 +261,6 @@
 		}
 	}
 
-	/**
-	 * Create default organization if it doesn't exist
-	 */
-	async function getOrCreateDefaultOrganization() {
-		try {
-			// Try to get existing organizations
-			const orgs = await client.query(api.expertAssignments.getOrganizations, {});
-			
-			// If no organizations exist, create a default one
-			if (orgs.length === 0) {
-				const orgId = await client.mutation(api.expertAssignments.createOrganization, {
-					name: 'Default Organization',
-					type: 'solution_provider',
-					contactEmail: 'admin@default.org'
-				});
-				return orgId;
-			}
-			
-			// Return the first organization
-			return orgs[0]._id;
-		} catch (error) {
-			console.error('Error getting/creating organization:', error);
-			throw error;
-		}
-	}
 
 	/**
 	 * Save expert (final step)
@@ -323,8 +299,12 @@
 				return;
 			}
 
-			// Get or create default organization
-			const orgId = await getOrCreateDefaultOrganization();
+		// Use the currently selected organization
+		if (!currentOrgId) {
+			alert('Error: No organization selected. Please select an organization from the header dropdown.');
+			return;
+		}
+		const orgId = currentOrgId as Id<"organizations">;
 
 			// Create expert assignments for each selected service
 			const assignmentIds = [];
