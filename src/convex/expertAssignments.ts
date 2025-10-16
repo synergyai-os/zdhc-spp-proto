@@ -270,6 +270,55 @@ export const getExpertAssignmentsByStatus = query({
   },
 });
 
+export const getExpertAssignmentsByStatusWithDetails = query({
+  args: { 
+    organizationId: v.id("organizations"),
+    status: v.optional(v.union(
+      v.literal("draft"),
+      v.literal("paid"),
+      v.literal("ready_for_training"),
+      v.literal("training_started"),
+      v.literal("training_completed"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("inactive")
+    ))
+  },
+  handler: async (ctx, args) => {
+    let query = ctx.db
+      .query("expertAssignments")
+      .filter((q) => q.eq(q.field("organizationId"), args.organizationId));
+    
+    if (args.status) {
+      query = query.filter((q) => q.eq(q.field("status"), args.status));
+    }
+    
+    const assignments = await query.collect();
+    
+    // Enrich with user, organization, and service version details
+    const enrichedAssignments = await Promise.all(
+      assignments.map(async (assignment) => {
+        const user = await ctx.db.get(assignment.userId);
+        const organization = await ctx.db.get(assignment.organizationId);
+        const serviceVersion = await ctx.db.get(assignment.serviceVersionId);
+        const serviceParent = serviceVersion 
+          ? await ctx.db.get(serviceVersion.parentId)
+          : null;
+        
+        return {
+          ...assignment,
+          user,
+          organization,
+          serviceVersion,
+          serviceParent,
+        };
+      })
+    );
+    
+    return enrichedAssignments;
+  },
+});
+
 export const getExpertAssignmentById = query({
   args: { id: v.id("expertAssignments") },
   handler: async (ctx, args) => {

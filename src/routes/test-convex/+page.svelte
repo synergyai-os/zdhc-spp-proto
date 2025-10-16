@@ -103,6 +103,87 @@
 		
 		isLoading = false;
 	}
+	
+	async function seedServiceData() {
+		isLoading = true;
+		testResults = 'Seeding service data...\n';
+		
+		try {
+			const result = await client.mutation(api.serviceVersions.seedServiceData, {});
+			testResults += `✅ Created service parent with ID: ${result.parentId}\n`;
+			testResults += `✅ Created ${result.versionIds.length} service versions\n`;
+			testResults += '🎉 Service data seeded successfully!';
+			
+		} catch (error: any) {
+			testResults += `❌ Error: ${error.message}\n`;
+			console.error('Service seeding error:', error);
+		}
+		
+		isLoading = false;
+	}
+	
+	async function createTestExpertAssignments() {
+		isLoading = true;
+		testResults = 'Creating test expert assignments...\n';
+		
+		try {
+			// First get some users and organizations
+			const users = await client.query(api.expertAssignments.getUsers, {});
+			const organizations = await client.query(api.expertAssignments.getOrganizations, {});
+			const serviceVersions = await client.query(api.serviceVersions.getServiceVersions, {});
+			
+			if (users.length === 0 || organizations.length === 0 || serviceVersions.length === 0) {
+				testResults += '❌ Need users, organizations, and service versions first!\n';
+				testResults += 'Please run "Seed Test Data" and "Seed Service Data" first.\n';
+				return;
+			}
+			
+			// Create some test expert assignments
+			const assignments = [];
+			for (let i = 0; i < Math.min(3, users.length); i++) {
+				const user = users[i];
+				const org = organizations[i % organizations.length];
+				const serviceVersion = serviceVersions[i % serviceVersions.length];
+				
+				const assignmentId = await client.mutation(api.expertAssignments.createExpertAssignment, {
+					userId: user._id,
+					organizationId: org._id,
+					serviceVersionId: serviceVersion._id,
+					role: i === 0 ? 'lead' : 'regular',
+					experience: [{
+						title: 'Senior Consultant',
+						company: 'Test Company',
+						location: 'Amsterdam',
+						startDate: '2020-01-01',
+						endDate: '2023-12-31',
+						current: false,
+						description: 'Test experience'
+					}],
+					education: [{
+						school: 'Test University',
+						degree: 'MSc Environmental Science',
+						field: 'Environmental Science',
+						startDate: '2018-09-01',
+						endDate: '2020-06-30',
+						description: 'Test education'
+					}],
+					assignedBy: 'test-user',
+					notes: 'Test assignment for prototype'
+				});
+				
+				assignments.push(assignmentId);
+				testResults += `✅ Created assignment ${i + 1}: ${user.firstName} ${user.lastName} → ${serviceVersion.name}\n`;
+			}
+			
+			testResults += `🎉 Created ${assignments.length} test expert assignments!`;
+			
+		} catch (error: any) {
+			testResults += `❌ Error: ${error.message}\n`;
+			console.error('Assignment creation error:', error);
+		}
+		
+		isLoading = false;
+	}
 </script>
 
 <div class="max-w-4xl mx-auto p-6">
@@ -132,6 +213,22 @@
 			</button>
 			
 			<button
+				onclick={seedServiceData}
+				disabled={isLoading}
+				class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{isLoading ? 'Seeding...' : 'Seed Service Data'}
+			</button>
+			
+			<button
+				onclick={createTestExpertAssignments}
+				disabled={isLoading}
+				class="bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{isLoading ? 'Creating...' : 'Create Test Assignments'}
+			</button>
+			
+			<button
 				onclick={migrateExpertRoles}
 				disabled={isLoading}
 				class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -158,8 +255,14 @@
 		<ul class="text-yellow-700 text-sm space-y-1">
 			<li>• <strong>Test Connection:</strong> Verify Convex is working</li>
 			<li>• <strong>Seed Test Data:</strong> Create sample users and organizations</li>
+			<li>• <strong>Seed Service Data:</strong> Create service parents and versions</li>
+			<li>• <strong>Create Test Assignments:</strong> Create expert assignments with real service versions</li>
 			<li>• <strong>Migrate Expert Roles:</strong> Set existing experts to "regular" role</li>
 			<li>• <strong>Clear Test Data:</strong> Remove all test data</li>
 		</ul>
+		<div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+			<p class="text-blue-800 text-sm font-medium">💡 For checkout testing:</p>
+			<p class="text-blue-700 text-sm">Run operations in order: Test Connection → Seed Test Data → Seed Service Data → Create Test Assignments</p>
+		</div>
 	</div>
 </div>

@@ -16,9 +16,9 @@
 		currentOrgId = orgContext.currentOrganization?._id || null;
 	});
 	
-	// Get draft experts for current organization
+	// Get draft experts for current organization with full details
 	const draftExperts = useQuery(
-		api.expertAssignments.getExpertAssignmentsByStatus,
+		api.expertAssignments.getExpertAssignmentsByStatusWithDetails,
 		() => currentOrgId ? { organizationId: currentOrgId as any, status: "draft" as const } : { organizationId: "" as any, status: "draft" as const }
 	);
 	
@@ -300,9 +300,6 @@
 																		!expertGroup.isUserVerified ? 'bg-gray-200 text-gray-600' : ''
 																	}">
 																		{assignment.serviceVersionName}
-																	</span>
-																	<span class="text-xs text-gray-600 {!expertGroup.isUserVerified ? 'text-gray-400' : ''}">
-																		{assignment.serviceParentName}
 																	</span>
 																	{#if assignment.role === 'lead'}
 																		<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold {

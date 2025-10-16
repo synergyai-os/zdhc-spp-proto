@@ -11,14 +11,14 @@
 	
 	// Store state
 	let storeState = $derived($checkoutStore);
-	let selectedCount = $derived(storeState.selectedExpertIds.length);
 	let totalAmount = $derived(storeState.totalAmount);
 	let selectedExperts = $derived(storeState.experts.filter(expert => 
 		storeState.selectedExpertIds.includes(expert.assignmentId)
 	));
 	
-	// Calculate service count
-	let serviceCount = $derived(selectedExperts.length);
+	// Calculate counts correctly
+	let selectedCount = $derived(selectedExperts.length); // Individual service assignments
+	let uniqueExpertCount = $derived(new Set(selectedExperts.map(expert => expert.userId)).size); // Unique experts
 </script>
 
 <div class="bg-white border border-gray-200 rounded-lg p-{compact ? '4' : '6'} {
@@ -32,13 +32,13 @@
 		<!-- Selected Experts Count -->
 		<div class="flex items-center justify-between">
 			<span class="text-sm font-medium text-gray-700">Selected Experts</span>
-			<span class="text-sm font-semibold text-gray-900">{selectedCount}</span>
+			<span class="text-sm font-semibold text-gray-900">{uniqueExpertCount}</span>
 		</div>
 		
 		<!-- Service Count -->
 		<div class="flex items-center justify-between">
 			<span class="text-sm font-medium text-gray-700">Service Assignments</span>
-			<span class="text-sm font-semibold text-gray-900">{serviceCount}</span>
+			<span class="text-sm font-semibold text-gray-900">{selectedCount}</span>
 		</div>
 		
 		<!-- Total Amount -->
@@ -72,7 +72,7 @@
 		</div>
 	{/if}
 	
-	{#if selectedCount === 0}
+	{#if uniqueExpertCount === 0}
 		<div class="mt-4 pt-4 border-t border-gray-200">
 			<div class="text-center py-4">
 				<svg class="w-8 h-8 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
