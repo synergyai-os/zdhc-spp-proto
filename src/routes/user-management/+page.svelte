@@ -1,6 +1,7 @@
 <script lang="ts">
 	import UserCard from '$lib/components/UserCard.svelte';
 	import ServiceBox from '$lib/components/ServiceBox.svelte';
+	import ExpertSection from '$lib/components/experts/ExpertSection.svelte';
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../convex/_generated/api';
 	import { organizationStore } from '$lib/stores/organization.svelte';
@@ -20,12 +21,6 @@
 	// Get data from Convex
 	const users = useQuery(api.expertAssignments.getUsers, () => ({}));
 	const organizations = useQuery(api.expertAssignments.getOrganizations, () => ({}));
-	
-	// Get expert assignments filtered by current organization
-	const expertAssignments = useQuery(
-		api.expertAssignments.getExpertAssignmentsByOrganizationWithDetails, 
-		() => ({ organizationId: (currentOrgId || "j1j1j1j1j1j1j1j1j1j1j1j1") as any })
-	);
 	
 	// Get organization approvals (same as approved-services page)
 	const organizationApprovals = useQuery(
@@ -65,39 +60,6 @@
 		}
 	];
 	
-	// Group experts by user (instead of showing each assignment separately)
-	let expertsGroupedByUser = $derived.by(() => {
-		if (!expertAssignments?.data || !users?.data) return [];
-
-		// Group assignments by user ID
-		const userGroups = new Map();
-		
-		expertAssignments.data.forEach((assignment: any) => {
-			if (!assignment.user) return;
-			
-			const userId = assignment.user._id;
-			if (!userGroups.has(userId)) {
-				userGroups.set(userId, {
-					user: assignment.user,
-					assignments: [],
-					services: new Set()
-				});
-			}
-			
-			userGroups.get(userId).assignments.push(assignment);
-			if (assignment.serviceVersion) {
-				userGroups.get(userId).services.add(assignment.serviceVersion.name);
-			}
-		});
-
-		// Convert to array and add service count
-		return Array.from(userGroups.values()).map(group => ({
-			...group,
-			serviceCount: group.services.size,
-			services: Array.from(group.services)
-		}));
-	});
-	
 	// Create approved services for display (same logic as approved-services page)
 	let approvedServicesForDisplay = $derived.by(() => {
 		if (!organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data) return [];
@@ -130,16 +92,8 @@
 				...parent,
 				versions: parentVersions.map((version: any) => ({
 					...version,
-					// Add experts for this service version (from expert assignments)
-					experts: expertAssignments.data?.filter((assignment: any) => 
-						assignment.serviceVersionId === version._id
-					).map((assignment: any) => ({
-						name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim(),
-						role: assignment.role === 'lead' ? 'Lead Expert' : 'Expert',
-						initials: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}`,
-						isLead: assignment.role === 'lead',
-						status: assignment.status
-					})) || []
+					// Experts will be loaded separately in the ExpertSection component
+					experts: []
 				}))
 			};
 		}).filter((parent: any) => parent.versions.length > 0);
@@ -235,133 +189,11 @@
 
 		<!-- Saved Experts Section -->
 		{#if activeSection === 'experts'}
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-				<div class="flex items-center justify-between mb-6">
-					<div>
-						<h2 class="text-xl font-bold text-gray-800">Saved Experts</h2>
-						<p class="text-gray-600">
-							{#if orgContext.currentOrganization}
-								Experts for {orgContext.currentOrganization.name}
-							{:else}
-								Select an organization to view experts
-							{/if}
-						</p>
-					</div>
-					<div class="text-sm text-gray-500">
-						{#if expertAssignments.isLoading}
-							Loading...
-						{:else if !currentOrgId}
-							No organization selected
-						{:else}
-							Total: {expertsGroupedByUser.length} expert{expertsGroupedByUser.length !== 1 ? 's' : ''}
-						{/if}
-					</div>
-				</div>
-				
-				{#if !currentOrgId}
-					<div class="text-center py-8 text-gray-500">
-						<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-						</svg>
-						<p class="text-lg font-medium mb-2">No Organization Selected</p>
-						<p class="text-sm">Use the organization switcher in the header to select an organization</p>
-					</div>
-				{:else if expertAssignments.isLoading}
-					<div class="text-center py-8 text-gray-500">
-						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-						<p>Loading experts...</p>
-					</div>
-				{:else if expertAssignments.error}
-					<div class="text-center py-8 text-red-500">
-						<p class="text-lg font-medium mb-2">Error loading experts</p>
-						<p class="text-sm">{expertAssignments.error.message}</p>
-					</div>
-				{:else if expertsGroupedByUser.length === 0}
-					<div class="text-center py-8 text-gray-500">
-						<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
-						</svg>
-						<p class="text-lg font-medium mb-2">No experts for this organization</p>
-						<p class="text-sm">Use the "Add Expert" button below to add your first expert</p>
-					</div>
-				{:else}
-					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-						{#each expertsGroupedByUser as expertGroup (expertGroup.user._id)}
-							<div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-								<div class="flex items-start justify-between mb-3">
-									<div class="flex items-center">
-										<div class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-											{expertGroup.user.firstName?.[0] || ''}{expertGroup.user.lastName?.[0] || ''}
-										</div>
-										<div class="ml-3">
-											<h3 class="font-semibold text-gray-800">
-												{expertGroup.user.firstName && expertGroup.user.lastName 
-													? `${expertGroup.user.firstName} ${expertGroup.user.lastName}`.trim()
-													: expertGroup.user.email
-												}
-											</h3>
-											<p class="text-sm text-gray-600">{expertGroup.user.email}</p>
-										</div>
-									</div>
-									<div class="flex items-center gap-2">
-										{#if expertGroup.assignments.some((a: any) => a.role === 'lead')}
-											<span class="px-2 py-1 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
-												LEAD EXPERT
-											</span>
-										{/if}
-										<span class="text-xs text-gray-500">
-											{expertGroup.serviceCount} service{expertGroup.serviceCount !== 1 ? 's' : ''}
-										</span>
-									</div>
-								</div>
-								
-								<div class="space-y-2">
-									<div>
-										<span class="text-xs font-medium text-gray-500">Services & Roles:</span>
-										<div class="mt-1 flex flex-wrap gap-1">
-											{#each expertGroup.assignments as assignment}
-												<div class="flex items-center gap-1">
-													<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-														{assignment.serviceVersion?.name || 'Unknown Service'}
-													</span>
-													{#if assignment.role === 'lead'}
-														<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
-															LEAD
-														</span>
-													{/if}
-												</div>
-											{/each}
-										</div>
-									</div>
-									
-									<div class="flex items-center justify-between">
-										<span class="text-xs text-gray-500">
-											{expertGroup.assignments.length} assignment{expertGroup.assignments.length !== 1 ? 's' : ''}
-										</span>
-										<div class="flex flex-wrap gap-1">
-											{#each expertGroup.assignments as assignment}
-												<span class="px-2 py-1 text-xs rounded-full {
-													assignment.status === 'approved' ? 'bg-green-100 text-green-800' :
-													assignment.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-													assignment.status === 'paid' ? 'bg-blue-100 text-blue-800' :
-													assignment.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
-													assignment.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
-													assignment.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
-													assignment.status === 'rejected' ? 'bg-red-100 text-red-800' :
-													assignment.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-													'bg-gray-100 text-gray-800'
-												}">
-													{assignment.status.replace('_', ' ')}
-												</span>
-											{/each}
-										</div>
-									</div>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
+			<ExpertSection 
+				organizationId={currentOrgId}
+				onAddExpert={handleAddExpert}
+				onContinueToPayment={handleContinueToPayment}
+			/>
 		{/if}
 
 		<!-- Service Expert Lists -->
@@ -370,14 +202,6 @@
 				<div class="flex items-center justify-between">
 					<h2 class="text-2xl font-bold text-gray-800">Your Services</h2>
 					<div class="flex items-center space-x-3">
-						{#if currentOrgId && expertsGroupedByUser.length > 0}
-							<button 
-								onclick={handleContinueToPayment}
-								class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-							>
-								Continue to Payment
-							</button>
-						{/if}
 						<button 
 							onclick={handleAddExpert}
 							class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
