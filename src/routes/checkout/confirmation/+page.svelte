@@ -10,6 +10,39 @@
 	let paymentMethod = $derived(storeState.paymentMethod);
 	let totalAmount = $derived(storeState.totalAmount);
 	
+	// Group experts by user for display (same logic as checkout page)
+	let groupedExperts = $derived.by(() => {
+		if (!selectedExperts) return [];
+		
+		// Group assignments by user ID
+		const userGroups = new Map();
+		
+		selectedExperts.forEach((expert) => {
+			const userId = expert.userId;
+			if (!userGroups.has(userId)) {
+				userGroups.set(userId, {
+					userId: expert.userId,
+					userName: expert.userName,
+					userEmail: expert.userEmail,
+					assignments: [],
+					totalPrice: 0
+				});
+			}
+			
+			const serviceAssignment = {
+				assignmentId: expert.assignmentId,
+				serviceVersionName: expert.serviceVersionName,
+				role: expert.role || 'regular',
+				price: expert.price,
+			};
+			
+			userGroups.get(userId).assignments.push(serviceAssignment);
+			userGroups.get(userId).totalPrice += serviceAssignment.price;
+		});
+		
+		return Array.from(userGroups.values());
+	});
+	
 	// Determine if this was a successful payment or pending
 	let isSuccessful = $derived(paymentMethod === 'credit_card');
 	let statusText = $derived(isSuccessful ? 'Payment Successful' : 'Payment Submitted');
@@ -131,29 +164,55 @@
 					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 						<h3 class="text-lg font-semibold text-gray-900 mb-4">Expert Status Updates</h3>
 						
-						<div class="space-y-3">
-							{#each selectedExperts as expert}
-								<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-									<div class="flex items-center space-x-3">
-										<div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-xs">
-											{expert.userName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+						<div class="space-y-4">
+							{#each groupedExperts as expertGroup}
+								<div class="border border-gray-200 rounded-lg p-4">
+									<div class="flex items-center justify-between mb-3">
+										<div class="flex items-center space-x-3">
+											<div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-xs">
+												{expertGroup.userName.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+											</div>
+											<div>
+												<p class="text-sm font-medium text-gray-900">{expertGroup.userName}</p>
+												<p class="text-xs text-gray-600">{expertGroup.userEmail}</p>
+											</div>
 										</div>
-										<div>
-											<p class="text-sm font-medium text-gray-900">{expert.userName}</p>
-											<p class="text-xs text-gray-600">{expert.serviceVersionName}</p>
+										<div class="flex items-center space-x-2">
+											<span class="px-2 py-1 text-xs rounded-full {
+												isSuccessful ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+											}">
+												{isSuccessful ? 'Paid' : 'Pending'}
+											</span>
+											<span class="text-sm font-medium text-gray-900">
+												€{expertGroup.totalPrice.toFixed(2)}
+											</span>
 										</div>
 									</div>
-									<div class="flex items-center space-x-2">
-										<span class="px-2 py-1 text-xs rounded-full {
-											isSuccessful ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-										}">
-											{isSuccessful ? 'Paid' : 'Pending'}
-										</span>
-										{#if expert.role === 'lead'}
-											<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
-												LEAD
-											</span>
-										{/if}
+									
+									<!-- Service Assignments -->
+									<div class="ml-11">
+										<div class="text-xs font-medium text-gray-700 mb-2">
+											Service Assignments ({expertGroup.assignments.length}):
+										</div>
+										<div class="space-y-2">
+											{#each expertGroup.assignments as assignment}
+												<div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+													<div class="flex items-center space-x-2">
+														<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded font-medium">
+															{assignment.serviceVersionName}
+														</span>
+														{#if assignment.role === 'lead'}
+															<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
+																LEAD
+															</span>
+														{/if}
+													</div>
+													<span class="text-sm font-medium text-gray-900">
+														€{assignment.price.toFixed(2)}
+													</span>
+												</div>
+											{/each}
+										</div>
 									</div>
 								</div>
 							{/each}

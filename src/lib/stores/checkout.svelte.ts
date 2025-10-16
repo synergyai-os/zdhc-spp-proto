@@ -90,7 +90,11 @@ function createCheckoutStore() {
     error: null,
   };
 
-  const { subscribe, set, update } = writable<CheckoutState>(initialState);
+  // Load persisted state from localStorage
+  const persistedState = loadFromStorage();
+  const initialStoreState = persistedState ? { ...initialState, ...persistedState } : initialState;
+
+  const { subscribe, set, update } = writable<CheckoutState>(initialStoreState);
 
   return {
     subscribe,
@@ -213,6 +217,16 @@ function createCheckoutStore() {
     clearCheckout: () => {
       set(initialState);
       clearStorage();
+    },
+    
+    // Load persisted state (useful for debugging)
+    loadPersistedState: () => {
+      const persistedState = loadFromStorage();
+      if (persistedState) {
+        set({ ...initialState, ...persistedState });
+        return true;
+      }
+      return false;
     },
     
     // Get selected experts
