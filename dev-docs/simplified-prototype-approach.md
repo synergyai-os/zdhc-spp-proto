@@ -9,40 +9,43 @@ Instead of building everything at once, let's break this down into **small, mana
 ### **Goal**: Basic expert management with persistence
 
 ### **What to Build**:
+
 1. **Simple User Table** - Just basic user data
 2. **Simple Organization Table** - Just organization names
 3. **Simple Expert Assignment** - Link users to organizations
 4. **Basic UI** - Add expert, view experts, simple status
 
 ### **Database Schema (Minimal)**:
+
 ```typescript
 // Users (simulating PDC)
 interface User {
-  _id: Id<"users">;
-  firstName: string;
-  lastName: string;
-  email: string;
-  country: string;
+	_id: Id<'users'>;
+	firstName: string;
+	lastName: string;
+	email: string;
+	country: string;
 }
 
 // Organizations
 interface Organization {
-  _id: Id<"organizations">;
-  name: string;
+	_id: Id<'organizations'>;
+	name: string;
 }
 
 // Expert Assignments (simplified)
 interface ExpertAssignment {
-  _id: Id<"expert_assignments">;
-  userId: Id<"users">;
-  organizationId: Id<"organizations">;
-  services: string[]; // Just service names for now
-  status: "draft" | "active" | "inactive";
-  createdAt: number;
+	_id: Id<'expert_assignments'>;
+	userId: Id<'users'>;
+	organizationId: Id<'organizations'>;
+	services: string[]; // Just service names for now
+	status: 'draft' | 'active' | 'inactive';
+	createdAt: number;
 }
 ```
 
 ### **Features**:
+
 - ✅ Add expert to organization
 - ✅ View experts by organization
 - ✅ Simple status management
@@ -55,34 +58,37 @@ interface ExpertAssignment {
 ### **Goal**: Add service versioning
 
 ### **What to Add**:
+
 1. **Services Table** - Available services
 2. **Service Versions** - Different versions of services
 3. **Organization Service Approvals** - Which services orgs can use
 
 ### **New Tables**:
+
 ```typescript
 interface Service {
-  _id: Id<"services">;
-  name: string;
-  currentVersion: string;
+	_id: Id<'services'>;
+	name: string;
+	currentVersion: string;
 }
 
 interface ServiceVersion {
-  _id: Id<"service_versions">;
-  serviceId: Id<"services">;
-  version: string;
-  isActive: boolean;
+	_id: Id<'service_versions'>;
+	serviceId: Id<'services'>;
+	version: string;
+	isActive: boolean;
 }
 
 interface OrganizationServiceApproval {
-  _id: Id<"organization_service_approvals">;
-  organizationId: Id<"organizations">;
-  serviceVersionId: Id<"service_versions">;
-  status: "approved" | "pending";
+	_id: Id<'organization_service_approvals'>;
+	organizationId: Id<'organizations'>;
+	serviceVersionId: Id<'service_versions'>;
+	status: 'approved' | 'pending';
 }
 ```
 
 ### **Features**:
+
 - ✅ Service version selection
 - ✅ Organization service approvals
 - ✅ Filter experts by service version
@@ -94,21 +100,24 @@ interface OrganizationServiceApproval {
 ### **Goal**: Add staff members and access control
 
 ### **What to Add**:
+
 1. **Staff Members Table** - Users with SPP access
 2. **Simple Authentication** - Mock login system
 3. **Role-based Access** - Different permissions
 
 ### **New Tables**:
+
 ```typescript
 interface StaffMember {
-  _id: Id<"staff_members">;
-  userId: Id<"users">;
-  organizationId: Id<"organizations">;
-  role: "admin" | "viewer";
+	_id: Id<'staff_members'>;
+	userId: Id<'users'>;
+	organizationId: Id<'organizations'>;
+	role: 'admin' | 'viewer';
 }
 ```
 
 ### **Features**:
+
 - ✅ Mock login system
 - ✅ Organization context switching
 - ✅ Role-based permissions
@@ -120,11 +129,13 @@ interface StaffMember {
 ### **Goal**: Add proper workflow management
 
 ### **What to Add**:
+
 1. **Extended Status** - More workflow states
 2. **Status History** - Track changes
 3. **Workflow UI** - Visual progress tracking
 
 ### **Features**:
+
 - ✅ Draft → Submitted → Active workflow
 - ✅ Status history tracking
 - ✅ Visual workflow progress
@@ -134,12 +145,14 @@ interface StaffMember {
 ## 🎯 **Recommended Starting Point: Phase 1 Only**
 
 ### **Why Start Here**:
+
 1. **Delivers value quickly** - Working expert management in 1 week
 2. **Simple to understand** - Easy to explain and demo
 3. **Builds confidence** - Success before complexity
 4. **Easy to extend** - Foundation for future phases
 
 ### **What You Get**:
+
 - ✅ Add experts to organizations
 - ✅ View experts by organization
 - ✅ Basic status management
@@ -147,6 +160,7 @@ interface StaffMember {
 - ✅ Working prototype to demo
 
 ### **What You Skip (For Now)**:
+
 - ❌ Complex workflow states
 - ❌ Service versioning
 - ❌ User roles and permissions
@@ -158,11 +172,13 @@ interface StaffMember {
 ## 🛠️ **Implementation Strategy**
 
 ### **Week 1: Phase 1 Implementation**
+
 1. **Day 1-2**: Convex setup + basic schema
 2. **Day 3-4**: Simple expert assignment UI
 3. **Day 5**: Testing and polish
 
 ### **Decision Points**:
+
 - **After Phase 1**: Do you want Phase 2, or is Phase 1 sufficient?
 - **After Phase 2**: Do you need Phase 3, or can you demo with Phase 2?
 - **Iterative approach**: Build only what you need, when you need it
@@ -182,8 +198,9 @@ interface StaffMember {
 ## 🎯 **My Recommendation**
 
 **Start with Phase 1 only.** Get a working expert management system with:
+
 - Add experts to organizations
-- View experts by organization  
+- View experts by organization
 - Basic status management
 - Persistent data
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ExpertTableRow } from '$lib/stores/experts.svelte';
 	import { getStatusColor, getPaymentStatusColor } from '$lib/stores/experts.svelte';
-	
+
 	function getProfileStatusText(expert: ExpertTableRow): string {
 		if (expert.isProfileComplete) return 'Complete';
 		if (expert.profileCompletionStep) {
@@ -9,7 +9,7 @@
 		}
 		return 'Not Started';
 	}
-	
+
 	interface Props {
 		experts: ExpertTableRow[];
 		isLoading?: boolean;
@@ -17,13 +17,13 @@
 		onEditExpert?: (expertId: string) => void;
 		onChatExpert?: (expertId: string) => void;
 	}
-	
+
 	let { experts, isLoading = false, error = null, onEditExpert, onChatExpert }: Props = $props();
-	
+
 	function handleEditExpert(expertId: string) {
 		onEditExpert?.(expertId);
 	}
-	
+
 	function handleChatExpert(expertId: string) {
 		onChatExpert?.(expertId);
 	}
@@ -42,8 +42,18 @@
 		</div>
 	{:else if experts.length === 0}
 		<div class="p-8 text-center text-gray-500">
-			<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+			<svg
+				class="w-12 h-12 mx-auto mb-4 text-gray-300"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+				/>
 			</svg>
 			<p class="text-lg font-medium mb-2">No experts found</p>
 			<p class="text-sm">Add your first expert to get started</p>
@@ -53,34 +63,50 @@
 		<div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
 			<div class="flex items-center justify-between">
 				<h3 class="text-lg font-semibold text-gray-900">Expert Management</h3>
-				<span class="text-sm text-gray-600">{experts.length} expert{experts.length !== 1 ? 's' : ''}</span>
+				<span class="text-sm text-gray-600"
+					>{experts.length} expert{experts.length !== 1 ? 's' : ''}</span
+				>
 			</div>
 		</div>
-		
+
 		<!-- Table -->
 		<div class="overflow-x-auto">
 			<table class="min-w-full divide-y divide-gray-200">
 				<thead class="bg-gray-50">
 					<tr>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th
+							class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+						>
 							Expert
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th
+							class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+						>
 							Services
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th
+							class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+						>
 							Profile Status
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th
+							class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+						>
 							Status
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th
+							class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+						>
 							Payment
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th
+							class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+						>
 							Next Action
 						</th>
-						<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th
+							class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+						>
 							Actions
 						</th>
 					</tr>
@@ -92,7 +118,9 @@
 							<td class="px-6 py-4 whitespace-nowrap">
 								<div class="flex items-center">
 									<div class="flex-shrink-0 h-10 w-10">
-										<div class="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-semibold text-sm">
+										<div
+											class="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-semibold text-sm"
+										>
 											{expert.avatar}
 										</div>
 									</div>
@@ -106,30 +134,38 @@
 									</div>
 									{#if expert.hasLeadRole}
 										<div class="ml-2">
-											<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+											<span
+												class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"
+											>
 												LEAD
 											</span>
 										</div>
 									{/if}
 								</div>
 							</td>
-							
+
 							<!-- Services -->
 							<td class="px-6 py-4">
 								<div class="flex flex-wrap gap-1">
 									{#each expert.services as service}
 										<div class="flex items-center gap-1">
 											{#if service.name === 'Awaiting service selection'}
-												<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+												<span
+													class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
+												>
 													Awaiting service selection
 												</span>
 											{:else}
-												<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+												<span
+													class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
+												>
 													{service.name}
 												</span>
 											{/if}
 											{#if service.isLead}
-												<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800">
+												<span
+													class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800"
+												>
 													L
 												</span>
 											{/if}
@@ -140,16 +176,20 @@
 									{expert.totalAssignments} assignment{expert.totalAssignments !== 1 ? 's' : ''}
 								</div>
 							</td>
-							
+
 							<!-- Profile Status -->
 							<td class="px-6 py-4 whitespace-nowrap">
 								{#if expert.isProfileComplete}
-									<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+									<span
+										class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+									>
 										Complete
 									</span>
 								{:else if expert.profileCompletionStep}
 									<div class="space-y-1">
-										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+										<span
+											class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+										>
 											Draft
 										</span>
 										<div class="text-xs text-gray-500">
@@ -157,33 +197,43 @@
 										</div>
 									</div>
 								{:else}
-									<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+									<span
+										class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+									>
 										Not Started
 									</span>
 								{/if}
 							</td>
-							
+
 							<!-- Current Status -->
 							<td class="px-6 py-4 whitespace-nowrap">
-								<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getStatusColor(expert.currentStatus)}">
+								<span
+									class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getStatusColor(
+										expert.currentStatus
+									)}"
+								>
 									{expert.currentStatus.replace('_', ' ')}
 								</span>
 							</td>
-							
+
 							<!-- Payment Status -->
 							<td class="px-6 py-4 whitespace-nowrap">
-								<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getPaymentStatusColor(expert.paymentStatus)}">
+								<span
+									class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getPaymentStatusColor(
+										expert.paymentStatus
+									)}"
+								>
 									{expert.paymentStatus}
 								</span>
 							</td>
-							
+
 							<!-- Next Action -->
 							<td class="px-6 py-4">
 								<div class="text-sm text-gray-900">
 									{expert.nextAction}
 								</div>
 							</td>
-							
+
 							<!-- Actions -->
 							<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
 								<div class="flex items-center justify-end space-x-2">
@@ -195,12 +245,17 @@
 										title="Chat with Expert"
 									>
 										<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+											/>
 										</svg>
 										<!-- Future: Chat bubble notification -->
 										<!-- <span class="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">3</span> -->
 									</button>
-									
+
 									<!-- Edit Icon -->
 									<button
 										type="button"
@@ -209,7 +264,12 @@
 										title="Edit Expert"
 									>
 										<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+											/>
 										</svg>
 									</button>
 								</div>
@@ -219,16 +279,19 @@
 				</tbody>
 			</table>
 		</div>
-		
+
 		<!-- Table Footer -->
 		<div class="px-6 py-3 bg-gray-50 border-t border-gray-200">
 			<div class="flex items-center justify-between text-sm text-gray-600">
 				<span>Showing {experts.length} expert{experts.length !== 1 ? 's' : ''}</span>
 				<div class="flex items-center space-x-4">
-					<span>Complete profiles: {experts.filter(e => e.isProfileComplete).length}</span>
-					<span>Draft profiles: {experts.filter(e => !e.isProfileComplete && e.profileCompletionStep).length}</span>
-					<span>LEAD experts: {experts.filter(e => e.hasLeadRole).length}</span>
-					<span>Paid: {experts.filter(e => e.paymentStatus === 'paid').length}</span>
+					<span>Complete profiles: {experts.filter((e) => e.isProfileComplete).length}</span>
+					<span
+						>Draft profiles: {experts.filter((e) => !e.isProfileComplete && e.profileCompletionStep)
+							.length}</span
+					>
+					<span>LEAD experts: {experts.filter((e) => e.hasLeadRole).length}</span>
+					<span>Paid: {experts.filter((e) => e.paymentStatus === 'paid').length}</span>
 				</div>
 			</div>
 		</div>

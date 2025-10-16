@@ -8,139 +8,229 @@
 	import Step4Experience from '$lib/components/expert-wizard/Step4Experience.svelte';
 	import Step5Education from '$lib/components/expert-wizard/Step5Education.svelte';
 	import type { Id } from '../../../../../convex/_generated/dataModel';
-	
+
 	// Get expert ID from URL params
 	const expertId = $derived($page.params.expertId);
-	
+
 	// Get Convex client
 	const client = useConvexClient();
-	
-	// Query expert assignment data
-	const expertAssignment = useQuery(
-		api.expertAssignments.getExpertAssignmentById,
-		() => expertId ? { id: expertId as any } : { id: "" as any }
+
+	// Query the primary expert assignment data
+	const primaryAssignment = useQuery(api.expertAssignments.getExpertAssignmentById, () =>
+		expertId ? { id: expertId as any } : { id: '' as any }
 	);
+
+	// Get user ID from primary assignment to query all assignments for this user
+	let userId = $derived(primaryAssignment?.data?.userId || null);
 	
-	// Cast the data to our interface type
-	let assignmentData = $derived(expertAssignment?.data as any);
-	
+	// Query all assignments for this user
+	const expertAssignments = useQuery(api.expertAssignments.getExpertAssignmentsByUserId, () =>
+		userId ? { userId: userId as any } : { userId: '' as any }
+	);
+
+	// Get the primary assignment (the one we're editing)
+	let assignmentData = $derived(primaryAssignment?.data || null);
+
 	// Organization context - use the organization from the expert assignment
 	let currentOrgId = $derived(assignmentData?.organizationId || null);
-	
+
 	// Debug organization context
 	$effect(() => {
 		console.log('🏢 Organization Context:');
 		console.log('  - assignmentData:', assignmentData);
 		console.log('  - currentOrgId from assignment:', currentOrgId);
 		console.log('  - global organization:', $organizationStore.currentOrganization?._id);
-		console.log('  - availableOrganizations:', $organizationStore.availableOrganizations?.length || 0);
+		console.log(
+			'  - availableOrganizations:',
+			$organizationStore.availableOrganizations?.length || 0
+		);
 	});
-	
+
 	// Query user data if assignment exists
-	const userData = useQuery(
-		api.expertAssignments.getUserById,
-		() => expertAssignment?.data?.userId ? { id: expertAssignment.data.userId } : { id: "" as any }
+	const userData = useQuery(api.expertAssignments.getUserById, () =>
+		primaryAssignment?.data?.userId ? { id: primaryAssignment.data.userId } : { id: '' as any }
 	);
-	
+
 	// Query available services for this organization
-	const serviceVersions = useQuery(
-		api.expertAssignments.getServiceVersions,
-		() => ({})
+	const serviceVersions = useQuery(api.expertAssignments.getServiceVersions, () => ({}));
+
+	const organizationApprovals = useQuery(api.expertAssignments.getOrganizationApprovals, () =>
+		currentOrgId && assignmentData
+			? { organizationId: currentOrgId as any }
+			: { organizationId: '' as any }
 	);
-	
-	const organizationApprovals = useQuery(
-		api.expertAssignments.getOrganizationApprovals,
-		() => currentOrgId && assignmentData ? { organizationId: currentOrgId as any } : { organizationId: "" as any }
-	);
-	
+
 	// Loading and error states
-	let isLoading = $derived(expertAssignment?.isLoading || userData?.isLoading || false);
-	let hasError = $derived(expertAssignment?.error || userData?.error || false);
-	
+	let isLoading = $derived(primaryAssignment?.isLoading || expertAssignments?.isLoading || userData?.isLoading || false);
+	let hasError = $derived(primaryAssignment?.error || expertAssignments?.error || userData?.error || false);
+
 	// Edit state
 	let isSaving = $state(false);
 	let saveError = $state<string | null>(null);
-	
+
 	// Available services for the organization
-	let availableServices = $derived((() => {
-		console.log('🔍 Debug Services:');
-		console.log('  - currentOrgId:', currentOrgId);
-		console.log('  - serviceVersions:', serviceVersions?.data?.length || 0);
-		console.log('  - organizationApprovals:', organizationApprovals?.data?.length || 0);
-		
-		// PROTOTYPE MODE: Show all services if:
-		// 1. No organization is selected, OR
-		// 2. No organization approvals exist
-		if (!currentOrgId || !organizationApprovals?.data?.length) {
-			console.log('  - Prototype mode: showing all services');
-			return serviceVersions?.data || [];
-		}
-		
-		const filtered = serviceVersions?.data?.filter((service: any) => 
-			organizationApprovals?.data?.some((approval: any) => 
-				approval.serviceVersionId === service._id
-			)
-		) || [];
-		
-		console.log('  - Filtered services:', filtered.length);
-		return filtered;
-	})());
-	
+	let availableServices = $derived(
+		(() => {
+			console.log('🔍 Debug Services:');
+			console.log('  - currentOrgId:', currentOrgId);
+			console.log('  - serviceVersions:', serviceVersions?.data?.length || 0);
+			console.log('  - organizationApprovals:', organizationApprovals?.data?.length || 0);
+
+			// PROTOTYPE MODE: Show all services if:
+			// 1. No organization is selected, OR
+			// 2. No organization approvals exist
+			if (!currentOrgId || !organizationApprovals?.data?.length) {
+				console.log('  - Prototype mode: showing all services');
+				return serviceVersions?.data || [];
+			}
+
+			const filtered =
+				serviceVersions?.data?.filter((service: any) =>
+					organizationApprovals?.data?.some(
+						(approval: any) => approval.serviceVersionId === service._id
+					)
+				) || [];
+
+			console.log('  - Filtered services:', filtered.length);
+			return filtered;
+		})()
+	);
+
 	// Current form data (editable fields)
 	let selectedServices = $state<string[]>([]);
 	let serviceRoles = $state<Record<string, 'lead' | 'regular'>>({});
 	let experience = $state<any[]>([]);
 	let education = $state<any[]>([]);
-	
+
 	// Initialize form data when assignment data loads
 	$effect(() => {
-		if (assignmentData) {
-			// Initialize services
-			if (assignmentData.serviceVersion) {
-				const serviceName = assignmentData.serviceVersion.name;
-				selectedServices = [serviceName];
-				serviceRoles[serviceName] = assignmentData.role || 'regular';
-			}
-			
-			// Initialize experience and education
+		if (assignmentData && expertAssignments?.data) {
+			// Initialize services from ALL assignments for this user
+			const allServices = expertAssignments.data
+				.filter((assignment: any) => assignment.serviceVersion)
+				.map((assignment: any) => ({
+					name: assignment.serviceVersion.name,
+					role: assignment.role || 'regular'
+				}));
+
+			// Remove duplicates and set selected services
+			const uniqueServices = [...new Map(allServices.map((s: any) => [s.name, s])).values()];
+			selectedServices = uniqueServices.map((s: any) => s.name);
+			serviceRoles = Object.fromEntries(uniqueServices.map((s: any) => [s.name, s.role]));
+
+			// Initialize experience and education from the primary assignment
 			experience = assignmentData.experience || [];
 			education = assignmentData.education || [];
 		}
 	});
-	
+
 	function goBack() {
 		window.history.back();
 	}
-	
+
 	async function handleSave() {
 		if (isSaving) return;
-		
+
 		try {
 			isSaving = true;
 			saveError = null;
-			
-			// Update experience
-			if (experience.length > 0) {
-				await client.mutation(api.expertAssignments.updateExpertAssignmentExperience, {
-					assignmentId: expertId as Id<"expertAssignments">,
+
+			// Handle service assignments for shell assignments
+			let newAssignmentIds: Id<'expertAssignments'>[] = [];
+
+			// Handle service assignments - prevent duplicates by checking existing assignments
+			if (selectedServices.length > 0) {
+				const userId = assignmentData?.userId;
+				const organizationId = assignmentData?.organizationId;
+				
+				if (!userId || !organizationId) {
+					throw new Error('Missing user or organization data');
+				}
+
+				// Get existing service assignments to avoid duplicates
+				const existingServiceIds = expertAssignments?.data
+					?.filter((assignment: any) => assignment.serviceVersionId)
+					?.map((assignment: any) => assignment.serviceVersionId) || [];
+
+				console.log('🔍 Debug Save - Service Assignment:');
+				console.log('  - selectedServices:', selectedServices);
+				console.log('  - existingServiceIds:', existingServiceIds);
+				
+				// Only create assignments for services that don't already exist
+				const newServiceAssignments = selectedServices
+					.filter((serviceName) => {
+						const serviceVersion = serviceVersions?.data?.find(
+							(version: any) => version.name === serviceName
+						);
+						const isNewService = serviceVersion && !existingServiceIds.includes(serviceVersion._id);
+						console.log(`  - Service "${serviceName}": ${isNewService ? 'NEW' : 'EXISTS'}`);
+						return isNewService;
+					})
+					.map((serviceName) => {
+						const serviceVersion = serviceVersions?.data?.find(
+							(version: any) => version.name === serviceName
+						);
+						if (!serviceVersion) {
+							throw new Error(`Service version not found for: ${serviceName}`);
+						}
+						return {
+							serviceVersionId: serviceVersion._id,
+							role: serviceRoles[serviceName] || 'regular'
+						};
+					});
+
+				// Handle shell assignment deletion
+				if (!assignmentData?.serviceVersionId && expertAssignments?.data?.length === 1) {
+					// This is a shell assignment - delete it and create new ones
+					console.log('🗑️ Deleting shell assignment:', expertId);
+					await client.mutation(api.expertAssignments.deleteExpertAssignment, {
+						id: expertId as Id<'expertAssignments'>
+					});
+				}
+
+				// Create new assignments only for new services
+				if (newServiceAssignments.length > 0) {
+					console.log('➕ Creating new assignments:', newServiceAssignments);
+					try {
+						newAssignmentIds = await client.mutation(api.expertAssignments.createExpertAssignmentsForUser, {
+							userId: userId as Id<'users'>,
+							organizationId: organizationId as Id<'organizations'>,
+							serviceAssignments: newServiceAssignments,
+							assignedBy: 'current-user-id'
+						});
+						console.log('✅ Created assignment IDs:', newAssignmentIds);
+					} catch (createError) {
+						console.error('❌ Failed to create assignments:', createError);
+						throw new Error(`Failed to create expert assignments: ${createError}`);
+					}
+				} else {
+					console.log('ℹ️ No new services to create assignments for');
+					// Get existing assignment IDs for updating experience/education
+					newAssignmentIds = expertAssignments?.data?.map((a: any) => a._id) || [];
+				}
+			}
+
+			// Update experience for all assignments
+			if (experience.length > 0 && newAssignmentIds.length > 0) {
+				await client.mutation(api.expertAssignments.updateMultipleAssignmentsExperience, {
+					assignmentIds: newAssignmentIds,
 					experience: experience,
 					profileCompletionStep: 4
 				});
 			}
-			
-			// Update education
-			if (education.length > 0) {
-				await client.mutation(api.expertAssignments.updateExpertAssignmentEducation, {
-					assignmentId: expertId as Id<"expertAssignments">,
+
+			// Update education for all assignments
+			if (education.length > 0 && newAssignmentIds.length > 0) {
+				await client.mutation(api.expertAssignments.updateMultipleAssignmentsEducation, {
+					assignmentIds: newAssignmentIds,
 					education: education,
 					profileCompletionStep: 5,
 					isProfileComplete: true
 				});
 			}
-			
+
 			// Redirect back to user management
 			window.location.href = '/user-management';
-			
 		} catch (error) {
 			console.error('Error saving profile:', error);
 			saveError = error instanceof Error ? error.message : 'Unknown error';
@@ -148,29 +238,29 @@
 			isSaving = false;
 		}
 	}
-	
+
 	function handleToggleService(serviceName: string) {
 		if (selectedServices.includes(serviceName)) {
-			selectedServices = selectedServices.filter(s => s !== serviceName);
+			selectedServices = selectedServices.filter((s) => s !== serviceName);
 			delete serviceRoles[serviceName];
 		} else {
 			selectedServices = [...selectedServices, serviceName];
 			serviceRoles[serviceName] = 'regular';
 		}
 	}
-	
+
 	function handleToggleRole(serviceName: string) {
 		serviceRoles[serviceName] = serviceRoles[serviceName] === 'lead' ? 'regular' : 'lead';
 	}
-	
+
 	function handleUpdateExperience(newExperience: any[]) {
 		experience = newExperience;
 	}
-	
+
 	function handleUpdateEducation(newEducation: any[]) {
 		education = newEducation;
 	}
-	
+
 	// No step navigation needed - all steps are visible simultaneously
 </script>
 
@@ -180,7 +270,6 @@
 
 <div class="bg-gray-50 min-h-screen">
 	<div class="max-w-4xl mx-auto px-6 py-8">
-		
 		<!-- Header -->
 		<div class="mb-8">
 			<div class="flex items-center justify-between">
@@ -201,14 +290,26 @@
 		{#if isLoading}
 			<!-- Loading State -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+				<div
+					class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"
+				></div>
 				<p class="text-gray-600">Loading expert profile...</p>
 			</div>
 		{:else if hasError}
 			<!-- Error State -->
 			<div class="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center">
-				<svg class="w-12 h-12 mx-auto mb-4 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				<svg
+					class="w-12 h-12 mx-auto mb-4 text-red-300"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+					/>
 				</svg>
 				<h2 class="text-xl font-semibold text-red-800 mb-2">Error Loading Profile</h2>
 				<p class="text-red-600 mb-4">Could not load expert profile data</p>
@@ -223,8 +324,18 @@
 		{:else if !assignmentData}
 			<!-- Not Found -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-				<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+				<svg
+					class="w-12 h-12 mx-auto mb-4 text-gray-300"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+					/>
 				</svg>
 				<h2 class="text-xl font-semibold text-gray-800 mb-2">Expert Not Found</h2>
 				<p class="text-gray-600 mb-4">The requested expert profile could not be found</p>
@@ -237,28 +348,38 @@
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
 				<div class="flex items-center">
 					<div class="flex-shrink-0 h-16 w-16">
-						<div class="h-16 w-16 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xl">
-							{userData?.data ? `${userData.data.firstName?.[0] || ''}${userData.data.lastName?.[0] || ''}` : '?'}
+						<div
+							class="h-16 w-16 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xl"
+						>
+							{userData?.data
+								? `${userData.data.firstName?.[0] || ''}${userData.data.lastName?.[0] || ''}`
+								: '?'}
 						</div>
 					</div>
 					<div class="ml-6">
 						<h2 class="text-2xl font-bold text-gray-900">
-							{userData?.data ? `${userData.data.firstName || ''} ${userData.data.lastName || ''}`.trim() || userData.data.email : 'Unknown User'}
+							{userData?.data
+								? `${userData.data.firstName || ''} ${userData.data.lastName || ''}`.trim() ||
+									userData.data.email
+								: 'Unknown User'}
 						</h2>
 						<p class="text-gray-600">{userData?.data?.email}</p>
 						<div class="mt-2 flex items-center space-x-4">
-							<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {
-								assignmentData.isProfileComplete 
-									? 'bg-green-100 text-green-800' 
-									: 'bg-blue-100 text-blue-800'
-							}">
-								{assignmentData.isProfileComplete ? 'Complete' : `Draft - Step ${assignmentData.profileCompletionStep || 0}/5`}
+							<span
+								class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {assignmentData.isProfileComplete
+									? 'bg-green-100 text-green-800'
+									: 'bg-blue-100 text-blue-800'}"
+							>
+								{assignmentData.isProfileComplete
+									? 'Complete'
+									: `Draft - Step ${assignmentData.profileCompletionStep || 0}/5`}
 							</span>
-							<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {
-								userData?.data?.isActive 
-									? 'bg-green-100 text-green-800' 
-									: 'bg-red-100 text-red-800'
-							}">
+							<span
+								class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {userData
+									?.data?.isActive
+									? 'bg-green-100 text-green-800'
+									: 'bg-red-100 text-red-800'}"
+							>
 								{userData?.data?.isActive ? 'Active' : 'Invited'}
 							</span>
 						</div>
@@ -271,7 +392,11 @@
 				<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
 					<div class="flex items-center">
 						<svg class="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+							<path
+								fill-rule="evenodd"
+								d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+								clip-rule="evenodd"
+							/>
 						</svg>
 						<div>
 							<h3 class="text-sm font-medium text-red-800">Save Error</h3>
@@ -287,53 +412,50 @@
 					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 2: Expert Confirmation</h2>
 					<p class="text-gray-600">Verify expert information and invitation status</p>
 				</div>
-				<Step2Confirmation 
+				<Step2Confirmation
 					userData={userData?.data}
 					isDraftMode={!userData?.data?.isActive}
 					invitedUserEmail={userData?.data?.email}
 				/>
 			</div>
-			
+
 			<!-- STEP 3: Select Services -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
 				<div class="mb-4">
 					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 3: Select Services & Roles</h2>
 					<p class="text-gray-600">Choose which services this expert will provide and their role</p>
 				</div>
-				<Step3Services 
-					availableServices={availableServices}
-					selectedServices={selectedServices}
-					serviceRoles={serviceRoles}
-					currentOrgId={currentOrgId}
+				<Step3Services
+					{availableServices}
+					{selectedServices}
+					{serviceRoles}
+					{currentOrgId}
 					isLoadingServices={serviceVersions?.isLoading || organizationApprovals?.isLoading}
 					isDraftMode={!userData?.data?.isActive}
 					on:toggleService={(e) => handleToggleService(e.detail)}
 					on:toggleRole={(e) => handleToggleRole(e.detail)}
 				/>
 			</div>
-			
+
 			<!-- STEP 4: Professional Experience -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
 				<div class="mb-4">
 					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 4: Professional Experience</h2>
 					<p class="text-gray-600">Add relevant work experience and achievements</p>
 				</div>
-				<Step4Experience 
-					experience={experience}
+				<Step4Experience
+					{experience}
 					on:updateExperience={(e) => handleUpdateExperience(e.detail)}
 				/>
 			</div>
-			
+
 			<!-- STEP 5: Education -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
 				<div class="mb-4">
 					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 5: Education & Certifications</h2>
 					<p class="text-gray-600">Add educational background and relevant certifications</p>
 				</div>
-				<Step5Education 
-					education={education}
-					on:updateEducation={(e) => handleUpdateEducation(e.detail)}
-				/>
+				<Step5Education {education} on:updateEducation={(e) => handleUpdateEducation(e.detail)} />
 			</div>
 
 			<!-- Save Button -->

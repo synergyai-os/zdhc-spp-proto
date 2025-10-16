@@ -5,6 +5,7 @@
 This is a **Solution Provider Platform** for ZDHC (Zero Discharge of Hazardous Chemicals) that manages staff members and Solution Provider experts across different services. The platform allows organizations to become ZDHC Approved Solution Providers and manage their expert teams.
 
 ### Key Concepts
+
 - **ZDHC Staff**: Internal platform administrators and managers
 - **Solution Providers**: External organizations providing specific services
 - **Experts**: Individual professionals who provide services (can work for multiple services)
@@ -14,17 +15,20 @@ This is a **Solution Provider Platform** for ZDHC (Zero Discharge of Hazardous C
 ## 🛠️ Tech Stack
 
 ### Core Framework
+
 - **Svelte 5** - Latest version with modern syntax (`$props()`, `$derived()`, etc.)
 - **SvelteKit** - Full-stack framework with file-based routing
 - **TypeScript** - Full type safety throughout the application
-- **Bun** - Runtime and package manager (faster than Node.js)
+- **Node.js** - Runtime and package manager
 
 ### Styling & UI
+
 - **Tailwind CSS 4.1.14** - Utility-first CSS framework
 - **@tailwindcss/forms** - Enhanced form styling
 - **Responsive design** - Mobile-first approach
 
 ### Development Tools
+
 - **ESLint** - Code linting with Svelte-specific rules
 - **Prettier** - Code formatting
 - **Context7 MCP** - For up-to-date documentation and best practices
@@ -41,14 +45,23 @@ src/
 │       ├── ServiceBox.svelte       # Service section container
 │       ├── ActionCard.svelte       # Dashboard action cards
 │       ├── ToggleSwitch.svelte     # Service approval toggle component
-│       └── OrganizationSwitcher.svelte # Organization selection dropdown
+│       ├── OrganizationSwitcher.svelte # Organization selection dropdown
+│       └── admin/                  # Admin-specific components
+│           ├── CVReviewTable.svelte    # CV review table with filtering
+│           └── CVDetailView.svelte     # Individual CV review component
 ├── convex/                  # Convex backend functions
 │   ├── schema.ts           # Database schema definition
 │   ├── expertAssignments.ts # CRUD operations for experts
+│   ├── adminCVReview.ts    # Admin CV review queries and mutations
 │   └── _generated/         # Auto-generated API files
 ├── routes/
 │   ├── +layout.svelte       # Root layout with Convex setup
 │   ├── +page.svelte         # Homepage dashboard
+│   ├── admin/                # Admin CV review system
+│   │   ├── +page.svelte     # CV review dashboard
+│   │   └── cv/
+│   │       └── [userId]/
+│   │           └── +page.svelte # Individual CV review page
 │   ├── approved-services/   # Service approval management
 │   │   └── +page.svelte     # Service approval toggle interface
 │   ├── test-convex/         # Database testing page
@@ -65,6 +78,7 @@ src/
 ## 🎨 Design System
 
 ### Color Scheme
+
 - **Primary Blue**: `blue-500`, `blue-600` (buttons, links)
 - **Success Green**: `green-500`, `green-600` (success states)
 - **Warning Yellow**: `yellow-200`, `yellow-800` (LEAD expert badges)
@@ -72,6 +86,7 @@ src/
 - **Service Colors**: Green (ETP), Purple (Supplier), Orange (Chemical)
 
 ### Component Patterns
+
 - **Cards**: White background, gray borders, subtle shadows
 - **Buttons**: Rounded corners, hover effects, consistent spacing
 - **Forms**: Clean inputs with focus states, proper labels
@@ -80,12 +95,14 @@ src/
 ## 🏗️ Architecture Principles
 
 ### 1. Component-First Approach
+
 - **Reusable components** in `/lib/components/`
 - **Single responsibility** - each component has one clear purpose
 - **TypeScript interfaces** for all props
 - **Accessibility first** - proper labels, ARIA attributes
 
 ### 2. Svelte 5 Best Practices (Runes Mode)
+
 - Use `$state()` for reactive variables (replaces `let`)
 - Use `$derived()` for computed values (replaces `$:`)
 - Use `$props()` for component props
@@ -96,6 +113,7 @@ src/
 - Avoid `$:` syntax - use runes instead
 
 ### 3. File-Based Routing
+
 - **Nested routes** for logical hierarchy (`/user-management/add-expert`)
 - **Layout inheritance** - Header component shared across all pages
 - **Dynamic imports** for code splitting
@@ -103,12 +121,14 @@ src/
 ## 📋 Current Features
 
 ### Homepage Dashboard
+
 - **Hero section** with platform branding
 - **Action cards** for main workflows (Get Approved, Market Services, Manage Requests)
 - **Sidebar sections** for Important News and Feedback
 - **Responsive layout** with Tailwind grid system
 
 ### User Management
+
 - **Staff section** - Display ZDHC internal staff
 - **Saved Experts section** - Display experts from Convex database
 - **Expert cards** - Avatar, name, email, services, organization, status, assignment date
@@ -120,6 +140,7 @@ src/
 - **Single "Add Expert" button** - Clean UX with one action point
 
 ### Service Approval Management
+
 - **Approved Services page** - Manage service approvals for organizations
 - **Service toggle interface** - Real-time approval status toggles
 - **Organization context** - Services filtered by selected organization
@@ -130,6 +151,7 @@ src/
 - **Data consistency** - Synchronized data between user management and approval pages
 
 ### Add Expert Wizard (5-Step Process)
+
 - **Step 1: Email Lookup** - Check if user exists in PDC (external platform)
 - **Step 2: Confirm PDC Data** - Display read-only user data (name, email, country)
 - **Step 3: Select Services & Roles** - Badge system for service assignment with LEAD/Regular roles
@@ -147,9 +169,24 @@ src/
 - **Organization Management** - Automatic creation of default organization
 - **Data Validation** - Server-side validation with proper error handling
 
+### Admin CV Review System
+
+- **CV Review Dashboard** - Admin interface at `/admin/` for reviewing expert CVs
+- **Expert Table View** - One row per user showing all their service assignments with status badges
+- **Advanced Filtering** - Filter by status (paid, training_completed, approved, rejected), organization, and search by name/email
+- **CV Detail Page** - Full CV review at `/admin/cv/[userId]` showing user info, experience, education, and per-service approvals
+- **Per-Service Approval** - Approve or reject individual service versions for each expert
+- **Review Tracking** - Track who reviewed, when, and add notes for each service version
+- **Real-time Updates** - Automatic UI updates when approval status changes
+- **Navigation Flow** - Previous/Next buttons for efficient review of multiple experts
+- **Status Management** - Visual status indicators (paid=blue, training_completed=purple, approved=green, rejected=red)
+- **Admin Notes** - Optional notes field for approval/rejection with predefined rejection reasons
+- **Audit Trail** - Complete history of approval/rejection actions with timestamps and admin IDs
+
 ## 🔄 Data Management (Implemented)
 
 ### Current State
+
 - **Convex Database** for real-time data persistence ✅
 - **TypeScript interfaces** for all data structures ✅
 - **CRUD operations** - Add, update, remove, get experts ✅
@@ -158,6 +195,7 @@ src/
 - **Cross-session persistence** - Data survives browser restarts ✅
 
 ### Database Schema
+
 - **Users table** - PDC user data (firstName, lastName, email, country)
 - **Organizations table** - Solution provider organizations
 - **Expert Assignments table** - Links users to organizations with services and roles
@@ -165,6 +203,7 @@ src/
 - **Type safety** - Full TypeScript support with Convex validation
 
 ### Convex Integration Features
+
 - **Real-time queries** - Data updates automatically in the UI
 - **Optimistic updates** - Immediate UI feedback with server sync
 - **Error handling** - Graceful fallback for network issues
@@ -174,6 +213,7 @@ src/
 ## 🏪 Database Architecture
 
 ### Convex Backend (`/src/convex/`)
+
 - **Schema Definition** - Type-safe database schema with validation
 - **Query Functions** - Read operations for users, organizations, expert assignments
 - **Mutation Functions** - Write operations for creating and updating data
@@ -181,104 +221,115 @@ src/
 - **Real-time subscriptions** - Automatic UI updates when data changes
 
 ### Database Tables
+
 ```typescript
 // Users (simulating PDC data)
 interface User {
-  _id: Id<"users">;
-  firstName: string;
-  lastName: string;
-  email: string;
-  country: string;
-  phone?: string;
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
+	_id: Id<'users'>;
+	firstName: string;
+	lastName: string;
+	email: string;
+	country: string;
+	phone?: string;
+	isActive: boolean;
+	createdAt: number;
+	updatedAt: number;
 }
 
 // Organizations (Solution Providers)
 interface Organization {
-  _id: Id<"organizations">;
-  name: string;
-  type: "solution_provider" | "zdhc_staff";
-  contactEmail: string;
-  status: "active" | "inactive" | "suspended";
-  createdAt: number;
-  updatedAt: number;
+	_id: Id<'organizations'>;
+	name: string;
+	type: 'solution_provider' | 'zdhc_staff';
+	contactEmail: string;
+	status: 'active' | 'inactive' | 'suspended';
+	createdAt: number;
+	updatedAt: number;
 }
 
 // Service Parents (e.g., "Assessment Approval")
 interface ServiceParent {
-  _id: Id<"serviceParents">;
-  name: string;
-  description: string;
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
+	_id: Id<'serviceParents'>;
+	name: string;
+	description: string;
+	isActive: boolean;
+	createdAt: number;
+	updatedAt: number;
 }
 
 // Service Versions (e.g., "Supplier to Zero Assessment V2")
 interface ServiceVersion {
-  _id: Id<"serviceVersions">;
-  parentId: Id<"serviceParents">;
-  version: string; // "V1", "V2", etc.
-  name: string; // "Supplier to Zero Assessment V2"
-  description: string;
-  isActive: boolean;
-  releasedAt: number;
-  deprecatedAt?: number;
-  createdAt: number;
-  updatedAt: number;
+	_id: Id<'serviceVersions'>;
+	parentId: Id<'serviceParents'>;
+	version: string; // "V1", "V2", etc.
+	name: string; // "Supplier to Zero Assessment V2"
+	description: string;
+	isActive: boolean;
+	releasedAt: number;
+	deprecatedAt?: number;
+	createdAt: number;
+	updatedAt: number;
 }
 
 // Organization Service Approvals
 interface OrganizationServiceApproval {
-  _id: Id<"organizationServiceApprovals">;
-  organizationId: Id<"organizations">;
-  serviceVersionId: Id<"serviceVersions">;
-  status: "pending" | "approved" | "rejected" | "suspended";
-  approvedBy?: string;
-  approvedAt?: number;
-  rejectedAt?: number;
-  notes?: string;
-  rejectionReason?: string;
-  createdAt: number;
-  updatedAt: number;
+	_id: Id<'organizationServiceApprovals'>;
+	organizationId: Id<'organizations'>;
+	serviceVersionId: Id<'serviceVersions'>;
+	status: 'pending' | 'approved' | 'rejected' | 'suspended';
+	approvedBy?: string;
+	approvedAt?: number;
+	rejectedAt?: number;
+	notes?: string;
+	rejectionReason?: string;
+	createdAt: number;
+	updatedAt: number;
 }
 
 // Expert Assignments (Links users to organizations)
 interface ExpertAssignment {
-  _id: Id<"expertAssignments">;
-  userId: Id<"users">;
-  organizationId: Id<"organizations">;
-  services: string[];
-  status: "draft" | "active" | "inactive";
-  experience: Experience[];
-  education: Education[];
-  assignedAt: number;
-  assignedBy: string;
-  notes?: string;
+	_id: Id<'expertAssignments'>;
+	userId: Id<'users'>;
+	organizationId: Id<'organizations'>;
+	services: string[];
+	status: 'draft' | 'active' | 'inactive';
+	experience: Experience[];
+	education: Education[];
+	assignedAt: number;
+	assignedBy: string;
+	notes?: string;
 }
 
 // Service Version Expert Assignments
 interface ServiceVersionExpertAssignment {
-  _id: Id<"serviceVersionExpertAssignments">;
-  userId: Id<"users">;
-  organizationId: Id<"organizations">;
-  serviceVersionId: Id<"serviceVersions">;
-  status: "draft" | "approved" | "paid" | "ready_for_training" | "training_started" | "training_completed" | "rejected" | "inactive";
-  assignedAt: number;
-  assignedBy: string;
-  notes?: string;
+	_id: Id<'serviceVersionExpertAssignments'>;
+	userId: Id<'users'>;
+	organizationId: Id<'organizations'>;
+	serviceVersionId: Id<'serviceVersions'>;
+	status:
+		| 'draft'
+		| 'approved'
+		| 'paid'
+		| 'ready_for_training'
+		| 'training_started'
+		| 'training_completed'
+		| 'rejected'
+		| 'inactive';
+	assignedAt: number;
+	assignedBy: string;
+	notes?: string;
 }
 ```
 
 ### Data Flow
+
 ```
 Add Expert Wizard → Convex Mutations → Database → Real-time UI Updates
 Service Approval Management → Organization Context → Conditional Queries → Real-time Updates
 ```
 
 ### Organization Context Management
+
 - **Organization Store** - Centralized state management for current organization
 - **Organization Switcher** - Header dropdown for switching between organizations
 - **Conditional Queries** - Data loading only when organization is selected
@@ -288,17 +339,20 @@ Service Approval Management → Organization Context → Conditional Queries →
 ## 🎯 User Experience Guidelines
 
 ### Navigation
+
 - **Header always visible** - consistent navigation across all pages
 - **Breadcrumb-style URLs** - `/user-management/add-expert` is self-explanatory
 - **Clear action buttons** - primary actions are obvious and accessible
 
 ### Form Design
+
 - **Progressive disclosure** - show relevant fields based on context
 - **Dynamic sections** - add/remove experience and education entries
 - **Smart defaults** - pre-fill common values where appropriate
 - **Validation feedback** - clear error messages and success states
 
 ### Expert Management
+
 - **Visual hierarchy** - LEAD experts prominently displayed
 - **Service organization** - experts grouped by service type
 - **Multi-service tracking** - clear indicators for cross-service experts
@@ -307,26 +361,30 @@ Service Approval Management → Organization Context → Conditional Queries →
 ## 🚀 Development Workflow
 
 ### Code Standards
+
 - **TypeScript strict mode** - no `any` types allowed
 - **ESLint compliance** - zero linting errors
 - **Prettier formatting** - consistent code style
 - **Component documentation** - clear prop interfaces
 
 ### Testing Approach
+
 - **Manual testing** - verify functionality in browser
 - **Responsive testing** - check mobile and desktop layouts
 - **Accessibility testing** - ensure screen reader compatibility
 - **Cross-browser testing** - verify compatibility
 
 ### Performance
+
 - **Component lazy loading** - load components only when needed
 - **Efficient re-renders** - use Svelte 5 reactivity properly
 - **Optimized bundles** - Tree shaking and code splitting
-- **Fast builds** - Leverage Bun's speed
+- **Fast builds** - Optimized build process
 
 ## 📝 Common Patterns
 
 ### Adding New Pages
+
 1. Create route file in appropriate directory
 2. Import and use existing components where possible
 3. Follow established layout patterns
@@ -334,6 +392,7 @@ Service Approval Management → Organization Context → Conditional Queries →
 5. Ensure responsive design
 
 ### Creating New Components
+
 1. Define TypeScript interfaces for props
 2. Use Svelte 5 syntax (`$props()`, etc.)
 3. Include accessibility attributes
@@ -341,6 +400,7 @@ Service Approval Management → Organization Context → Conditional Queries →
 5. Add to `/lib/components/` directory
 
 ### Form Handling
+
 1. Use `onsubmit` event handler (Svelte 5 syntax)
 2. Prevent default form submission
 3. Validate required fields
@@ -350,6 +410,7 @@ Service Approval Management → Organization Context → Conditional Queries →
 ## 🔮 Future Enhancements
 
 ### Planned Features
+
 - **Search and filtering** - Find experts by name, service, location
 - **Drag and drop** - Reorder services, move experts
 - **Bulk operations** - Select multiple experts for actions
@@ -358,6 +419,7 @@ Service Approval Management → Organization Context → Conditional Queries →
 - **Advanced validation** - Email format, phone number validation
 
 ### Scalability Considerations
+
 - **Component library** - Build reusable UI component library
 - **Database optimization** - Efficient queries and indexing with Convex
 - **API integration** - Prepare for backend API integration
@@ -368,6 +430,7 @@ Service Approval Management → Organization Context → Conditional Queries →
 ## 🤝 Collaboration Guidelines
 
 ### For New Agents/LLMs
+
 1. **Read this document first** - understand the project context and patterns
 2. **Check existing components** - reuse rather than recreate
 3. **Follow established patterns** - maintain consistency with existing code
@@ -375,6 +438,7 @@ Service Approval Management → Organization Context → Conditional Queries →
 5. **Test thoroughly** - verify functionality before considering complete
 
 ### Code Review Checklist
+
 - [ ] TypeScript interfaces defined for all props
 - [ ] Accessibility attributes included
 - [ ] Responsive design implemented
@@ -385,7 +449,8 @@ Service Approval Management → Organization Context → Conditional Queries →
 ## 📞 Context for Future Development
 
 ### Key Decisions Made
-- **Bun over Node.js** - for faster development and builds
+
+- **Node.js** - for reliable development and builds
 - **Component architecture** - reusable components over monolithic pages
 - **Convex Database** - Real-time backend-as-a-service for data persistence
 - **Nested routing** - `/user-management/add-expert` for logical hierarchy
@@ -405,6 +470,7 @@ Service Approval Management → Organization Context → Conditional Queries →
 - **Convex-Svelte Integration** - Using empty string fallback instead of "skip" pattern
 
 ### User Preferences (Important!)
+
 - **Coach-style guidance** - guide user through steps rather than doing everything
 - **Simple solutions** - avoid unnecessary complexity
 - **Svelte 5 focus** - always use modern Svelte syntax

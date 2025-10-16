@@ -16,15 +16,19 @@
 			setupConvex(PUBLIC_CONVEX_URL);
 			console.log('Convex client initialized with URL:', PUBLIC_CONVEX_URL);
 		} else {
-			console.error('PUBLIC_CONVEX_URL is not set. Please create a .env.local file with your Convex URL.');
+			console.error(
+				'PUBLIC_CONVEX_URL is not set. Please create a .env.local file with your Convex URL.'
+			);
 		}
 	} catch (error) {
 		console.error('Error initializing Convex client:', error);
 	}
 
 	// Load organizations and initialize organization context
-	const organizations = PUBLIC_CONVEX_URL ? useQuery(api.expertAssignments.getOrganizations, {}) : { data: [], isLoading: false, error: null };
-	
+	const organizations = PUBLIC_CONVEX_URL
+		? useQuery(api.expertAssignments.getOrganizations, {})
+		: { data: [], isLoading: false, error: null };
+
 	// Initialize organization store when organizations are loaded
 	$effect(() => {
 		try {

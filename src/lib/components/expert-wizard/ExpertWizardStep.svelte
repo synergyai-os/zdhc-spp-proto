@@ -8,7 +8,7 @@
 		children: any;
 		actions: any;
 	}
-	
+
 	let { step, title, description, isActive, isCompleted, children, actions }: Props = $props();
 </script>
 
@@ -21,11 +21,11 @@
 					<p class="text-gray-600 mb-6">{description}</p>
 				{/if}
 			</div>
-			
+
 			<div class="step-body">
 				{@render children?.()}
 			</div>
-			
+
 			<div class="step-actions">
 				{@render actions?.()}
 			</div>
@@ -42,13 +42,13 @@
 		padding: 1.5rem;
 		margin-bottom: 1.5rem;
 	}
-	
+
 	.step-content {
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
 	}
-	
+
 	.step-actions {
 		display: flex;
 		align-items: center;
