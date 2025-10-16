@@ -470,6 +470,18 @@ export const updateExpertAssignmentService = mutation({
 	}
 });
 
+export const updateExpertAssignmentRole = mutation({
+	args: {
+		id: v.id('expertAssignments'),
+		role: v.union(v.literal('lead'), v.literal('regular'))
+	},
+	handler: async (ctx, args) => {
+		await ctx.db.patch(args.id, {
+			role: args.role
+		});
+	}
+});
+
 export const getExpertAssignmentById = query({
 	args: { id: v.id('expertAssignments') },
 	handler: async (ctx, args) => {

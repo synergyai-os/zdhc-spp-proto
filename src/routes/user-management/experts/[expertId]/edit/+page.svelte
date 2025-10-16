@@ -64,6 +64,7 @@
 	let isLoading = $derived(primaryAssignment?.isLoading || expertAssignments?.isLoading || userData?.isLoading || false);
 	let hasError = $derived(primaryAssignment?.error || expertAssignments?.error || userData?.error || false);
 
+
 	// Edit state
 	let isSaving = $state(false);
 	let saveError = $state<string | null>(null);
@@ -138,8 +139,9 @@
 			// Handle service assignments for shell assignments
 			let newAssignmentIds: Id<'expertAssignments'>[] = [];
 
-			// Handle service assignments - prevent duplicates by checking existing assignments
-			if (selectedServices.length > 0) {
+			// Handle service assignments - prevent duplicates, handle role updates, and service removal
+			// This runs even when selectedServices.length === 0 to handle removal of all services
+			if (assignmentData?.userId && assignmentData?.organizationId) {
 				const userId = assignmentData?.userId;
 				const organizationId = assignmentData?.organizationId;
 				
@@ -147,66 +149,169 @@
 					throw new Error('Missing user or organization data');
 				}
 
-				// Get existing service assignments to avoid duplicates
-				const existingServiceIds = expertAssignments?.data
-					?.filter((assignment: any) => assignment.serviceVersionId)
-					?.map((assignment: any) => assignment.serviceVersionId) || [];
+				// Get existing assignments with their service versions and roles
+				const existingAssignments = expertAssignments?.data
+					?.filter((assignment: any) => assignment.serviceVersionId) || [];
 
 				console.log('🔍 Debug Save - Service Assignment:');
 				console.log('  - selectedServices:', selectedServices);
-				console.log('  - existingServiceIds:', existingServiceIds);
-				
-				// Only create assignments for services that don't already exist
-				const newServiceAssignments = selectedServices
-					.filter((serviceName) => {
-						const serviceVersion = serviceVersions?.data?.find(
-							(version: any) => version.name === serviceName
-						);
-						const isNewService = serviceVersion && !existingServiceIds.includes(serviceVersion._id);
-						console.log(`  - Service "${serviceName}": ${isNewService ? 'NEW' : 'EXISTS'}`);
-						return isNewService;
-					})
-					.map((serviceName) => {
-						const serviceVersion = serviceVersions?.data?.find(
-							(version: any) => version.name === serviceName
-						);
-						if (!serviceVersion) {
-							throw new Error(`Service version not found for: ${serviceName}`);
+				console.log('  - existingAssignments:', existingAssignments.map((a: any) => ({
+					id: a._id,
+					serviceName: a.serviceVersion?.name,
+					currentRole: a.role
+				})));
+
+				// Separate new services, role updates, and services to remove
+				const newServiceAssignments: any[] = [];
+				const roleUpdates: any[] = [];
+				const assignmentsToDelete: string[] = [];
+
+				// Get currently selected service IDs (empty array if no services selected)
+				const selectedServiceIds = selectedServices.map(serviceName => {
+					const serviceVersion = serviceVersions?.data?.find(
+						(version: any) => version.name === serviceName
+					);
+					return serviceVersion?._id;
+				}).filter(Boolean);
+
+				// Find assignments to delete (services that were selected but are no longer selected)
+				// This includes ALL assignments when selectedServices is empty
+				for (const assignment of existingAssignments) {
+					if (!selectedServiceIds.includes(assignment.serviceVersionId)) {
+						const serviceName = assignment.serviceVersion?.name || 'Unknown Service';
+						console.log(`🗑️ Service removed: ${serviceName} (assignment ${assignment._id})`);
+						assignmentsToDelete.push(assignment._id);
+					}
+				}
+
+				// Process currently selected services
+				for (const serviceName of selectedServices) {
+					const serviceVersion = serviceVersions?.data?.find(
+						(version: any) => version.name === serviceName
+					);
+					
+					if (!serviceVersion) {
+						throw new Error(`Service version not found for: ${serviceName}`);
+					}
+
+					const newRole = serviceRoles[serviceName] || 'regular';
+					
+					// Check if this service already exists
+					const existingAssignment = existingAssignments.find(
+						(assignment: any) => assignment.serviceVersionId === serviceVersion._id
+					);
+
+					if (existingAssignment) {
+						// Service exists - check if role changed
+						if (existingAssignment.role !== newRole) {
+							console.log(`🔄 Role update needed: ${serviceName} (${existingAssignment.role} → ${newRole})`);
+							roleUpdates.push({
+								assignmentId: existingAssignment._id,
+								newRole: newRole
+							});
+						} else {
+							console.log(`✅ No change needed: ${serviceName} (${newRole})`);
 						}
-						return {
+					} else {
+						// New service - create assignment
+						console.log(`➕ New service: ${serviceName} (${newRole})`);
+						newServiceAssignments.push({
 							serviceVersionId: serviceVersion._id,
-							role: serviceRoles[serviceName] || 'regular'
-						};
-					});
+							role: newRole
+						});
+					}
+				}
 
 				// Handle shell assignment deletion
 				if (!assignmentData?.serviceVersionId && expertAssignments?.data?.length === 1) {
-					// This is a shell assignment - delete it and create new ones
 					console.log('🗑️ Deleting shell assignment:', expertId);
 					await client.mutation(api.expertAssignments.deleteExpertAssignment, {
 						id: expertId as Id<'expertAssignments'>
 					});
 				}
 
+				// Delete assignments for removed services
+				for (const assignmentId of assignmentsToDelete) {
+					console.log(`🗑️ Deleting assignment: ${assignmentId}`);
+					await client.mutation(api.expertAssignments.deleteExpertAssignment, {
+						id: assignmentId as Id<'expertAssignments'>
+					});
+				}
+
+				// If all services were removed and no new services were added,
+				// we need to handle this case to avoid ID conflicts
+				let shellAssignmentId: Id<'expertAssignments'> | null = null;
+				if (selectedServices.length === 0 && newServiceAssignments.length === 0 && assignmentsToDelete.length > 0) {
+					// Check if we're dealing with a single assignment (can convert to shell)
+					if (expertAssignments?.data?.length === 1) {
+						const singleAssignment = expertAssignments.data[0];
+						if (singleAssignment.serviceVersionId) {
+							// Single assignment with service - convert to shell assignment
+							console.log('🔄 Converting single assignment to shell assignment');
+							await client.mutation(api.expertAssignments.updateExpertAssignmentService, {
+								id: singleAssignment._id as Id<'expertAssignments'>,
+								serviceVersionId: undefined, // Remove service to make it a shell
+								role: undefined // Remove role
+							});
+							shellAssignmentId = singleAssignment._id;
+						} else {
+							// Already a shell assignment - no action needed
+							console.log('✅ Already a shell assignment');
+							shellAssignmentId = singleAssignment._id;
+						}
+					} else {
+						// Multiple assignments - delete all and create new shell
+						console.log('🔄 Multiple assignments removed - creating new shell assignment');
+						shellAssignmentId = await client.mutation(api.expertAssignments.createShellAssignment, {
+							userId: userId as Id<'users'>,
+							organizationId: organizationId as Id<'organizations'>,
+							assignedBy: 'current-user-id',
+							notes: 'Shell assignment - all services removed, ready for new service selection'
+						});
+					}
+				}
+
+				// Update roles for existing assignments
+				for (const roleUpdate of roleUpdates) {
+					console.log(`🔄 Updating role for assignment ${roleUpdate.assignmentId} to ${roleUpdate.newRole}`);
+					await client.mutation(api.expertAssignments.updateExpertAssignmentRole, {
+						id: roleUpdate.assignmentId as Id<'expertAssignments'>,
+						role: roleUpdate.newRole
+					});
+				}
+
 				// Create new assignments only for new services
+				let newlyCreatedAssignmentIds: Id<'expertAssignments'>[] = [];
 				if (newServiceAssignments.length > 0) {
 					console.log('➕ Creating new assignments:', newServiceAssignments);
 					try {
-						newAssignmentIds = await client.mutation(api.expertAssignments.createExpertAssignmentsForUser, {
+						newlyCreatedAssignmentIds = await client.mutation(api.expertAssignments.createExpertAssignmentsForUser, {
 							userId: userId as Id<'users'>,
 							organizationId: organizationId as Id<'organizations'>,
 							serviceAssignments: newServiceAssignments,
 							assignedBy: 'current-user-id'
 						});
-						console.log('✅ Created assignment IDs:', newAssignmentIds);
+						console.log('✅ Created assignment IDs:', newlyCreatedAssignmentIds);
 					} catch (createError) {
 						console.error('❌ Failed to create assignments:', createError);
 						throw new Error(`Failed to create expert assignments: ${createError}`);
 					}
 				} else {
 					console.log('ℹ️ No new services to create assignments for');
-					// Get existing assignment IDs for updating experience/education
-					newAssignmentIds = expertAssignments?.data?.map((a: any) => a._id) || [];
+				}
+
+				// Get all assignment IDs for updating experience/education
+				// This includes: remaining existing assignments + newly created ones + shell assignment (if created/converted)
+				const remainingAssignmentIds = expertAssignments?.data
+					?.filter((a: any) => !assignmentsToDelete.includes(a._id))
+					?.map((a: any) => a._id) || [];
+				
+				// Combine all assignment IDs
+				newAssignmentIds = [...remainingAssignmentIds, ...newlyCreatedAssignmentIds];
+				
+				// Add shell assignment ID if one was created or converted
+				if (shellAssignmentId && !newAssignmentIds.includes(shellAssignmentId)) {
+					newAssignmentIds.push(shellAssignmentId);
 				}
 			}
 
@@ -229,7 +334,9 @@
 				});
 			}
 
-			// Redirect back to user management
+			// Redirect back to user management immediately
+			// This prevents the error flash that occurs when the page tries to reload data
+			// for an assignment ID that no longer exists (after shell assignment creation)
 			window.location.href = '/user-management';
 		} catch (error) {
 			console.error('Error saving profile:', error);
