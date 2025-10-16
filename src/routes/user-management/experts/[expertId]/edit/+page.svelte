@@ -2,6 +2,12 @@
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../../../../convex/_generated/api';
 	import { page } from '$app/stores';
+	import { organizationStore } from '$lib/stores/organization.svelte';
+	import Step2Confirmation from '$lib/components/expert-wizard/Step2Confirmation.svelte';
+	import Step3Services from '$lib/components/expert-wizard/Step3Services.svelte';
+	import Step4Experience from '$lib/components/expert-wizard/Step4Experience.svelte';
+	import Step5Education from '$lib/components/expert-wizard/Step5Education.svelte';
+	import type { Id } from '../../../../../convex/_generated/dataModel';
 	
 	// Get expert ID from URL params
 	const expertId = $derived($page.params.expertId);
@@ -18,32 +24,162 @@
 	// Cast the data to our interface type
 	let assignmentData = $derived(expertAssignment?.data as any);
 	
+	// Organization context - use the organization from the expert assignment
+	let currentOrgId = $derived(assignmentData?.organizationId || null);
+	
+	// Debug organization context
+	$effect(() => {
+		console.log('🏢 Organization Context:');
+		console.log('  - assignmentData:', assignmentData);
+		console.log('  - currentOrgId from assignment:', currentOrgId);
+		console.log('  - global organization:', $organizationStore.currentOrganization?._id);
+		console.log('  - availableOrganizations:', $organizationStore.availableOrganizations?.length || 0);
+	});
+	
 	// Query user data if assignment exists
 	const userData = useQuery(
 		api.expertAssignments.getUserById,
 		() => expertAssignment?.data?.userId ? { id: expertAssignment.data.userId } : { id: "" as any }
 	);
 	
+	// Query available services for this organization
+	const serviceVersions = useQuery(
+		api.expertAssignments.getServiceVersions,
+		() => ({})
+	);
+	
+	const organizationApprovals = useQuery(
+		api.expertAssignments.getOrganizationApprovals,
+		() => currentOrgId && assignmentData ? { organizationId: currentOrgId as any } : { organizationId: "" as any }
+	);
+	
 	// Loading and error states
 	let isLoading = $derived(expertAssignment?.isLoading || userData?.isLoading || false);
 	let hasError = $derived(expertAssignment?.error || userData?.error || false);
+	
+	// Edit state
+	let isSaving = $state(false);
+	let saveError = $state<string | null>(null);
+	
+	// Available services for the organization
+	let availableServices = $derived((() => {
+		console.log('🔍 Debug Services:');
+		console.log('  - currentOrgId:', currentOrgId);
+		console.log('  - serviceVersions:', serviceVersions?.data?.length || 0);
+		console.log('  - organizationApprovals:', organizationApprovals?.data?.length || 0);
+		
+		// PROTOTYPE MODE: Show all services if:
+		// 1. No organization is selected, OR
+		// 2. No organization approvals exist
+		if (!currentOrgId || !organizationApprovals?.data?.length) {
+			console.log('  - Prototype mode: showing all services');
+			return serviceVersions?.data || [];
+		}
+		
+		const filtered = serviceVersions?.data?.filter((service: any) => 
+			organizationApprovals?.data?.some((approval: any) => 
+				approval.serviceVersionId === service._id
+			)
+		) || [];
+		
+		console.log('  - Filtered services:', filtered.length);
+		return filtered;
+	})());
+	
+	// Current form data (editable fields)
+	let selectedServices = $state<string[]>([]);
+	let serviceRoles = $state<Record<string, 'lead' | 'regular'>>({});
+	let experience = $state<any[]>([]);
+	let education = $state<any[]>([]);
+	
+	// Initialize form data when assignment data loads
+	$effect(() => {
+		if (assignmentData) {
+			// Initialize services
+			if (assignmentData.serviceVersion) {
+				const serviceName = assignmentData.serviceVersion.name;
+				selectedServices = [serviceName];
+				serviceRoles[serviceName] = assignmentData.role || 'regular';
+			}
+			
+			// Initialize experience and education
+			experience = assignmentData.experience || [];
+			education = assignmentData.education || [];
+		}
+	});
 	
 	function goBack() {
 		window.history.back();
 	}
 	
-	function handleSave() {
-		console.log('Save functionality will be implemented');
-		// TODO: Implement save functionality
+	async function handleSave() {
+		if (isSaving) return;
+		
+		try {
+			isSaving = true;
+			saveError = null;
+			
+			// Update experience
+			if (experience.length > 0) {
+				await client.mutation(api.expertAssignments.updateExpertAssignmentExperience, {
+					assignmentId: expertId as Id<"expertAssignments">,
+					experience: experience,
+					profileCompletionStep: 4
+				});
+			}
+			
+			// Update education
+			if (education.length > 0) {
+				await client.mutation(api.expertAssignments.updateExpertAssignmentEducation, {
+					assignmentId: expertId as Id<"expertAssignments">,
+					education: education,
+					profileCompletionStep: 5,
+					isProfileComplete: true
+				});
+			}
+			
+			// Redirect back to user management
+			window.location.href = '/user-management';
+			
+		} catch (error) {
+			console.error('Error saving profile:', error);
+			saveError = error instanceof Error ? error.message : 'Unknown error';
+		} finally {
+			isSaving = false;
+		}
 	}
+	
+	function handleToggleService(serviceName: string) {
+		if (selectedServices.includes(serviceName)) {
+			selectedServices = selectedServices.filter(s => s !== serviceName);
+			delete serviceRoles[serviceName];
+		} else {
+			selectedServices = [...selectedServices, serviceName];
+			serviceRoles[serviceName] = 'regular';
+		}
+	}
+	
+	function handleToggleRole(serviceName: string) {
+		serviceRoles[serviceName] = serviceRoles[serviceName] === 'lead' ? 'regular' : 'lead';
+	}
+	
+	function handleUpdateExperience(newExperience: any[]) {
+		experience = newExperience;
+	}
+	
+	function handleUpdateEducation(newEducation: any[]) {
+		education = newEducation;
+	}
+	
+	// No step navigation needed - all steps are visible simultaneously
 </script>
 
 <svelte:head>
 	<title>Edit Expert Profile - SPP</title>
 </svelte:head>
 
-<div class="bg-gray-50 min-h-screen py-8">
-	<div class="max-w-4xl mx-auto px-6">
+<div class="bg-gray-50 min-h-screen">
+	<div class="max-w-4xl mx-auto px-6 py-8">
 		
 		<!-- Header -->
 		<div class="mb-8">
@@ -97,195 +233,124 @@
 				</a>
 			</div>
 		{:else}
-			<!-- Edit Form Content -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-				
-				<!-- Expert Info Header -->
-				<div class="mb-8">
+			<!-- Expert Info Header -->
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+				<div class="flex items-center">
+					<div class="flex-shrink-0 h-16 w-16">
+						<div class="h-16 w-16 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xl">
+							{userData?.data ? `${userData.data.firstName?.[0] || ''}${userData.data.lastName?.[0] || ''}` : '?'}
+						</div>
+					</div>
+					<div class="ml-6">
+						<h2 class="text-2xl font-bold text-gray-900">
+							{userData?.data ? `${userData.data.firstName || ''} ${userData.data.lastName || ''}`.trim() || userData.data.email : 'Unknown User'}
+						</h2>
+						<p class="text-gray-600">{userData?.data?.email}</p>
+						<div class="mt-2 flex items-center space-x-4">
+							<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {
+								assignmentData.isProfileComplete 
+									? 'bg-green-100 text-green-800' 
+									: 'bg-blue-100 text-blue-800'
+							}">
+								{assignmentData.isProfileComplete ? 'Complete' : `Draft - Step ${assignmentData.profileCompletionStep || 0}/5`}
+							</span>
+							<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {
+								userData?.data?.isActive 
+									? 'bg-green-100 text-green-800' 
+									: 'bg-red-100 text-red-800'
+							}">
+								{userData?.data?.isActive ? 'Active' : 'Invited'}
+							</span>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Save Error Display -->
+			{#if saveError}
+				<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
 					<div class="flex items-center">
-						<div class="flex-shrink-0 h-16 w-16">
-							<div class="h-16 w-16 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xl">
-								{userData?.data ? `${userData.data.firstName?.[0] || ''}${userData.data.lastName?.[0] || ''}` : '?'}
-							</div>
-						</div>
-						<div class="ml-6">
-							<h2 class="text-2xl font-bold text-gray-900">
-								{userData?.data ? `${userData.data.firstName || ''} ${userData.data.lastName || ''}`.trim() || userData.data.email : 'Unknown User'}
-							</h2>
-							<p class="text-gray-600">{userData?.data?.email}</p>
-							<div class="mt-2 flex items-center space-x-4">
-								<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {
-									assignmentData.isProfileComplete 
-										? 'bg-green-100 text-green-800' 
-										: 'bg-blue-100 text-blue-800'
-								}">
-									{assignmentData.isProfileComplete ? 'Complete' : `Draft - Step ${assignmentData.profileCompletionStep || 0}/5`}
-								</span>
-								<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {
-									userData?.data?.isActive 
-										? 'bg-green-100 text-green-800' 
-										: 'bg-red-100 text-red-800'
-								}">
-									{userData?.data?.isActive ? 'Active' : 'Invited'}
-								</span>
-							</div>
+						<svg class="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+						</svg>
+						<div>
+							<h3 class="text-sm font-medium text-red-800">Save Error</h3>
+							<p class="text-sm text-red-700 mt-1">{saveError}</p>
 						</div>
 					</div>
 				</div>
-				
-				<!-- Placeholder Content -->
-				<div class="space-y-8">
-					
-					<!-- Basic Information Section -->
-					<div class="border-b border-gray-200 pb-8">
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<div>
-								<label for="firstName" class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-								<input 
-									id="firstName"
-									type="text" 
-									value={userData?.data?.firstName || ''} 
-									disabled 
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-								/>
-								<p class="text-xs text-gray-500 mt-1">This information is managed in PDC</p>
-							</div>
-							<div>
-								<label for="lastName" class="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-								<input 
-									id="lastName"
-									type="text" 
-									value={userData?.data?.lastName || ''} 
-									disabled 
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-								/>
-								<p class="text-xs text-gray-500 mt-1">This information is managed in PDC</p>
-							</div>
-							<div>
-								<label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-								<input 
-									id="email"
-									type="email" 
-									value={userData?.data?.email || ''} 
-									disabled 
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-								/>
-								<p class="text-xs text-gray-500 mt-1">This information is managed in PDC</p>
-							</div>
-							<div>
-								<label for="country" class="block text-sm font-medium text-gray-700 mb-2">Country</label>
-								<input 
-									id="country"
-									type="text" 
-									value={userData?.data?.country || ''} 
-									disabled 
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-								/>
-								<p class="text-xs text-gray-500 mt-1">This information is managed in PDC</p>
-							</div>
-						</div>
-					</div>
-					
-					<!-- Services Section -->
-					<div class="border-b border-gray-200 pb-8">
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Service Assignments</h3>
-						<div class="space-y-3">
-							{#if assignmentData.serviceVersion}
-								<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-									<span class="font-medium text-gray-900">{assignmentData.serviceVersion.name}</span>
-									<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {
-										assignmentData.role === 'lead' 
-											? 'bg-yellow-100 text-yellow-800' 
-											: 'bg-blue-100 text-blue-800'
-									}">
-										{assignmentData.role === 'lead' ? 'Lead Expert' : 'Regular Expert'}
-									</span>
-								</div>
-							{:else}
-								<p class="text-gray-500 italic">No service assignment found</p>
-							{/if}
-						</div>
-					</div>
-					
-					<!-- Experience Section -->
-					<div class="border-b border-gray-200 pb-8">
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Professional Experience</h3>
-						{#if assignmentData.experience && assignmentData.experience.length > 0}
-							<div class="space-y-4">
-								{#each assignmentData.experience as exp}
-									<div class="p-4 bg-gray-50 rounded-lg">
-										<div class="font-medium text-gray-900">{exp.title}</div>
-										<div class="text-sm text-gray-600">{exp.company} • {exp.location}</div>
-										<div class="text-sm text-gray-500">
-											{exp.startDate} - {exp.current ? 'Present' : exp.endDate}
-										</div>
-										{#if exp.description}
-											<div class="text-sm text-gray-700 mt-2">{exp.description}</div>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{:else}
-							<p class="text-gray-500 italic">No experience information available</p>
-						{/if}
-					</div>
-					
-					<!-- Education Section -->
-					<div class="pb-8">
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Education</h3>
-						{#if assignmentData.education && assignmentData.education.length > 0}
-							<div class="space-y-4">
-								{#each assignmentData.education as edu}
-									<div class="p-4 bg-gray-50 rounded-lg">
-										<div class="font-medium text-gray-900">{edu.school}</div>
-										{#if edu.degree}
-											<div class="text-sm text-gray-600">{edu.degree} in {edu.field}</div>
-										{/if}
-										{#if edu.endDate}
-											<div class="text-sm text-gray-500">Graduated: {edu.endDate}</div>
-										{/if}
-										{#if edu.description}
-											<div class="text-sm text-gray-700 mt-2">{edu.description}</div>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{:else}
-							<p class="text-gray-500 italic">No education information available</p>
-						{/if}
-					</div>
+			{/if}
+
+			<!-- STEP 2: Expert Confirmation -->
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+				<div class="mb-4">
+					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 2: Expert Confirmation</h2>
+					<p class="text-gray-600">Verify expert information and invitation status</p>
 				</div>
-				
-				<!-- Action Buttons -->
-				<div class="flex items-center justify-between pt-8 border-t border-gray-200">
-					<div class="text-sm text-gray-500">
-						{#if !assignmentData.isProfileComplete}
-							<span class="text-blue-600 font-medium">Profile is incomplete</span> - Complete all sections to enable payment processing
+				<Step2Confirmation 
+					userData={userData?.data}
+					isDraftMode={!userData?.data?.isActive}
+					invitedUserEmail={userData?.data?.email}
+				/>
+			</div>
+			
+			<!-- STEP 3: Select Services -->
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+				<div class="mb-4">
+					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 3: Select Services & Roles</h2>
+					<p class="text-gray-600">Choose which services this expert will provide and their role</p>
+				</div>
+				<Step3Services 
+					availableServices={availableServices}
+					selectedServices={selectedServices}
+					serviceRoles={serviceRoles}
+					currentOrgId={currentOrgId}
+					isLoadingServices={serviceVersions?.isLoading || organizationApprovals?.isLoading}
+					isDraftMode={!userData?.data?.isActive}
+					on:toggleService={(e) => handleToggleService(e.detail)}
+					on:toggleRole={(e) => handleToggleRole(e.detail)}
+				/>
+			</div>
+			
+			<!-- STEP 4: Professional Experience -->
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+				<div class="mb-4">
+					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 4: Professional Experience</h2>
+					<p class="text-gray-600">Add relevant work experience and achievements</p>
+				</div>
+				<Step4Experience 
+					experience={experience}
+					on:updateExperience={(e) => handleUpdateExperience(e.detail)}
+				/>
+			</div>
+			
+			<!-- STEP 5: Education -->
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+				<div class="mb-4">
+					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 5: Education & Certifications</h2>
+					<p class="text-gray-600">Add educational background and relevant certifications</p>
+				</div>
+				<Step5Education 
+					education={education}
+					on:updateEducation={(e) => handleUpdateEducation(e.detail)}
+				/>
+			</div>
+
+			<!-- Save Button -->
+			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+				<div class="flex items-center justify-center">
+					<button
+						type="button"
+						onclick={handleSave}
+						disabled={isSaving}
+						class="px-8 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-medium"
+					>
+						{#if isSaving}
+							Saving Profile...
 						{:else}
-							<span class="text-green-600 font-medium">Profile is complete</span> - Ready for payment processing
+							Save Complete Profile
 						{/if}
-					</div>
-					<div class="flex items-center space-x-4">
-						<button
-							type="button"
-							onclick={goBack}
-							class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-						>
-							Cancel
-						</button>
-						<button
-							type="button"
-							onclick={handleSave}
-							class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-						>
-							{#if !assignmentData.isProfileComplete}
-								Complete Profile
-							{:else}
-								Update Profile
-							{/if}
-						</button>
-					</div>
+					</button>
 				</div>
 			</div>
 		{/if}

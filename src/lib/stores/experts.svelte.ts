@@ -262,7 +262,7 @@ export const expertsTableData = derived(
         const serviceVersion = $store.serviceVersions.find(sv => sv._id === assignment.serviceVersionId);
         
         userGroups.set(userId, {
-          id: userId,
+          id: assignment._id, // Use assignment ID for editing
           name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim() || assignment.user?.email || 'Unknown',
           email: assignment.user?.email || '',
           avatar: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}` || '?',
@@ -343,7 +343,7 @@ export const pendingVerificationData = derived(
         const serviceVersion = $store.serviceVersions.find(sv => sv._id === assignment.serviceVersionId);
         
         userGroups.set(userId, {
-          id: userId,
+          id: assignment._id, // Use assignment ID for editing
           name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim() || assignment.user?.email || 'Unknown',
           email: assignment.user?.email || '',
           avatar: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}` || '?',

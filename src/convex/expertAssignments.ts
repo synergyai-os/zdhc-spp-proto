@@ -512,6 +512,28 @@ export const getUserById = query({
   },
 });
 
+export const getOrganizationApprovals = query({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("organizationServiceApprovals")
+      .filter((q) => q.eq(q.field("organizationId"), args.organizationId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+  },
+});
+
+// Temporary workaround: Add serviceVersions query here
+export const getServiceVersions = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("serviceVersions")
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+  },
+});
+
 // ==========================================
 // DRAFT PROFILE MANAGEMENT FUNCTIONS
 // ==========================================
@@ -867,6 +889,51 @@ export const seedInitialData = mutation({
       organizations: [org1, org2, org3],
       staffMembers: [staff1, staff2, staff3],
       expertAssignments: [],
+      message: "Initial data seeded. Run seedOrganizationServiceApprovals to approve services for organizations.",
+    };
+  },
+});
+
+export const seedOrganizationServiceApprovals = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    
+    // Get all organizations
+    const organizations = await ctx.db.query("organizations").collect();
+    if (organizations.length === 0) {
+      throw new Error("No organizations found. Run seedInitialData first.");
+    }
+    
+    // Get all service versions
+    const serviceVersions = await ctx.db.query("serviceVersions").collect();
+    if (serviceVersions.length === 0) {
+      throw new Error("No service versions found. Run seedServiceData first.");
+    }
+    
+    const approvals = [];
+    
+    // Approve all services for all organizations (for prototype)
+    for (const org of organizations) {
+      for (const service of serviceVersions) {
+        const approvalId = await ctx.db.insert("organizationServiceApprovals", {
+          organizationId: org._id,
+          serviceVersionId: service._id,
+          status: "approved",
+          approvedAt: now,
+          approvedBy: "system-seed", // System seed
+          createdAt: now,
+          updatedAt: now,
+        });
+        approvals.push(approvalId);
+      }
+    }
+    
+    return {
+      message: `Created ${approvals.length} organization service approvals`,
+      approvals: approvals.length,
+      organizations: organizations.length,
+      services: serviceVersions.length,
     };
   },
 });

@@ -49,6 +49,72 @@
 		isLoading = false;
 	}
 	
+	async function seedServices() {
+		isLoading = true;
+		testResults = 'Seeding services...\n';
+		
+		try {
+			const result = await client.mutation(api.serviceVersions.seedServiceData, {});
+			testResults += `✅ Services seeded successfully!\n`;
+			testResults += `   - Parent ID: ${result.parentId}\n`;
+			testResults += `   - Service versions created: ${result.versionIds.length}\n`;
+			
+			// Refresh the page to show updated data
+			setTimeout(() => window.location.reload(), 1000);
+			
+		} catch (error: any) {
+			testResults += `❌ Error seeding services: ${error.message}\n`;
+			console.error('Service seeding error:', error);
+		}
+		
+		isLoading = false;
+	}
+	
+	async function seedInitialData() {
+		isLoading = true;
+		testResults = 'Seeding initial data...\n';
+		
+		try {
+			const result = await client.mutation(api.expertAssignments.seedInitialData, {});
+			testResults += `✅ Initial data seeded successfully!\n`;
+			testResults += `   - Users: ${result.users.length}\n`;
+			testResults += `   - Organizations: ${result.organizations.length}\n`;
+			testResults += `   - Staff Members: ${result.staffMembers.length}\n`;
+			testResults += `   - Message: ${result.message}\n`;
+			
+			// Refresh the page to show updated data
+			setTimeout(() => window.location.reload(), 1000);
+			
+		} catch (error: any) {
+			testResults += `❌ Error seeding initial data: ${error.message}\n`;
+			console.error('Initial data seeding error:', error);
+		}
+		
+		isLoading = false;
+	}
+	
+	async function seedOrganizationApprovals() {
+		isLoading = true;
+		testResults = 'Seeding organization service approvals...\n';
+		
+		try {
+			const result = await client.mutation(api.expertAssignments.seedOrganizationServiceApprovals, {});
+			testResults += `✅ Organization service approvals seeded successfully!\n`;
+			testResults += `   - Approvals created: ${result.approvals}\n`;
+			testResults += `   - Organizations: ${result.organizations}\n`;
+			testResults += `   - Services: ${result.services}\n`;
+			
+			// Refresh the page to show updated data
+			setTimeout(() => window.location.reload(), 1000);
+			
+		} catch (error: any) {
+			testResults += `❌ Error seeding approvals: ${error.message}\n`;
+			console.error('Approvals seeding error:', error);
+		}
+		
+		isLoading = false;
+	}
+	
 	async function seedTestData() {
 		isLoading = true;
 		testResults = 'Seeding test data...\n';
@@ -213,11 +279,35 @@
 			</button>
 			
 			<button
+				onclick={seedInitialData}
+				disabled={isLoading}
+				class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{isLoading ? 'Seeding...' : 'Seed Initial Data'}
+			</button>
+			
+			<button
+				onclick={seedServices}
+				disabled={isLoading}
+				class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{isLoading ? 'Seeding...' : 'Seed Services'}
+			</button>
+			
+			<button
+				onclick={seedOrganizationApprovals}
+				disabled={isLoading}
+				class="bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{isLoading ? 'Seeding...' : 'Seed Approvals'}
+			</button>
+			
+			<button
 				onclick={seedServiceData}
 				disabled={isLoading}
 				class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
 			>
-				{isLoading ? 'Seeding...' : 'Seed Service Data'}
+				{isLoading ? 'Seeding...' : 'Seed Service Data (Old)'}
 			</button>
 			
 			<button
@@ -254,15 +344,16 @@
 		<h3 class="font-semibold text-yellow-800 mb-2">Available Operations:</h3>
 		<ul class="text-yellow-700 text-sm space-y-1">
 			<li>• <strong>Test Connection:</strong> Verify Convex is working</li>
-			<li>• <strong>Seed Test Data:</strong> Create sample users and organizations</li>
-			<li>• <strong>Seed Service Data:</strong> Create service parents and versions</li>
+			<li>• <strong>Seed Initial Data:</strong> Create sample users, organizations, and staff members</li>
+			<li>• <strong>Seed Services:</strong> Create service parents and versions</li>
+			<li>• <strong>Seed Approvals:</strong> Approve all services for all organizations</li>
 			<li>• <strong>Create Test Assignments:</strong> Create expert assignments with real service versions</li>
 			<li>• <strong>Migrate Expert Roles:</strong> Set existing experts to "regular" role</li>
 			<li>• <strong>Clear Test Data:</strong> Remove all test data</li>
 		</ul>
 		<div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-			<p class="text-blue-800 text-sm font-medium">💡 For checkout testing:</p>
-			<p class="text-blue-700 text-sm">Run operations in order: Test Connection → Seed Test Data → Seed Service Data → Create Test Assignments</p>
+			<p class="text-blue-800 text-sm font-medium">💡 For edit page testing:</p>
+			<p class="text-blue-700 text-sm">Run operations in order: Seed Initial Data → Seed Services → Seed Approvals</p>
 		</div>
 	</div>
 </div>
