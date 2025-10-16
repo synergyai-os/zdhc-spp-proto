@@ -282,6 +282,7 @@ export const createExpertAssignment = mutation({
     userId: v.id("users"),
     organizationId: v.id("organizations"),
     serviceVersionId: v.id("serviceVersions"),
+    role: v.optional(v.union(v.literal("lead"), v.literal("regular"))),
     experience: v.array(v.object({
       title: v.string(),
       company: v.string(),
@@ -370,6 +371,109 @@ export const deleteExpertAssignment = mutation({
   args: { id: v.id("expertAssignments") },
   handler: async (ctx, args) => {
     return await ctx.db.delete(args.id);
+  },
+});
+
+// ==========================================
+// CHECKOUT FLOW FUNCTIONS
+// ==========================================
+
+export const getExpertAssignmentsByIds = query({
+  args: { ids: v.array(v.id("expertAssignments")) },
+  handler: async (ctx, args) => {
+    const assignments = await Promise.all(
+      args.ids.map(id => ctx.db.get(id))
+    );
+    
+    // Filter out any null results and enrich with user details
+    const validAssignments = assignments.filter((assignment): assignment is NonNullable<typeof assignment> => assignment !== null);
+    const enrichedAssignments = await Promise.all(
+      validAssignments.map(async (assignment) => {
+        const user = await ctx.db.get(assignment.userId);
+        const organization = await ctx.db.get(assignment.organizationId);
+        const serviceVersion = await ctx.db.get(assignment.serviceVersionId);
+        const serviceParent = serviceVersion 
+          ? await ctx.db.get(serviceVersion.parentId)
+          : null;
+        
+        return {
+          ...assignment,
+          user,
+          organization,
+          serviceVersion,
+          serviceParent,
+        };
+      })
+    );
+    
+    return enrichedAssignments;
+  },
+});
+
+export const updateMultipleExpertStatuses = mutation({
+  args: {
+    assignmentIds: v.array(v.id("expertAssignments")),
+    status: v.union(
+      v.literal("paid"),
+      v.literal("pending_payment"),
+      v.literal("ready_for_training"),
+      v.literal("training_started"),
+      v.literal("training_completed"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("inactive")
+    ),
+    updatedBy: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const updateData: any = {
+      status: args.status,
+    };
+
+    // Set appropriate timestamp based on status
+    switch (args.status) {
+      case "paid":
+        updateData.paidAt = now;
+        break;
+      case "pending_payment":
+        updateData.submittedAt = now;
+        break;
+      case "ready_for_training":
+        updateData.trainingInvitedAt = now;
+        break;
+      case "training_started":
+        updateData.trainingStartedAt = now;
+        break;
+      case "training_completed":
+        updateData.trainingCompletedAt = now;
+        break;
+      case "approved":
+        updateData.approvedAt = now;
+        if (args.updatedBy) updateData.approvedBy = args.updatedBy;
+        break;
+      case "rejected":
+        updateData.rejectedAt = now;
+        if (args.updatedBy) updateData.rejectedBy = args.updatedBy;
+        break;
+    }
+
+    if (args.notes) {
+      updateData.notes = args.notes;
+    }
+
+    // Update all assignments
+    const results = await Promise.all(
+      args.assignmentIds.map(id => ctx.db.patch(id, updateData))
+    );
+
+    return {
+      success: true,
+      updatedCount: results.length,
+      status: args.status,
+      timestamp: now,
+    };
   },
 });
 
@@ -479,6 +583,30 @@ export const seedInitialData = mutation({
       organizations: [org1, org2, org3],
       staffMembers: [staff1, staff2, staff3],
       expertAssignments: [],
+    };
+  },
+});
+
+export const migrateExistingExpertRoles = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get all existing expert assignments that don't have a role field
+    const assignments = await ctx.db.query("expertAssignments").collect();
+    
+    let updatedCount = 0;
+    for (const assignment of assignments) {
+      // Check if role field exists (it will be undefined for existing records)
+      if (assignment.role === undefined) {
+        await ctx.db.patch(assignment._id, {
+          role: "regular" // Set default role for existing experts
+        });
+        updatedCount++;
+      }
+    }
+
+    return { 
+      message: `Migrated ${updatedCount} expert assignments to have default 'regular' role`,
+      updatedCount 
     };
   },
 });

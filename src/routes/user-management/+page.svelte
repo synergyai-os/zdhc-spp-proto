@@ -62,6 +62,39 @@
 		}
 	];
 	
+	// Group experts by user (instead of showing each assignment separately)
+	let expertsGroupedByUser = $derived.by(() => {
+		if (!expertAssignments?.data || !users?.data) return [];
+
+		// Group assignments by user ID
+		const userGroups = new Map();
+		
+		expertAssignments.data.forEach((assignment: any) => {
+			if (!assignment.user) return;
+			
+			const userId = assignment.user._id;
+			if (!userGroups.has(userId)) {
+				userGroups.set(userId, {
+					user: assignment.user,
+					assignments: [],
+					services: new Set()
+				});
+			}
+			
+			userGroups.get(userId).assignments.push(assignment);
+			if (assignment.serviceVersion) {
+				userGroups.get(userId).services.add(assignment.serviceVersion.name);
+			}
+		});
+
+		// Convert to array and add service count
+		return Array.from(userGroups.values()).map(group => ({
+			...group,
+			serviceCount: group.services.size,
+			services: Array.from(group.services)
+		}));
+	});
+	
 	// Create approved services for display (same logic as approved-services page)
 	let approvedServicesForDisplay = $derived.by(() => {
 		if (!organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data) return [];
@@ -99,9 +132,9 @@
 						assignment.serviceVersionId === version._id
 					).map((assignment: any) => ({
 						name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim(),
-						role: 'Expert',
+						role: assignment.role === 'lead' ? 'Lead Expert' : 'Expert',
 						initials: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}`,
-						isLead: false,
+						isLead: assignment.role === 'lead',
 						status: assignment.status
 					})) || []
 				}))
@@ -118,6 +151,11 @@
 	function handleAddExpert() {
 		// Navigate to add expert page
 		window.location.href = '/user-management/add-expert';
+	}
+	
+	function handleContinueToPayment() {
+		// Navigate to checkout page
+		window.location.href = '/checkout';
 	}
 </script>
 
@@ -170,7 +208,7 @@
 					{:else if !currentOrgId}
 						No organization selected
 					{:else}
-						Total: {expertAssignments.data?.length || 0} expert{(expertAssignments.data?.length || 0) !== 1 ? 's' : ''}
+						Total: {expertsGroupedByUser.length} expert{expertsGroupedByUser.length !== 1 ? 's' : ''}
 					{/if}
 				</div>
 			</div>
@@ -193,7 +231,7 @@
 					<p class="text-lg font-medium mb-2">Error loading experts</p>
 					<p class="text-sm">{expertAssignments.error.message}</p>
 				</div>
-			{:else if (expertAssignments.data?.length || 0) === 0}
+			{:else if expertsGroupedByUser.length === 0}
 				<div class="text-center py-8 text-gray-500">
 					<svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
@@ -203,56 +241,78 @@
 				</div>
 			{:else}
 				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-					{#each expertAssignments.data as assignment (assignment._id)}
-						{#if assignment.user}
-							<div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-								<div class="flex items-start justify-between mb-3">
-									<div class="flex items-center">
-										<div class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-											{assignment.user.firstName[0]}{assignment.user.lastName[0]}
-										</div>
-										<div class="ml-3">
-											<h3 class="font-semibold text-gray-800">{assignment.user.firstName} {assignment.user.lastName}</h3>
-											<p class="text-sm text-gray-600">{assignment.user.email}</p>
-										</div>
+					{#each expertsGroupedByUser as expertGroup (expertGroup.user._id)}
+						<div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+							<div class="flex items-start justify-between mb-3">
+								<div class="flex items-center">
+									<div class="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-sm">
+										{expertGroup.user.firstName?.[0] || ''}{expertGroup.user.lastName?.[0] || ''}
 									</div>
+									<div class="ml-3">
+										<h3 class="font-semibold text-gray-800">
+											{expertGroup.user.firstName && expertGroup.user.lastName 
+												? `${expertGroup.user.firstName} ${expertGroup.user.lastName}`.trim()
+												: expertGroup.user.email
+											}
+										</h3>
+										<p class="text-sm text-gray-600">{expertGroup.user.email}</p>
+									</div>
+								</div>
+								<div class="flex items-center gap-2">
+									{#if expertGroup.assignments.some((a: any) => a.role === 'lead')}
+										<span class="px-2 py-1 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
+											LEAD EXPERT
+										</span>
+									{/if}
 									<span class="text-xs text-gray-500">
-										{new Date(assignment.assignedAt).toLocaleDateString()}
+										{expertGroup.serviceCount} service{expertGroup.serviceCount !== 1 ? 's' : ''}
 									</span>
 								</div>
-								
-								<div class="space-y-2">
-									<div>
-										<span class="text-xs font-medium text-gray-500">Service Version:</span>
-										<div class="mt-1">
-											{#if assignment.serviceVersion}
+							</div>
+							
+							<div class="space-y-2">
+								<div>
+									<span class="text-xs font-medium text-gray-500">Services & Roles:</span>
+									<div class="mt-1 flex flex-wrap gap-1">
+										{#each expertGroup.assignments as assignment}
+											<div class="flex items-center gap-1">
 												<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-													{assignment.serviceVersion.name}
+													{assignment.serviceVersion?.name || 'Unknown Service'}
 												</span>
-											{:else}
-												<span class="text-xs text-gray-500">No service version assigned</span>
-											{/if}
-										</div>
+												{#if assignment.role === 'lead'}
+													<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold">
+														LEAD
+													</span>
+												{/if}
+											</div>
+										{/each}
 									</div>
-									
-									<div class="flex items-center justify-between">
-										<span class="px-2 py-1 text-xs rounded-full {
-											assignment.status === 'approved' ? 'bg-green-100 text-green-800' :
-											assignment.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-											assignment.status === 'paid' ? 'bg-blue-100 text-blue-800' :
-											assignment.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
-											assignment.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
-											assignment.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
-											assignment.status === 'rejected' ? 'bg-red-100 text-red-800' :
-											assignment.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-											'bg-gray-100 text-gray-800'
-										}">
-											{assignment.status.replace('_', ' ')}
-										</span>
+								</div>
+								
+								<div class="flex items-center justify-between">
+									<span class="text-xs text-gray-500">
+										{expertGroup.assignments.length} assignment{expertGroup.assignments.length !== 1 ? 's' : ''}
+									</span>
+									<div class="flex flex-wrap gap-1">
+										{#each expertGroup.assignments as assignment}
+											<span class="px-2 py-1 text-xs rounded-full {
+												assignment.status === 'approved' ? 'bg-green-100 text-green-800' :
+												assignment.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+												assignment.status === 'paid' ? 'bg-blue-100 text-blue-800' :
+												assignment.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
+												assignment.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
+												assignment.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
+												assignment.status === 'rejected' ? 'bg-red-100 text-red-800' :
+												assignment.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+												'bg-gray-100 text-gray-800'
+											}">
+												{assignment.status.replace('_', ' ')}
+											</span>
+										{/each}
 									</div>
 								</div>
 							</div>
-						{/if}
+						</div>
 					{/each}
 				</div>
 			{/if}
@@ -262,12 +322,22 @@
 		<div class="space-y-6">
 			<div class="flex items-center justify-between">
 				<h2 class="text-2xl font-bold text-gray-800">Your Services</h2>
-				<button 
-					onclick={handleAddExpert}
-					class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
-				>
-					Add Expert
-				</button>
+				<div class="flex items-center space-x-3">
+					{#if currentOrgId && expertsGroupedByUser.length > 0}
+						<button 
+							onclick={handleContinueToPayment}
+							class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+						>
+							Continue to Payment
+						</button>
+					{/if}
+					<button 
+						onclick={handleAddExpert}
+						class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+					>
+						Add Expert
+					</button>
+				</div>
 			</div>
 			
 			{#if !currentOrgId}
@@ -353,27 +423,34 @@
 										{:else}
 											<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
 												{#each version.experts as expert (expert.name + version._id)}
-													<div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-														<div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-xs">
-															{expert.initials}
+													<div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg {expert.isLead ? 'bg-yellow-50 border border-yellow-200' : ''}">
+														<div class="w-8 h-8 {expert.isLead ? 'bg-yellow-500' : 'bg-blue-500'} text-white rounded-full flex items-center justify-center font-semibold text-xs">
+															{expert.isLead ? 'L' : expert.initials}
 														</div>
 														<div class="flex-1 min-w-0">
 															<p class="text-sm font-medium text-gray-900 truncate">{expert.name}</p>
 															<p class="text-xs text-gray-500">{expert.role}</p>
 														</div>
-														<span class="text-xs px-2 py-1 rounded-full {
-															expert.status === 'approved' ? 'bg-green-100 text-green-800' :
-															expert.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-															expert.status === 'paid' ? 'bg-blue-100 text-blue-800' :
-															expert.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
-															expert.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
-															expert.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
-															expert.status === 'rejected' ? 'bg-red-100 text-red-800' :
-															expert.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
-															'bg-gray-100 text-gray-800'
-														}">
-															{expert.status.replace('_', ' ')}
-														</span>
+														<div class="flex flex-col items-end space-y-1">
+															{#if expert.isLead}
+																<span class="text-xs px-2 py-1 rounded-full bg-yellow-200 text-yellow-800 font-semibold">
+																	LEAD
+																</span>
+															{/if}
+															<span class="text-xs px-2 py-1 rounded-full {
+																expert.status === 'approved' ? 'bg-green-100 text-green-800' :
+																expert.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+																expert.status === 'paid' ? 'bg-blue-100 text-blue-800' :
+																expert.status === 'ready_for_training' ? 'bg-yellow-100 text-yellow-800' :
+																expert.status === 'training_started' ? 'bg-orange-100 text-orange-800' :
+																expert.status === 'training_completed' ? 'bg-purple-100 text-purple-800' :
+																expert.status === 'rejected' ? 'bg-red-100 text-red-800' :
+																expert.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+																'bg-gray-100 text-gray-800'
+															}">
+																{expert.status.replace('_', ' ')}
+															</span>
+														</div>
 													</div>
 												{/each}
 											</div>

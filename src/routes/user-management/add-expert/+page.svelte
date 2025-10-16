@@ -1,42 +1,74 @@
 <script lang="ts">
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
+	import { organizationStore } from '$lib/stores/organization.svelte';
 	
 	// Get Convex client
 	const client = useConvexClient();
 	
 	// ==========================================
-	// MOCK PDC DATABASE (simulate external platform)
+	// ORGANIZATION CONTEXT
 	// ==========================================
-	const mockPdcUsers = [
-		{
-			email: 'sarah.johnson@example.com',
-			firstName: 'Sarah',
-			lastName: 'Johnson',
-			country: 'Netherlands'
-		},
-		{
-			email: 'michael.chen@example.com',
-			firstName: 'Michael',
-			lastName: 'Chen',
-			country: 'Singapore'
-		},
-		{
-			email: 'emma.wilson@example.com',
-			firstName: 'Emma',
-			lastName: 'Wilson',
-			country: 'United Kingdom'
+	
+	// Organization context
+	let currentOrgId = $state<string | null>(null);
+	let orgContext = $derived($organizationStore);
+	
+	// Update currentOrgId when organization changes
+	$effect(() => {
+		currentOrgId = orgContext.currentOrganization?._id || null;
+	});
+	
+	// ==========================================
+	// CONVEX QUERIES
+	// ==========================================
+	
+	// Query existing users (PDC data)
+	const existingUsers = useQuery(api.expertAssignments.getUsers, {});
+	
+	// Query available service versions
+	const serviceVersions = useQuery((api as any).serviceVersions.getServiceVersions, {});
+	
+	// Query organization approvals to get approved services
+	const organizationApprovals = useQuery(
+		(api as any).serviceVersions.getOrganizationApprovals,
+		() => currentOrgId ? { organizationId: currentOrgId } : { organizationId: "" }
+	);
+	
+	// Available services derived from organization's approved services only
+	const availableServices = $derived.by(() => {
+		if (!serviceVersions?.data || !organizationApprovals?.data || !currentOrgId) {
+			return [];
 		}
-	];
-
-	// Available services
-	const availableServices = [
-		'ETP Assessment',
-		'Supplier Assessment',
-		'Chemical Management',
-		'Environmental Consulting',
-		'Compliance Auditing'
-	];
+		
+		// Get approved service version IDs (get most recent approval for each service)
+		const serviceVersionApprovals = new Map();
+		
+		// Group approvals by service version ID
+		organizationApprovals.data.forEach((approval: any) => {
+			const existing = serviceVersionApprovals.get(approval.serviceVersionId);
+			if (!existing || approval.updatedAt > existing.updatedAt) {
+				serviceVersionApprovals.set(approval.serviceVersionId, approval);
+			}
+		});
+		
+		// Get approved service version IDs (only most recent approvals with approved status)
+		const approvedVersionIds = Array.from(serviceVersionApprovals.values())
+			.filter((approval: any) => approval.status === 'approved')
+			.map((approval: any) => approval.serviceVersionId);
+		
+		// Get approved service versions and return their names
+		const approvedVersions = serviceVersions.data.filter((version: any) =>
+			approvedVersionIds.includes(version._id)
+		);
+		
+		return approvedVersions.map((version: any) => version.name);
+	});
+	
+	// Loading states
+	const isLoadingUsers = $derived(existingUsers?.isLoading || false);
+	const isLoadingServices = $derived(serviceVersions?.isLoading || organizationApprovals?.isLoading || false);
+	const hasError = $derived(existingUsers?.error || serviceVersions?.error || organizationApprovals?.error || false);
 
 	// ==========================================
 	// SVELTE 5 STATE (using $state rune)
@@ -44,10 +76,12 @@
 	let currentStep = $state(1);
 	let emailInput = $state('');
 	let userExists = $state<boolean | null>(null);
-	let pdcUserData = $state<typeof mockPdcUsers[0] | null>(null);
+	let pdcUserData = $state<{firstName: string, lastName: string, email: string, country: string} | null>(null);
 	let selectedServices = $state<string[]>([]);
 	let serviceRoles = $state<Record<string, 'regular' | 'lead'>>({});
 	let invitationSent = $state(false);
+	let isDraftMode = $state(false);
+	let invitedUserEmail = $state('');
 	
 	// Professional Experience (SPP-owned data)
 	let experience = $state([
@@ -82,7 +116,7 @@
 	const totalSteps = $derived(5);
 	const progressPercentage = $derived((currentStep / totalSteps) * 100);
 	const canProceedFromStep1 = $derived(emailInput.trim() !== '' && userExists !== null);
-	const canProceedFromStep2 = $derived(pdcUserData !== null);
+	const canProceedFromStep2 = $derived(pdcUserData !== null || isDraftMode);
 	const canProceedFromStep3 = $derived(selectedServices.length > 0);
 	const canProceedFromStep4 = $derived(experience.length > 0 && experience.every(exp => exp.title.trim() !== ''));
 	const canProceedFromStep5 = $derived(education.length > 0 && education.every(edu => edu.school.trim() !== ''));
@@ -92,29 +126,44 @@
 	// ==========================================
 	
 	/**
-	 * Simulate checking if user exists in PDC
+	 * Check if user exists in PDC (real user database)
 	 */
 	function checkUserInPdc() {
 		const email = emailInput.trim().toLowerCase();
-		const foundUser = mockPdcUsers.find(user => user.email.toLowerCase() === email);
+		const foundUser = existingUsers?.data?.find(user => user.email.toLowerCase() === email);
 		
 		if (foundUser) {
 			userExists = true;
-			pdcUserData = foundUser;
+			pdcUserData = {
+				firstName: foundUser.firstName,
+				lastName: foundUser.lastName,
+				email: foundUser.email,
+				country: foundUser.country
+			};
+			isDraftMode = false;
+			// Auto-advance to next step when user is found
+			nextStep();
 		} else {
 			userExists = false;
 			pdcUserData = null;
+			isDraftMode = false;
 		}
 	}
 
 	/**
-	 * Send invitation to user (simulate email)
+	 * Send invitation to user and enable draft mode
 	 */
 	function sendInvitation() {
 		console.log(`📧 Invitation sent to: ${emailInput}`);
 		invitationSent = true;
+		isDraftMode = true;
+		invitedUserEmail = emailInput.trim();
+		
 		// In real app: POST to /api/invite with email
 		// Status will be tracked as "Invited to ZDHC" with 90-day expiry
+		
+		// Auto-advance to next step in draft mode
+		nextStep();
 	}
 
 	/**
@@ -241,56 +290,90 @@
 	 * Save expert (final step)
 	 */
 	async function saveExpert() {
-		if (!pdcUserData) {
-			alert('Error: No PDC user data found');
-			return;
-		}
-
 		try {
-			// First, create the user in Convex
-			const userId = await client.mutation(api.expertAssignments.createUser, {
-				firstName: pdcUserData.firstName,
-				lastName: pdcUserData.lastName,
-				email: pdcUserData.email,
-				country: pdcUserData.country
-			});
+			let userId: any;
+			
+			if (isDraftMode) {
+				// In draft mode, create a new user with the invited email
+				// In a real app, this would be a placeholder until the user accepts the invitation
+				userId = await client.mutation(api.expertAssignments.createUser, {
+					firstName: invitedUserEmail.split('@')[0], // Use email prefix as first name
+					lastName: '', // Empty last name for invited users
+					email: invitedUserEmail,
+					country: 'Unknown' // Placeholder until user completes registration
+				});
+			} else if (pdcUserData) {
+				// Normal flow: check if user already exists in database
+				const existingUser = existingUsers?.data?.find(user => user.email.toLowerCase() === pdcUserData!.email.toLowerCase());
+				
+				if (existingUser) {
+					// Use existing user ID
+					userId = existingUser._id;
+				} else {
+					// Create new user in Convex
+					userId = await client.mutation(api.expertAssignments.createUser, {
+						firstName: pdcUserData.firstName,
+						lastName: pdcUserData.lastName,
+						email: pdcUserData.email,
+						country: pdcUserData.country
+					});
+				}
+			} else {
+				alert('Error: No user data found');
+				return;
+			}
 
 			// Get or create default organization
 			const orgId = await getOrCreateDefaultOrganization();
 
-			// Create the expert assignment
-			const assignmentId = await client.mutation(api.expertAssignments.createExpertAssignment, {
-				userId: userId,
-				organizationId: orgId,
-				services: selectedServices,
-				experience: experience.filter(exp => exp.title.trim() !== '').map(exp => ({
-					title: exp.title,
-					company: exp.company,
-					location: exp.location,
-					startDate: exp.startDate,
-					endDate: exp.endDate,
-					current: exp.current,
-					description: exp.description
-				})),
-				education: education.filter(edu => edu.school.trim() !== '').map(edu => ({
-					school: edu.school,
-					degree: edu.degree,
-					field: edu.field,
-					startDate: edu.startDate,
-					endDate: edu.endDate,
-					description: edu.description
-				})),
-				assignedBy: 'current-user-id', // TODO: Get actual user ID
-				notes: `Expert added via wizard on ${new Date().toLocaleDateString()}`
-			});
+			// Create expert assignments for each selected service
+			const assignmentIds = [];
+			for (const serviceName of selectedServices) {
+				// Find the service version ID for this service name
+				const serviceVersion = serviceVersions?.data?.find((version: any) => version.name === serviceName);
+				if (serviceVersion) {
+					const assignmentId = await client.mutation(api.expertAssignments.createExpertAssignment, {
+						userId: userId,
+						organizationId: orgId,
+						serviceVersionId: serviceVersion._id,
+						role: serviceRoles[serviceName] || 'regular', // Use selected role or default to regular
+						experience: experience.filter(exp => exp.title.trim() !== '').map(exp => ({
+							title: exp.title,
+							company: exp.company,
+							location: exp.location,
+							startDate: exp.startDate,
+							endDate: exp.endDate,
+							current: exp.current,
+							description: exp.description
+						})),
+						education: education.filter(edu => edu.school.trim() !== '').map(edu => ({
+							school: edu.school,
+							degree: edu.degree,
+							field: edu.field,
+							startDate: edu.startDate,
+							endDate: edu.endDate,
+							description: edu.description
+						})),
+						assignedBy: 'current-user-id', // TODO: Get actual user ID
+						notes: `Expert added via wizard on ${new Date().toLocaleDateString()}`
+					});
+					assignmentIds.push(assignmentId);
+				}
+			}
 
-			console.log('💾 Expert saved successfully with ID:', assignmentId);
+			console.log('💾 Expert saved successfully with assignment IDs:', assignmentIds);
 			
-			// Show success message
-			alert(`Expert "${pdcUserData.firstName} ${pdcUserData.lastName}" saved successfully!\n\nData is now persisted in the database and will be available when you return.`);
+			// Store expert name for success page
+			const expertDisplayName = isDraftMode 
+				? invitedUserEmail 
+				: `${pdcUserData?.firstName} ${pdcUserData?.lastName}`.trim();
 			
-			// Navigate back to user management
-			window.location.href = '/user-management';
+			if (typeof window !== 'undefined') {
+				localStorage.setItem('spp_last_added_expert', expertDisplayName);
+			}
+			
+			// Navigate to success page
+			window.location.href = '/user-management/add-expert/success';
 		} catch (error: any) {
 			console.error('Error saving expert:', error);
 			alert(`Error saving expert: ${error.message}`);
@@ -425,6 +508,24 @@
 					<h2 class="text-xl font-bold text-gray-800 mb-4">Step 1: Enter Email Address</h2>
 					<p class="text-gray-600 mb-6">Enter the expert's email to check if they exist in PDC (Platform for Data Collection)</p>
 					
+					{#if isLoadingUsers}
+						<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+							<div class="flex items-center">
+								<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
+								<span class="text-blue-700">Loading user database...</span>
+							</div>
+						</div>
+					{:else if hasError}
+						<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+							<div class="flex items-center">
+								<svg class="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+								</svg>
+								<span class="text-red-700">Error loading user database. Please refresh the page.</span>
+							</div>
+						</div>
+					{/if}
+					
 					<div class="space-y-4">
 						<div>
 							<label for="email" class="block text-sm font-medium text-gray-700 mb-2">
@@ -442,10 +543,10 @@
 						<button
 							type="button"
 							onclick={checkUserInPdc}
-							disabled={emailInput.trim() === ''}
+							disabled={emailInput.trim() === '' || isLoadingUsers}
 							class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
 						>
-							Check in PDC
+							{isLoadingUsers ? 'Loading...' : 'Check in PDC'}
 						</button>
 						
 						<!-- Result Messages -->
@@ -507,15 +608,37 @@
 					</div>
 				</div>
 			
-			<!-- STEP 2: Confirm PDC Data -->
+			<!-- STEP 2: Confirm PDC Data or Draft Mode -->
 			{:else if currentStep === 2}
 				<div>
-					<h2 class="text-xl font-bold text-gray-800 mb-4">Step 2: Confirm User Information</h2>
-					<p class="text-gray-600 mb-6">
-						Review the user's default data from PDC. This data is owned by the user and cannot be edited.
-					</p>
-					
-					{#if pdcUserData}
+					{#if isDraftMode}
+						<h2 class="text-xl font-bold text-gray-800 mb-4">Step 2: Draft Mode - Invitation Sent</h2>
+						<p class="text-gray-600 mb-6">
+							You're adding an expert in draft mode. The user has been invited to join ZDHC and will complete their profile information when they accept the invitation.
+						</p>
+						
+						<div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+							<div class="flex items-start">
+								<svg class="w-6 h-6 text-blue-500 mt-0.5 mr-4" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+								</svg>
+								<div class="flex-1">
+									<h3 class="text-lg font-medium text-blue-800 mb-2">Invitation Status</h3>
+									<div class="space-y-2 text-sm text-blue-700">
+										<p><strong>Email:</strong> {invitedUserEmail}</p>
+										<p><strong>Status:</strong> Invitation sent (expires in 90 days)</p>
+										<p><strong>Mode:</strong> Draft - Expert assignments will be created and linked when user accepts invitation</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					{:else}
+						<h2 class="text-xl font-bold text-gray-800 mb-4">Step 2: Confirm User Information</h2>
+						<p class="text-gray-600 mb-6">
+							Review the user's default data from PDC. This data is owned by the user and cannot be edited.
+						</p>
+						
+						{#if pdcUserData}
 						<div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
 							<div class="space-y-4">
 								<div>
@@ -548,6 +671,7 @@
 								</div>
 							</div>
 						</div>
+						{/if}
 					{/if}
 				</div>
 			
@@ -555,9 +679,53 @@
 			{:else if currentStep === 3}
 				<div>
 					<h2 class="text-xl font-bold text-gray-800 mb-4">Step 3: Select Services & Roles</h2>
-					<p class="text-gray-600 mb-2">
-						Choose which services this expert will provide and whether they are a LEAD expert for each service.
-					</p>
+					{#if isDraftMode}
+						<p class="text-gray-600 mb-2">
+							Choose which services this expert will provide and whether they are a LEAD expert for each service. These assignments will be created in draft mode and linked when the user accepts the invitation.
+						</p>
+					{:else}
+						<p class="text-gray-600 mb-2">
+							Choose which services this expert will provide and whether they are a LEAD expert for each service.
+						</p>
+					{/if}
+					
+					{#if currentOrgId}
+						<div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+							<div class="flex items-center text-sm text-green-700">
+								<svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+								</svg>
+								<span><strong>Approved Services:</strong> Showing only services that your organization is approved to provide ({availableServices.length} available)</span>
+							</div>
+						</div>
+					{:else}
+						<div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+							<div class="flex items-center text-sm text-yellow-700">
+								<svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+								</svg>
+								<span><strong>No Organization Selected:</strong> Please select an organization to see approved services</span>
+							</div>
+						</div>
+					{/if}
+					
+					{#if isLoadingServices}
+						<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+							<div class="flex items-center">
+								<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
+								<span class="text-blue-700">Loading available services...</span>
+							</div>
+						</div>
+					{:else if availableServices.length === 0}
+						<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+							<div class="flex items-center">
+								<svg class="w-5 h-5 text-yellow-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+								</svg>
+								<span class="text-yellow-700">No services available. Please seed the database first.</span>
+							</div>
+						</div>
+					{/if}
 					<div class="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
 						<div class="flex items-center text-sm text-blue-700">
 							<svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -567,8 +735,9 @@
 						</div>
 					</div>
 					
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-						{#each availableServices as service}
+					{#if !isLoadingServices && availableServices.length > 0}
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							{#each availableServices as service}
 							<div class="flex items-center justify-between p-4 border-2 rounded-lg transition-all {
 								selectedServices.includes(service) 
 									? 'border-blue-500 bg-blue-50' 
@@ -605,7 +774,8 @@
 								{/if}
 							</div>
 						{/each}
-					</div>
+						</div>
+					{/if}
 					
 					{#if selectedServices.length > 0}
 						<div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -760,9 +930,15 @@
 			{:else if currentStep === 5}
 				<div>
 					<h2 class="text-xl font-bold text-gray-800 mb-4">Step 5: Education</h2>
-					<p class="text-gray-600 mb-2">
-						Add the expert's educational background. This information is managed by SPP and required for legal compliance.
-					</p>
+					{#if isDraftMode}
+						<p class="text-gray-600 mb-2">
+							Add the expert's educational background. This information will be stored in draft mode and linked when the user accepts the invitation.
+						</p>
+					{:else}
+						<p class="text-gray-600 mb-2">
+							Add the expert's educational background. This information is managed by SPP and required for legal compliance.
+						</p>
+					{/if}
 					<div class="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
 						<div class="flex items-center text-sm text-yellow-700">
 							<svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -906,7 +1082,11 @@
 						disabled={!canProceedFromStep5}
 						class="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
 					>
-						💾 Save Expert
+						{#if isDraftMode}
+							📧 Save Draft & Send Invitation
+						{:else}
+							💾 Save Expert
+						{/if}
 					</button>
 				{/if}
 			</div>

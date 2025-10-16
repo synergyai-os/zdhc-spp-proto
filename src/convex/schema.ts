@@ -83,6 +83,7 @@ export default defineSchema({
     userId: v.id("users"),
     organizationId: v.id("organizations"),
     serviceVersionId: v.id("serviceVersions"), // Reference to specific service version
+    role: v.optional(v.union(v.literal("lead"), v.literal("regular"))), // Expert role for this service
     status: v.union(
       v.literal("draft"),
       v.literal("paid"),

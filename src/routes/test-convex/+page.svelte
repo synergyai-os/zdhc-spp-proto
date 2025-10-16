@@ -85,18 +85,36 @@
 		
 		isLoading = false;
 	}
+	
+	async function migrateExpertRoles() {
+		isLoading = true;
+		testResults = 'Running expert role migration...\n';
+		
+		try {
+			const result = await client.mutation(api.expertAssignments.migrateExistingExpertRoles, {});
+			testResults += `✅ ${result.message}\n`;
+			testResults += `📊 Updated ${result.updatedCount} expert assignments\n`;
+			testResults += '🎉 Migration completed successfully!';
+			
+		} catch (error: any) {
+			testResults += `❌ Error: ${error.message}\n`;
+			console.error('Migration error:', error);
+		}
+		
+		isLoading = false;
+	}
 </script>
 
 <div class="max-w-4xl mx-auto p-6">
 	<h1 class="text-3xl font-bold text-gray-900 mb-6">Convex Database Test</h1>
 	
 	<div class="bg-white rounded-lg shadow-md p-6 mb-6">
-		<h2 class="text-xl font-semibold mb-4">Connection Test</h2>
+		<h2 class="text-xl font-semibold mb-4">Database Management</h2>
 		<p class="text-gray-600 mb-4">
-			This page tests if Convex is properly connected and our schema is working.
+			This page helps you manage your Convex database, test connections, and run migrations.
 		</p>
 		
-		<div class="flex gap-4 mb-4">
+		<div class="flex gap-4 mb-4 flex-wrap">
 			<button
 				onclick={testConnection}
 				disabled={isLoading}
@@ -114,6 +132,14 @@
 			</button>
 			
 			<button
+				onclick={migrateExpertRoles}
+				disabled={isLoading}
+				class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{isLoading ? 'Migrating...' : 'Migrate Expert Roles'}
+			</button>
+			
+			<button
 				onclick={clearTestData}
 				disabled={isLoading}
 				class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -128,12 +154,12 @@
 	</div>
 	
 	<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-		<h3 class="font-semibold text-yellow-800 mb-2">What this tests:</h3>
+		<h3 class="font-semibold text-yellow-800 mb-2">Available Operations:</h3>
 		<ul class="text-yellow-700 text-sm space-y-1">
-			<li>• Convex client connection</li>
-			<li>• Database schema (users, organizations tables)</li>
-			<li>• Query and mutation functions</li>
-			<li>• Data persistence</li>
+			<li>• <strong>Test Connection:</strong> Verify Convex is working</li>
+			<li>• <strong>Seed Test Data:</strong> Create sample users and organizations</li>
+			<li>• <strong>Migrate Expert Roles:</strong> Set existing experts to "regular" role</li>
+			<li>• <strong>Clear Test Data:</strong> Remove all test data</li>
 		</ul>
 	</div>
 </div>

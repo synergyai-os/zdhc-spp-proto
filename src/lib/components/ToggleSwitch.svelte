@@ -33,6 +33,7 @@
 	class="relative inline-flex flex-shrink-0 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {sizeClasses[size]} {checked ? 'bg-blue-600' : 'bg-gray-200'} {disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}"
 	role="switch"
 	aria-checked={checked}
+	aria-label="Toggle switch"
 >
 	<span
 		class="pointer-events-none inline-block rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {thumbSizeClasses[size]} {translateClasses[size]}"
