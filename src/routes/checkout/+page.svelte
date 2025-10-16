@@ -19,7 +19,7 @@
 	// Get draft experts for current organization
 	const draftExperts = useQuery(
 		api.expertAssignments.getExpertAssignmentsByStatus,
-		() => currentOrgId ? { organizationId: currentOrgId, status: "draft" } : { organizationId: "", status: "draft" }
+		() => currentOrgId ? { organizationId: currentOrgId as any, status: "draft" as const } : { organizationId: "" as any, status: "draft" as const }
 	);
 	
 	// Store state
@@ -27,7 +27,46 @@
 	let isLoading = $derived(storeState.isLoading);
 	let error = $derived(storeState.error);
 	
-	// Initialize checkout store with experts data
+	// Group experts by user for display
+	let groupedExperts = $derived.by(() => {
+		if (!draftExperts?.data) return [];
+		
+		// Group assignments by user ID
+		const userGroups = new Map();
+		
+		draftExperts.data.forEach((assignment: any) => {
+			if (!assignment.user) return;
+			
+			const userId = assignment.user._id;
+			if (!userGroups.has(userId)) {
+				userGroups.set(userId, {
+					userId: assignment.userId,
+					userName: assignment.user 
+						? `${assignment.user.firstName || ''} ${assignment.user.lastName || ''}`.trim() || assignment.user.email
+						: 'Unknown User',
+					userEmail: assignment.user?.email || 'unknown@example.com',
+					isUserVerified: assignment.user?.isActive || false,
+					assignments: [],
+					totalPrice: 0
+				});
+			}
+			
+			const serviceAssignment = {
+				assignmentId: assignment._id,
+				serviceVersionName: assignment.serviceVersion?.name || 'Unknown Service',
+				serviceParentName: assignment.serviceParent?.name || 'Unknown Category',
+				role: assignment.role || 'regular',
+				price: 100, // Hardcoded €100 per service version
+			};
+			
+			userGroups.get(userId).assignments.push(serviceAssignment);
+			userGroups.get(userId).totalPrice += serviceAssignment.price;
+		});
+		
+		return Array.from(userGroups.values());
+	});
+	
+	// Initialize checkout store with flattened experts data for selection logic
 	$effect(() => {
 		if (draftExperts?.data && currentOrgId) {
 			const checkoutExperts: CheckoutExpert[] = draftExperts.data.map((assignment: any) => ({
@@ -161,7 +200,18 @@
 								<div class="flex items-center space-x-2">
 									<button
 										type="button"
-										onclick={() => checkoutStore.selectAllVerifiedExperts()}
+											onclick={() => {
+												// Select all verified expert groups
+												groupedExperts.forEach((expertGroup: any) => {
+													if (expertGroup.isUserVerified) {
+														expertGroup.assignments.forEach((assignment: any) => {
+															if (!storeState.selectedExpertIds.includes(assignment.assignmentId)) {
+																checkoutStore.toggleExpertSelection(assignment.assignmentId);
+															}
+														});
+													}
+												});
+											}}
 										class="text-sm text-blue-600 hover:text-blue-800 font-medium"
 									>
 										Select All Verified
@@ -179,14 +229,127 @@
 						</div>
 						
 						<div class="text-sm text-gray-600 mb-4">
-							{verificationSummary.verified} verified, {verificationSummary.unverified} pending verification
+							{groupedExperts.filter(g => g.isUserVerified).length} verified expert{groupedExperts.filter(g => g.isUserVerified).length !== 1 ? 's' : ''}, {groupedExperts.filter(g => !g.isUserVerified).length} pending verification
 						</div>
 					</div>
 					
-					<!-- Expert Cards -->
+					<!-- Expert Cards (Grouped by User) -->
 					<div class="space-y-4">
-						{#each storeState.experts as expert (expert.assignmentId)}
-							<ExpertCheckoutCard {expert} />
+						{#each groupedExperts as expertGroup (expertGroup.userId)}
+							<div class="border border-gray-200 rounded-lg p-4 transition-all duration-200 {
+								!expertGroup.isUserVerified ? 'bg-gray-50 border-gray-300 opacity-60' : 
+								expertGroup.assignments.some((a: any) => storeState.selectedExpertIds.includes(a.assignmentId)) ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300 hover:bg-gray-50'
+							}">
+								<div class="flex items-start space-x-4">
+									<!-- Checkbox for entire user group -->
+									<div class="flex-shrink-0 pt-1">
+										<input
+											type="checkbox"
+											checked={expertGroup.assignments.every((a: any) => storeState.selectedExpertIds.includes(a.assignmentId))}
+											disabled={!expertGroup.isUserVerified}
+											onchange={() => {
+												const allSelected = expertGroup.assignments.every((a: any) => storeState.selectedExpertIds.includes(a.assignmentId));
+												if (allSelected) {
+													// Deselect all assignments for this user
+													expertGroup.assignments.forEach((a: any) => {
+														if (storeState.selectedExpertIds.includes(a.assignmentId)) {
+															checkoutStore.toggleExpertSelection(a.assignmentId);
+														}
+													});
+												} else {
+													// Select all assignments for this user
+													expertGroup.assignments.forEach((a: any) => {
+														if (!storeState.selectedExpertIds.includes(a.assignmentId)) {
+															checkoutStore.toggleExpertSelection(a.assignmentId);
+														}
+													});
+												}
+											}}
+											class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+										/>
+									</div>
+									
+									<!-- Expert Info -->
+									<div class="flex-1 min-w-0">
+										<div class="flex items-start justify-between">
+											<div class="flex-1">
+												<!-- Expert Name and Email -->
+												<div class="mb-2">
+													<h3 class="text-lg font-semibold text-gray-900 {
+														!expertGroup.isUserVerified ? 'text-gray-500' : ''
+													}">
+														{expertGroup.userName}
+													</h3>
+													<p class="text-sm text-gray-600 {!expertGroup.isUserVerified ? 'text-gray-400' : ''}">
+														{expertGroup.userEmail}
+													</p>
+												</div>
+												
+												<!-- Service Assignments -->
+												<div class="mb-3">
+													<div class="text-sm font-medium text-gray-700 mb-2 {!expertGroup.isUserVerified ? 'text-gray-500' : ''}">
+														Service Assignments ({expertGroup.assignments.length}):
+													</div>
+													<div class="space-y-2">
+														{#each expertGroup.assignments as assignment}
+															<div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg {
+																!expertGroup.isUserVerified ? 'bg-gray-100' : ''
+															}">
+																<div class="flex items-center space-x-2">
+																	<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded font-medium {
+																		!expertGroup.isUserVerified ? 'bg-gray-200 text-gray-600' : ''
+																	}">
+																		{assignment.serviceVersionName}
+																	</span>
+																	<span class="text-xs text-gray-600 {!expertGroup.isUserVerified ? 'text-gray-400' : ''}">
+																		{assignment.serviceParentName}
+																	</span>
+																	{#if assignment.role === 'lead'}
+																		<span class="px-1.5 py-0.5 text-xs rounded-full bg-yellow-200 text-yellow-800 font-semibold {
+																			!expertGroup.isUserVerified ? 'opacity-50' : ''
+																		}">
+																			LEAD
+																		</span>
+																	{/if}
+																</div>
+																<span class="text-sm font-medium text-gray-900 {
+																	!expertGroup.isUserVerified ? 'text-gray-500' : ''
+																}">
+																	€{assignment.price.toFixed(2)}
+																</span>
+															</div>
+														{/each}
+													</div>
+												</div>
+												
+												<!-- Verification Status -->
+												{#if !expertGroup.isUserVerified}
+													<div class="flex items-center space-x-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+														<svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+															<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+														</svg>
+														<span class="text-sm font-medium text-yellow-800">
+															Expert account not verified
+														</span>
+													</div>
+												{/if}
+											</div>
+											
+											<!-- Total Price for this user -->
+											<div class="flex-shrink-0 text-right">
+												<div class="text-lg font-bold text-gray-900 {
+													!expertGroup.isUserVerified ? 'text-gray-500' : ''
+												}">
+													€{expertGroup.totalPrice.toFixed(2)}
+												</div>
+												<div class="text-xs text-gray-500 {!expertGroup.isUserVerified ? 'text-gray-400' : ''}">
+													total
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
 						{/each}
 					</div>
 				</div>
