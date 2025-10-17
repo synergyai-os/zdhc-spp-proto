@@ -5,15 +5,12 @@
 	import OrganizationRequired from '$lib/components/OrganizationRequired.svelte';
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../convex/_generated/api';
-	import { organizationStore } from '$lib/stores/organization.svelte';
-	import { useOrganizationContext } from '$lib/utils/organization-context';
+	import { organizationState } from '$lib/stores/organization.svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
 	// Organization context
 	let currentOrgId = $state<string | null>(null);
-	let orgContext = $derived($organizationStore);
-	let orgUtils = $derived(useOrganizationContext());
 
 	// Get section from URL parameter, default to 'staff'
 	let activeSection = $derived.by(() => {
@@ -23,17 +20,17 @@
 
 	// Update currentOrgId when organization changes
 	$effect(() => {
-		currentOrgId = orgContext.currentOrganization?._id || null;
+		currentOrgId = organizationState.currentOrganizationId;
 		console.log('🏢 Organization Context Updated:', {
 			currentOrgId,
-			organizationName: orgContext.currentOrganization?.name,
-			hasOrganization: !!orgContext.currentOrganization,
-			isReady: orgUtils.validate().isValid
+			organizationName: organizationState.organizationName,
+			hasOrganization: organizationState.hasCurrentOrganization,
+			isReady: organizationState.validate.isValid
 		});
 	});
 
 	// Organization context validation
-	let orgValidation = $derived(orgUtils.validate());
+	let orgValidation = $derived(organizationState.validate);
 
 	// Get data from Convex
 	const users = useQuery(api.utilities.getUsers, () => ({}));
@@ -42,19 +39,19 @@
 	// Get expert CVs for services section (new schema) - only when organization is available
 	const expertCVs = useQuery(
 		api.expertCVs.getExpertCVs,
-		() => currentOrgId ? { organizationId: currentOrgId as any } : ("skip" as any)
+		() => currentOrgId ? { organizationId: currentOrgId as any } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
 	);
 
 	// Get expert service assignments for services section - only when organization is available
 	const expertServiceAssignments = useQuery(
 		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
-		() => currentOrgId ? { organizationId: currentOrgId as any } : ("skip" as any)
+		() => currentOrgId ? { organizationId: currentOrgId as any } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
 	);
 
 	// Get organization approvals (same as approved-services page) - only when organization is available
 	const organizationApprovals = useQuery(
 		(api as any).serviceVersions.getOrganizationApprovals,
-		() => currentOrgId ? { organizationId: currentOrgId } : ("skip" as any)
+		() => currentOrgId ? { organizationId: currentOrgId } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
 	);
 
 	// Get service versions and parents for display

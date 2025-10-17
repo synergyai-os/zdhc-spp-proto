@@ -37,13 +37,13 @@
 	// Get expert CVs data (new schema) - only when organization is available
 	const expertCVs = useQuery(
 		api.expertCVs.getExpertCVs,
-		() => organizationId ? { organizationId: organizationId as any } : ("skip" as any)
+		() => organizationId ? { organizationId: organizationId as any } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
 	);
 
 	// Get expert service assignments data - only when organization is available
 	const expertServiceAssignments = useQuery(
 		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
-		() => organizationId ? { organizationId: organizationId as any } : ("skip" as any)
+		() => organizationId ? { organizationId: organizationId as any } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
 	);
 
 	// Get service versions and parents for display

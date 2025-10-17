@@ -179,6 +179,34 @@ export const organizationState = $state({
 	
 	hasPermission(permission: string): boolean {
 		return this.currentStaffMember?.permissions.includes(permission) || false;
+	},
+	
+	// Validation for OrganizationRequired component
+	get validate() {
+		if (this.isLoading) {
+			return { isValid: false, message: 'Loading organization context...', isLoading: true, error: null };
+		}
+		if (this.error) {
+			return { isValid: false, message: this.error, isLoading: false, error: this.error };
+		}
+		if (!this.currentOrganization) {
+			if (this.availableOrganizations.length > 0) {
+				return {
+					isValid: false,
+					message: 'Please select an organization to continue.',
+					isLoading: false,
+					error: 'No organization selected'
+				};
+			} else {
+				return {
+					isValid: false,
+					message: 'No organizations available in the system. Please contact an administrator.',
+					isLoading: false,
+					error: 'No organizations available'
+				};
+			}
+		}
+		return { isValid: true, message: 'Organization context is valid.', isLoading: false, error: null };
 	}
 });
 

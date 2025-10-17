@@ -128,6 +128,80 @@ src/
 - Deep reactivity: objects and arrays are automatically reactive
 - Avoid `$:` syntax - use runes instead
 
+#### Store Management in Svelte 5
+
+**CRITICAL**: When creating stores in `.svelte.ts` files:
+
+1. **Use `$state()` for reactive objects** instead of `writable()`:
+   ```typescript
+   // ✅ CORRECT - Modern Svelte 5 pattern
+   export const organizationState = $state({
+     currentOrganization: null,
+     isLoading: false,
+     // methods and getters...
+   });
+   
+   // ❌ WRONG - Old Svelte 4 pattern
+   export const organizationStore = writable({...});
+   ```
+
+2. **Export functions, not `$derived` values**:
+   ```typescript
+   // ✅ CORRECT - Export functions
+   export const currentOrganizationName = () => organizationState.organizationName;
+   
+   // ❌ WRONG - Cannot export $derived from modules
+   export const currentOrganizationName = $derived(organizationState.organizationName);
+   ```
+
+3. **Use function calls in components, not `$` prefix**:
+   ```svelte
+   <!-- ✅ CORRECT - Call functions directly -->
+   <script>
+     let orgName = $derived(currentOrganizationName() || 'No Organization');
+   </script>
+   
+   <!-- ❌ WRONG - Functions don't have subscribe method -->
+   <script>
+     let orgName = $derived($currentOrganizationName || 'No Organization');
+   </script>
+   ```
+
+4. **Store compatibility**: Provide legacy store interface for backward compatibility:
+   ```typescript
+   export const organizationStore = {
+     subscribe: (callback) => { callback(organizationState); return () => {}; },
+     // delegate methods...
+   };
+   ```
+
+5. **Convex conditional queries**: Use fallback IDs instead of "skip" or undefined:
+   ```typescript
+   // ✅ CORRECT - Use fallback organization ID
+   const expertCVs = useQuery(
+     api.expertCVs.getExpertCVs,
+     () => currentOrgId ? { organizationId: currentOrgId } : { organizationId: 'fallback-id' }
+   );
+   
+   // ❌ WRONG - "skip" not supported by convex-svelte
+   const expertCVs = useQuery(api.expertCVs.getExpertCVs, () => "skip");
+   ```
+
+6. **Organization validation**: Include validate getter for component validation:
+   ```typescript
+   export const organizationState = $state({
+     // ... other properties
+     get validate() {
+       if (this.isLoading) return { isValid: false, message: 'Loading...', isLoading: true, error: null };
+       if (this.error) return { isValid: false, message: this.error, isLoading: false, error: this.error };
+       if (!this.currentOrganization) {
+         return { isValid: false, message: 'Please select an organization.', isLoading: false, error: 'No organization selected' };
+       }
+       return { isValid: true, message: 'Organization context is valid.', isLoading: false, error: null };
+     }
+   });
+   ```
+
 ### 3. File-Based Routing
 
 - **Nested routes** for logical hierarchy (`/user-management/add-expert`)
@@ -540,6 +614,10 @@ Checkout Flow → Submit ExpertCV + Update ServiceAssignments → Payment → Re
 - **Clean Break Migration** - Removed old expertAssignments table and migrated to new schema
 - **Service-Specific Reviews** - Individual service approvals linked to specific CV versions
 - **Auto-Lock Logic** - CVs automatically lock when all linked services are decided
+- **Svelte 5 Store Pattern** - Use $state for reactive objects instead of writable() stores
+- **Store Export Strategy** - Export functions instead of $derived values to avoid module export errors
+- **Convex-Svelte Conditional Queries** - Use fallback organization IDs instead of "skip" or undefined for conditional queries
+- **Organization Store Validation** - Include validate getter property for organization context validation
 
 ### User Preferences (Important!)
 

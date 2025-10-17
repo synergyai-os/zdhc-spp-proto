@@ -1,1 +1,5 @@
-// place files you want to import through the `$lib` alias in this folder.
+// Re-export Convex types for cleaner imports
+export type { Id } from '../convex/_generated/dataModel';
+
+// Re-export commonly used Convex API
+export { api } from '../convex/_generated/api';
