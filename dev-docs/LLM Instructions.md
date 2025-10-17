@@ -39,16 +39,23 @@ This is a **Solution Provider Platform** for ZDHC (Zero Discharge of Hazardous C
 ```
 src/
 ├── lib/
-│   └── components/           # Reusable UI components
-│       ├── Header.svelte           # Navigation and branding
-│       ├── UserCard.svelte         # User display component
-│       ├── ServiceBox.svelte       # Service section container
-│       ├── ActionCard.svelte       # Dashboard action cards
-│       ├── ToggleSwitch.svelte     # Service approval toggle component
-│       ├── OrganizationSwitcher.svelte # Organization selection dropdown
-│       └── admin/                  # Admin-specific components
-│           ├── CVReviewTable.svelte    # CV review table with filtering
-│           └── CVDetailView.svelte     # Individual CV review component
+│   ├── components/           # Reusable UI components
+│   │   ├── Header.svelte           # Navigation and branding
+│   │   ├── UserCard.svelte         # User display component
+│   │   ├── ServiceBox.svelte       # Service section container
+│   │   ├── ActionCard.svelte       # Dashboard action cards
+│   │   ├── ToggleSwitch.svelte     # Service approval toggle component
+│   │   ├── OrganizationSwitcher.svelte # Organization selection dropdown
+│   │   ├── queries/                # Query component pattern
+│   │   │   └── ExpertQueries.svelte    # Reusable expert data queries
+│   │   └── admin/                  # Admin-specific components
+│   │       ├── CVReviewTable.svelte    # CV review table with filtering
+│   │       └── CVDetailView.svelte     # Individual CV review component
+│   ├── stores/               # Svelte 5 state management
+│   │   ├── organization.svelte.ts   # Organization context store
+│   │   └── expertEdit.svelte.ts     # Expert edit state management
+│   └── services/             # Business logic services
+│       └── expertService.ts         # Expert service assignment logic
 ├── convex/                  # Convex backend functions
 │   ├── schema.ts           # Database schema definition
 │   ├── expertCVs.ts        # CV versioning and management
@@ -127,6 +134,110 @@ src/
 - Prefer `onsubmit` over `on:submit` (new syntax)
 - Deep reactivity: objects and arrays are automatically reactive
 - Avoid `$:` syntax - use runes instead
+
+#### Query Component Pattern for Convex-Svelte Integration
+
+**CRITICAL**: Convex `useQuery` calls must be at the component top level, but we need reusability. Use the **Query Component Pattern**:
+
+1. **Create reusable query components** that encapsulate all `useQuery` calls:
+   ```svelte
+   <!-- src/lib/components/queries/ExpertQueries.svelte -->
+   <script lang="ts">
+     import { useQuery } from 'convex-svelte';
+     import { api } from '$lib';
+
+     let { expertId, orgId, children } = $props<{
+       expertId: string;
+       orgId: string;
+       children: any;
+     }>();
+
+     // All useQuery calls at top level (Convex requirement)
+     const latestCV = useQuery(api.expertCVs.getLatestExpertCV, () => ({
+       userId: expertId as any,
+       organizationId: orgId as any
+     }));
+
+     const userData = useQuery(api.utilities.getUserById, () => ({
+       id: (latestCV?.data?.userId || expertId) as any
+     }));
+
+     // ... other queries
+
+     // Prepare data for children
+     const queryData = $derived({
+       // Raw queries
+       latestCV,
+       userData,
+       // ... other raw queries
+
+       // Processed data
+       currentCVData: latestCV?.data,
+       userDataResult: userData?.data,
+       // ... other processed data
+
+       // State
+       isLoading: latestCV?.isLoading || userData?.isLoading || false,
+       hasError: latestCV?.error || userData?.error || false
+     });
+   </script>
+
+   {#if children}
+     {@render children(queryData)}
+   {/if}
+   ```
+
+2. **Use query components with Svelte 5 snippets**:
+   ```svelte
+   <ExpertQueries expertId={expertId} orgId={orgId}>
+     {#snippet children(queryData)}
+       <!-- Your UI here with access to all query data -->
+       {#if queryData.isLoading}
+         <div>Loading...</div>
+       {:else if queryData.hasError}
+         <div>Error: {queryData.hasError}</div>
+       {:else}
+         <div>Data: {JSON.stringify(queryData.currentCVData)}</div>
+       {/if}
+     {/snippet}
+   </ExpertQueries>
+   ```
+
+3. **Benefits of Query Component Pattern**:
+   - ✅ **Reusable** - Query components can be used across multiple pages
+   - ✅ **Convex-compatible** - All `useQuery` calls at component top level
+   - ✅ **Separation of concerns** - Queries isolated from UI logic
+   - ✅ **Type-safe** - Full TypeScript support with consistent data structure
+   - ✅ **Maintainable** - Centralized query logic, easy to modify
+   - ✅ **Testable** - Can create isolated test pages for query components
+
+4. **File organization for query components**:
+   ```
+   src/lib/components/queries/
+   ├── ExpertQueries.svelte          # Expert-related queries
+   ├── OrganizationQueries.svelte    # Organization-related queries
+   ├── ServiceQueries.svelte         # Service-related queries
+   └── AdminQueries.svelte           # Admin-specific queries
+   ```
+
+5. **Query data structure** - All query components should return consistent data:
+   ```typescript
+   interface QueryData {
+     // Raw query results (from Convex)
+     latestCV?: any;
+     userData?: any;
+     serviceVersions?: any;
+     
+     // Processed data (extracted from raw results)
+     currentCVData?: any;
+     userDataResult?: any;
+     serviceVersionsData?: any[];
+     
+     // State information
+     isLoading: boolean;
+     hasError: boolean | string;
+   }
+   ```
 
 #### Store Management in Svelte 5
 
@@ -618,6 +729,9 @@ Checkout Flow → Submit ExpertCV + Update ServiceAssignments → Payment → Re
 - **Store Export Strategy** - Export functions instead of $derived values to avoid module export errors
 - **Convex-Svelte Conditional Queries** - Use fallback organization IDs instead of "skip" or undefined for conditional queries
 - **Organization Store Validation** - Include validate getter property for organization context validation
+- **Query Component Pattern** - Reusable query components with Svelte 5 snippets for Convex-Svelte integration
+- **Separation of Concerns** - Queries isolated in dedicated components, UI logic in page components
+- **Reusable Data Fetching** - Query components can be used across multiple pages with consistent data structure
 
 ### User Preferences (Important!)
 
