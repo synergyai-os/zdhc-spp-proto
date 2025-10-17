@@ -11,6 +11,11 @@
 	import type { Id } from '../../../../../convex/_generated/dataModel';
 	import { toast } from 'svelte-sonner';
 
+	interface Service {
+		name: string;
+		_id: string;
+	}
+
 	// Get expert ID from URL params
 	const expertId = $derived($page.params.expertId);
 
@@ -46,20 +51,6 @@
 	
 	// Ensure we have a valid organization ID for queries
 	let validOrgId = $derived(currentOrgId || 'j975t878dn66x7br1076wb7ey17skxyg'); // Fallback to a known org ID
-
-	// Debug organization context
-	$effect(() => {
-		console.log('🏢 Organization Context:');
-		console.log('  - cvData:', cvData);
-		console.log('  - currentOrgId from CV:', currentOrgId);
-		console.log('  - global organization:', $organizationStore.currentOrganization?._id);
-		console.log(
-			'  - availableOrganizations:',
-			$organizationStore.availableOrganizations?.length || 0
-		);
-		console.log('  - latestCV query result:', latestCV);
-		console.log('  - userData query result:', userData);
-	});
 
 	// Query user data if CV exists
 	const userData = useQuery(
@@ -100,66 +91,82 @@
 	let saveError = $state<string | null>(null);
 
 	// Available services for the organization
-	let availableServices = $derived(
-		(() => {
-			console.log('🔍 Debug Services:');
-			console.log('  - currentOrgId:', currentOrgId);
-			console.log('  - validOrgId:', validOrgId);
-			console.log('  - serviceVersions:', serviceVersionsData?.length || 0);
-			console.log('  - organizationApprovals:', organizationApprovalsData?.length || 0);
+	let availableServices = $derived.by((): Service[] => {
+		// PROTOTYPE MODE: Show all services if:
+		// 1. No organization is selected, OR
+		// 2. No organization approvals exist
+		if (!validOrgId || !organizationApprovalsData?.length) {
+			return (serviceVersionsData || []).map((service: any) => ({
+				name: service.name,
+				_id: service._id
+			}));
+		}
 
-			// PROTOTYPE MODE: Show all services if:
-			// 1. No organization is selected, OR
-			// 2. No organization approvals exist
-			if (!validOrgId || !organizationApprovalsData?.length) {
-				console.log('  - Prototype mode: showing all services');
-				return serviceVersionsData || [];
+		return (serviceVersionsData?.filter((service: any) =>
+			organizationApprovalsData?.some(
+				(approval: any) => approval.serviceVersionId === service._id
+			)
+		) || []).map((service: any) => ({
+			name: service.name,
+			_id: service._id
+		}));
+	});
+
+	// Current form data (editable fields) - derived from CV data
+	let selectedServices = $derived.by((): string[] => {
+		if (!currentCVData || !existingServiceAssignments?.data || !serviceVersionsData) {
+			return [];
+		}
+		
+		const assignments = existingServiceAssignments.data;
+		return assignments.map((assignment: any) => {
+			const serviceVersion = serviceVersionsData.find(
+				(version: any) => version._id === assignment.serviceVersionId
+			);
+			return serviceVersion?.name || '';
+		}).filter(Boolean);
+	});
+
+	let serviceRoles = $derived.by((): Record<string, 'lead' | 'regular'> => {
+		if (!currentCVData || !existingServiceAssignments?.data || !serviceVersionsData) {
+			return {};
+		}
+		
+		const assignments = existingServiceAssignments.data;
+		const roles: Record<string, 'lead' | 'regular'> = {};
+		
+		assignments.forEach((assignment: any) => {
+			const serviceVersion = serviceVersionsData.find(
+				(version: any) => version._id === assignment.serviceVersionId
+			);
+			if (serviceVersion?.name) {
+				roles[serviceVersion.name] = assignment.role || 'regular';
 			}
+		});
+		
+		return roles;
+	});
 
-			const filtered =
-				serviceVersionsData?.filter((service: any) =>
-					organizationApprovalsData?.some(
-						(approval: any) => approval.serviceVersionId === service._id
-					)
-				) || [];
+	let experience = $derived(currentCVData?.experience || []);
+	let education = $derived(currentCVData?.education || []);
 
-			console.log('  - Filtered services:', filtered.length);
-			return filtered;
-		})()
-	);
+	// Mutable state for user interactions (separate from derived state)
+	let userSelectedServices = $state<string[]>([]);
+	let userServiceRoles = $state<Record<string, 'lead' | 'regular'>>({});
+	let userExperience = $state<any[]>([]);
+	let userEducation = $state<any[]>([]);
 
-	// Current form data (editable fields)
-	let selectedServices = $state<string[]>([]);
-	let serviceRoles = $state<Record<string, 'lead' | 'regular'>>({});
-	let experience = $state<any[]>([]);
-	let education = $state<any[]>([]);
-
-	// Initialize form data when CV data loads
+	// Initialize user state from derived state when data loads
 	$effect(() => {
-		if (currentCVData) {
-			// Initialize experience and education from the current CV
-			experience = currentCVData.experience || [];
-			education = currentCVData.education || [];
-			
-			// Initialize services from existing service assignments
-			const assignments = existingServiceAssignments?.data || [];
-			selectedServices = assignments.map((assignment: any) => {
-				const serviceVersion = serviceVersionsData?.find(
-					(version: any) => version._id === assignment.serviceVersionId
-				);
-				return serviceVersion?.name || '';
-			}).filter(Boolean);
-			
-			// Initialize service roles from existing assignments
-			serviceRoles = {};
-			assignments.forEach((assignment: any) => {
-				const serviceVersion = serviceVersionsData?.find(
-					(version: any) => version._id === assignment.serviceVersionId
-				);
-				if (serviceVersion?.name) {
-					serviceRoles[serviceVersion.name] = assignment.role || 'regular';
-				}
-			});
+		if (selectedServices.length > 0 || Object.keys(serviceRoles).length > 0) {
+			userSelectedServices = selectedServices;
+			userServiceRoles = serviceRoles;
+		}
+		if (experience.length > 0) {
+			userExperience = experience;
+		}
+		if (education.length > 0) {
+			userEducation = education;
 		}
 	});
 
@@ -174,23 +181,18 @@
 			isSaving = true;
 			saveError = null;
 
-			console.log('🔍 Debug Save - CV Update:');
-			console.log('  - currentCVData:', currentCVData._id);
-			console.log('  - selectedServices:', selectedServices);
-			console.log('  - experience:', experience.length, 'items');
-			console.log('  - education:', education.length, 'items');
 
 			// Update the CV with new experience and education
 			await client.mutation(api.expertCVs.updateExpertCV, {
 				id: currentCVData._id as Id<'expertCVs'>,
-				experience: experience,
-				education: education
+				experience: userExperience,
+				education: userEducation
 			});
 
 			// Handle service assignments
 			// For now, we'll create new service assignments for all selected services
 			// In a more sophisticated implementation, we'd handle updates and deletions
-			const selectedServiceIds = selectedServices.map(serviceName => {
+			const selectedServiceIds = userSelectedServices.map(serviceName => {
 				const serviceVersion = serviceVersionsData?.find(
 					(version: any) => version.name === serviceName
 				);
@@ -198,13 +200,13 @@
 			}).filter(Boolean);
 
 			if (selectedServiceIds.length > 0) {
-				const serviceAssignments = selectedServices.map(serviceName => {
+				const serviceAssignments = userSelectedServices.map(serviceName => {
 					const serviceVersion = serviceVersionsData?.find(
 						(version: any) => version.name === serviceName
 					);
 					return {
 						serviceVersionId: serviceVersion?._id as Id<'serviceVersions'>,
-						role: serviceRoles[serviceName] || 'regular'
+						role: userServiceRoles[serviceName] || 'regular'
 					};
 				}).filter(assignment => assignment.serviceVersionId);
 
@@ -235,25 +237,25 @@
 	}
 
 	function handleToggleService(serviceName: string) {
-		if (selectedServices.includes(serviceName)) {
-			selectedServices = selectedServices.filter((s) => s !== serviceName);
-			delete serviceRoles[serviceName];
+		if (userSelectedServices.includes(serviceName)) {
+			userSelectedServices = userSelectedServices.filter((s) => s !== serviceName);
+			delete userServiceRoles[serviceName];
 		} else {
-			selectedServices = [...selectedServices, serviceName];
-			serviceRoles[serviceName] = 'regular';
+			userSelectedServices = [...userSelectedServices, serviceName];
+			userServiceRoles[serviceName] = 'regular';
 		}
 	}
 
 	function handleToggleRole(serviceName: string) {
-		serviceRoles[serviceName] = serviceRoles[serviceName] === 'lead' ? 'regular' : 'lead';
+		userServiceRoles[serviceName] = userServiceRoles[serviceName] === 'lead' ? 'regular' : 'lead';
 	}
 
 	function handleUpdateExperience(newExperience: any[]) {
-		experience = newExperience;
+		userExperience = newExperience;
 	}
 
 	function handleUpdateEducation(newEducation: any[]) {
-		education = newEducation;
+		userEducation = newEducation;
 	}
 
 	// No step navigation needed - all steps are visible simultaneously
@@ -425,9 +427,9 @@
 					<p class="text-gray-600">Choose which services this expert will provide and their role</p>
 				</div>
 				<Step3Services
-					{availableServices}
-					{selectedServices}
-					{serviceRoles}
+					availableServices={availableServices}
+					selectedServices={userSelectedServices}
+					serviceRoles={userServiceRoles}
 					currentOrgId={validOrgId}
 					isLoadingServices={serviceVersions?.isLoading || organizationApprovals?.isLoading}
 					isDraftMode={!userData?.data?.isActive}
@@ -443,7 +445,7 @@
 					<p class="text-gray-600">Add relevant work experience and achievements</p>
 				</div>
 				<Step4Experience
-					{experience}
+					experience={userExperience}
 					on:updateExperience={(e) => handleUpdateExperience(e.detail)}
 				/>
 			</div>
@@ -454,7 +456,7 @@
 					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 5: Education & Certifications</h2>
 					<p class="text-gray-600">Add educational background and relevant certifications</p>
 				</div>
-				<Step5Education {education} on:updateEducation={(e) => handleUpdateEducation(e.detail)} />
+				<Step5Education education={userEducation} on:updateEducation={(e) => handleUpdateEducation(e.detail)} />
 			</div>
 
 			<!-- Save Button -->
