@@ -64,7 +64,7 @@
 		});
 
 		const result = await saveExpertProfile(client, {
-			cvId: queryData.currentCVData._id,
+			cvId: queryData.currentCVData._id as any,
 			experience: queryData.experience,
 			education: queryData.education
 		});
@@ -73,6 +73,7 @@
 
 		if (result.success) {
 			toast.success('Expert profile updated successfully!');
+			console.log("🔥 FIRE TOAST SHOULD WORK!");
 			goto('/user-management?section=experts');
 		} else {
 			expertEditStore.setSaveError(result.error || 'An error occurred while saving');

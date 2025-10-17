@@ -11,6 +11,9 @@
 import type * as adminCVReview from "../adminCVReview.js";
 import type * as expertCVs from "../expertCVs.js";
 import type * as expertServiceAssignments from "../expertServiceAssignments.js";
+import type * as model_expertCVs from "../model/expertCVs.js";
+import type * as model_types from "../model/types.js";
+import type * as model_validators from "../model/validators.js";
 import type * as serviceVersions from "../serviceVersions.js";
 import type * as utilities from "../utilities.js";
 
@@ -32,6 +35,9 @@ declare const fullApi: ApiFromModules<{
   adminCVReview: typeof adminCVReview;
   expertCVs: typeof expertCVs;
   expertServiceAssignments: typeof expertServiceAssignments;
+  "model/expertCVs": typeof model_expertCVs;
+  "model/types": typeof model_types;
+  "model/validators": typeof model_validators;
   serviceVersions: typeof serviceVersions;
   utilities: typeof utilities;
 }>;

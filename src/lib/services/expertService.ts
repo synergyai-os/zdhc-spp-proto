@@ -39,14 +39,14 @@ export interface ServiceAssignmentSyncResult {
 export async function saveExpertProfile(
   client: ConvexClient,
   params: {
-    cvId: string;
+    cvId: Id<'expertCVs'>;
     experience: any[];
     education: any[];
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await client.mutation(api.expertCVs.updateExpertCV, {
-      id: params.cvId as any,
+      id: params.cvId,
       experience: params.experience,
       education: params.education
     });
