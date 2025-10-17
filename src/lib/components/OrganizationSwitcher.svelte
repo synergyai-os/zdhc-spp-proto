@@ -15,8 +15,8 @@
 	let isLoading = $state(false);
 
 	// Reactive stores with error handling
-	let currentOrgName = $derived($currentOrganizationName || 'No Organization Selected');
-	let availableOrgs = $derived($organizationOptions || []);
+	let currentOrgName = $derived(currentOrganizationName() || 'No Organization Selected');
+	let availableOrgs = $derived(organizationOptions() || []);
 	let orgContext = $derived(
 		$organizationStore || { currentOrganization: null, isLoading: false, error: null }
 	);

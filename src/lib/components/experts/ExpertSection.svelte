@@ -34,16 +34,16 @@
 	// View state - always table view
 	let viewMode = $state<'table'>('table');
 
-	// Get expert CVs data (new schema)
+	// Get expert CVs data (new schema) - only when organization is available
 	const expertCVs = useQuery(
 		api.expertCVs.getExpertCVs,
-		() => ({ organizationId: organizationId as any })
+		() => organizationId ? { organizationId: organizationId as any } : ("skip" as any)
 	);
 
-	// Get expert service assignments data
+	// Get expert service assignments data - only when organization is available
 	const expertServiceAssignments = useQuery(
 		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
-		() => organizationId ? { organizationId: organizationId as any } : { organizationId: 'j1j1j1j1j1j1j1j1j1j1j1j1' as any }
+		() => organizationId ? { organizationId: organizationId as any } : ("skip" as any)
 	);
 
 	// Get service versions and parents for display
@@ -52,6 +52,16 @@
 
 	// Update expert store when data changes (updated for new schema)
 	$effect(() => {
+		console.log('🔍 ExpertSection Data Debug:', {
+			organizationId,
+			expertCVs: expertCVs?.data?.length || 0,
+			expertServiceAssignments: expertServiceAssignments?.data?.length || 0,
+			serviceVersions: serviceVersions?.data?.length || 0,
+			serviceParents: serviceParents?.data?.length || 0,
+			expertCVsData: expertCVs?.data,
+			expertServiceAssignmentsData: expertServiceAssignments?.data
+		});
+
 		if (expertCVs?.data) {
 			expertStore.setExpertCVs(expertCVs.data as any);
 		}

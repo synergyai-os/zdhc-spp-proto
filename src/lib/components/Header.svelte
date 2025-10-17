@@ -15,15 +15,15 @@
 	let { ...props }: Props = $props();
 
 	// Reactive stores with error handling
-	let currentOrgName = $derived($currentOrganizationName || 'No Organization Selected');
-	let userRole = $derived($currentUserRole || null);
+	let currentOrgName = $derived(currentOrganizationName() || 'No Organization Selected');
+	let userRole = $derived(currentUserRole() || null);
 	let orgContext = $derived(
 		$organizationStore || { currentOrganization: null, isLoading: false, error: null }
 	);
 </script>
 
 <!-- Header -->
-<header class="bg-gray-100 border-b border-gray-200 px-6 py-4">
+<header class="sticky top-0 z-50 bg-gray-100 border-b border-gray-200 px-6 py-4">
 	<div class="flex items-center justify-between">
 		<!-- Logo and Brand -->
 		<div class="flex items-center space-x-3">

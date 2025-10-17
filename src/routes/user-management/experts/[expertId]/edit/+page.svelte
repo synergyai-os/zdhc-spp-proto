@@ -3,7 +3,8 @@
 	import { api } from '../../../../../convex/_generated/api';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { organizationStore } from '$lib/stores/organization.svelte';
+	import { organizationState } from '$lib/stores/organization.svelte';
+	import OrganizationRequired from '$lib/components/OrganizationRequired.svelte';
 	import Step2Confirmation from '$lib/components/expert-wizard/Step2Confirmation.svelte';
 	import Step3Services from '$lib/components/expert-wizard/Step3Services.svelte';
 	import Step4Experience from '$lib/components/expert-wizard/Step4Experience.svelte';
@@ -22,12 +23,23 @@
 	// Get Convex client
 	const client = useConvexClient();
 
+	// Debug organization context
+	$effect(() => {
+		console.log('🏢 Expert Edit - Organization Context:', {
+			expertId,
+			currentOrganization: organizationState.currentOrganization,
+			organizationId: organizationState.currentOrganizationId,
+			hasOrganization: organizationState.hasCurrentOrganization,
+			orgStoreLoading: organizationState.isLoading
+		});
+	});
+
 	// Query the latest CV for this expert (new schema)
 	const latestCV = useQuery(
 		api.expertCVs.getLatestExpertCV,
 		() => ({ 
-			userId: (expertId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any, 
-			organizationId: ($organizationStore.currentOrganization?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any 
+			userId: expertId as any, 
+			organizationId: (organizationState.currentOrganizationId || 'j975t878dn66x7br1076wb7ey17skxyg') as any 
 		})
 	);
 
@@ -36,8 +48,8 @@
 		api.expertCVs.getExpertCVHistory,
 		() => {
 			const queryArgs = { 
-				userId: (expertId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any, 
-				organizationId: ($organizationStore.currentOrganization?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any 
+				userId: expertId as any, 
+				organizationId: (organizationState.currentOrganizationId || 'j975t878dn66x7br1076wb7ey17skxyg') as any 
 			};
 			console.log('CV History query args:', queryArgs);
 			return queryArgs;
@@ -51,7 +63,7 @@
 	let cvData = $derived(latestCV?.data || null);
 
 	// Organization context - use the organization from the CV or store
-	let currentOrgId = $derived(cvData?.organizationId || $organizationStore.currentOrganization?._id || null);
+	let currentOrgId = $derived(cvData?.organizationId || organizationState.currentOrganizationId || null);
 	
 	// Ensure we have a valid organization ID for queries
 	let validOrgId = $derived(currentOrgId || 'j975t878dn66x7br1076wb7ey17skxyg'); // Fallback to a known org ID
@@ -391,6 +403,16 @@
 </svelte:head>
 
 <div class="bg-gray-50 min-h-screen">
+	{#if organizationState.availableOrganizations.length === 0}
+		<div class="flex items-center justify-center min-h-[60vh]">
+			<div class="text-center">
+				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+				<p class="text-lg text-gray-600">Loading...</p>
+			</div>
+		</div>
+	{:else if !organizationState.hasCurrentOrganization}
+		<OrganizationRequired />
+	{:else}
 	<div class="max-w-4xl mx-auto px-6 py-8">
 		<!-- Header -->
 		<div class="mb-8">
@@ -603,4 +625,5 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
 </div>

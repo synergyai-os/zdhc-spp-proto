@@ -111,15 +111,33 @@ export const expertStore = createExpertStore();
 
 // Group experts by user (NEW CV SCHEMA)
 export const expertsGroupedByUser = derived(expertStore, ($store) => {
-	if (!$store.expertCVs.length) return new Map();
+	console.log('🔄 Processing experts data:', {
+		expertCVs: $store.expertCVs.length,
+		expertServiceAssignments: $store.expertServiceAssignments.length,
+		serviceVersions: $store.serviceVersions.length,
+		expertCVsData: $store.expertCVs,
+		expertServiceAssignmentsData: $store.expertServiceAssignments
+	});
+
+	if (!$store.expertCVs.length) {
+		console.log('❌ No expert CVs found');
+		return new Map();
+	}
 
 	const userGroups = new Map<string, ExpertTableRow>();
 
 	$store.expertCVs.forEach((cv) => {
 		const userId = cv.userId;
+		console.log('📋 Processing CV:', {
+			userId,
+			status: cv.status,
+			user: cv.user,
+			cvId: cv._id
+		});
 
 		// Skip draft CVs (unverified users) - they should be handled separately
 		if (cv.status === 'draft') {
+			console.log('⏭️ Skipping draft CV:', userId);
 			return;
 		}
 
@@ -147,6 +165,7 @@ export const expertsGroupedByUser = derived(expertStore, ($store) => {
 				cvVersion: cv.version,
 				cvStatus: cv.status
 			});
+			console.log('✅ Created new user group for:', userId);
 		}
 
 		const row = userGroups.get(userId)!;
@@ -155,6 +174,12 @@ export const expertsGroupedByUser = derived(expertStore, ($store) => {
 		const cvAssignments = $store.expertServiceAssignments.filter(
 			(assignment) => assignment.expertCVId === cv._id
 		);
+
+		console.log('🔗 Found assignments for CV:', {
+			cvId: cv._id,
+			assignmentsCount: cvAssignments.length,
+			assignments: cvAssignments
+		});
 
 		cvAssignments.forEach((assignment) => {
 			const serviceVersion = $store.serviceVersions.find(
@@ -168,12 +193,20 @@ export const expertsGroupedByUser = derived(expertStore, ($store) => {
 					status: assignment.status
 				});
 				row.hasLeadRole = row.hasLeadRole || assignment.role === 'lead';
+				console.log('🎯 Added service:', {
+					name: serviceVersion.name,
+					role: assignment.role,
+					status: assignment.status
+				});
+			} else {
+				console.log('⚠️ Service version not found for assignment:', assignment.serviceVersionId);
 			}
 		});
 
 		row.totalAssignments = cvAssignments.length;
 	});
 
+	console.log('📊 Final user groups:', Array.from(userGroups.entries()));
 	return userGroups;
 });
 
@@ -187,20 +220,60 @@ export const pendingVerificationData = derived(expertStore, ($store) => {
 	// Filter for draft CVs (unverified users)
 	const draftCVs = $store.expertCVs.filter((cv) => cv.status === 'draft');
 	
-	return draftCVs.map((cv) => ({
-		id: cv.userId, // Use user ID for editing
-		name: `${cv.user?.firstName || ''} ${cv.user?.lastName || ''}`.trim() || cv.user?.email || 'Unknown',
-		email: cv.user?.email || '',
-		avatar: `${cv.user?.firstName?.[0] || ''}${cv.user?.lastName?.[0] || ''}` || '?',
-		status: cv.status,
-		paymentStatus: getPaymentStatusCV(cv),
-		nextAction: getNextActionCV(cv),
-		isProfileComplete: cv.isProfileComplete,
-		profileCompletionStep: cv.profileCompletionStep,
-		isActive: cv.user?.isActive,
-		cvVersion: cv.version,
-		cvStatus: cv.status
-	}));
+	console.log('🔄 Processing pending verification data:', {
+		totalCVs: $store.expertCVs.length,
+		draftCVs: draftCVs.length,
+		draftCVsData: draftCVs
+	});
+	
+	const result = draftCVs.map((cv) => {
+		const pendingExpert = {
+			id: cv.userId, // Use user ID for editing
+			name: `${cv.user?.firstName || ''} ${cv.user?.lastName || ''}`.trim() || cv.user?.email || 'Unknown',
+			email: cv.user?.email || '',
+			avatar: `${cv.user?.firstName?.[0] || ''}${cv.user?.lastName?.[0] || ''}` || '?',
+			status: cv.status,
+			currentStatus: getStatusPriorityCV(cv), // Add missing currentStatus
+			paymentStatus: getPaymentStatusCV(cv),
+			nextAction: getNextActionCV(cv),
+			isProfileComplete: cv.isProfileComplete,
+			profileCompletionStep: cv.profileCompletionStep,
+			isActive: cv.user?.isActive,
+			cvVersion: cv.version,
+			cvStatus: cv.status,
+			// Add services for pending experts
+			services: [],
+			totalAssignments: 0,
+			hasLeadRole: false
+		};
+
+		// Get service assignments for this CV
+		const cvAssignments = $store.expertServiceAssignments.filter(
+			(assignment) => assignment.expertCVId === cv._id
+		);
+
+		cvAssignments.forEach((assignment) => {
+			const serviceVersion = $store.serviceVersions.find(
+				(sv) => sv._id === assignment.serviceVersionId
+			);
+
+			if (serviceVersion) {
+				pendingExpert.services.push({
+					name: serviceVersion.name,
+					isLead: assignment.role === 'lead',
+					status: assignment.status
+				});
+				pendingExpert.hasLeadRole = pendingExpert.hasLeadRole || assignment.role === 'lead';
+			}
+		});
+
+		pendingExpert.totalAssignments = cvAssignments.length;
+
+		return pendingExpert;
+	});
+
+	console.log('📊 Final pending verification data:', result);
+	return result;
 });
 
 // ==========================================

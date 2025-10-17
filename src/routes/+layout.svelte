@@ -31,24 +31,12 @@
 
 	// Initialize organization store when organizations are loaded
 	$effect(() => {
-		try {
-			console.log('Organizations query result:', organizations);
-			if (organizations.data && organizations.data.length > 0) {
-				console.log('Setting available organizations:', organizations.data);
-				organizationStore.setAvailableOrganizations(organizations.data);
-				
-				// If no organization is currently selected, select the first one
-				const currentOrg = organizationStore.getCurrentOrganizationId();
-				if (!currentOrg) {
-					const firstOrg = organizations.data[0];
-					console.log('No organization selected, setting first organization:', firstOrg);
-					organizationStore.setCurrentOrganization(firstOrg);
-				}
-			} else {
-				console.log('No organizations data available:', organizations);
-			}
-		} catch (error) {
-			console.error('Error initializing organization store:', error);
+		console.log('Organizations query result:', organizations);
+		if (organizations.data && organizations.data.length > 0) {
+			organizationStore.setAvailableOrganizations(organizations.data);
+		} else if (organizations.data && organizations.data.length === 0) {
+			console.warn('No organizations available in the system');
+			organizationStore.setError('No organizations available. Please contact an administrator.');
 		}
 	});
 </script>
