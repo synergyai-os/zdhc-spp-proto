@@ -28,25 +28,6 @@
 		}
 	});
 
-	// Track query data for state initialization
-	let queryData: any = null;
-
-	// Effect to initialize user state when query data changes
-	$effect(() => {
-		if (queryData?.currentCVData) {
-			expertEditState.userId = queryData.userId || expertId;
-			expertEditState.currentCVData = queryData.currentCVData;
-			
-			// Initialize user state from query data
-			expertEditStore.initializeUserState(
-				queryData.selectedServices,
-				queryData.serviceRoles,
-				queryData.experience,
-				queryData.education
-			);
-		}
-	});
-
 	// Get Convex client
 	const client = useConvexClient();
 
@@ -54,17 +35,41 @@
 		window.history.back();
 	}
 
-	async function handleSave() {
-		if (expertEditState.isSaving || !expertEditState.currentCVData) return;
+	async function handleSave(queryData: any) {
+		console.log('🔍 Save button clicked!');
+		console.log('🔍 Current state:', {
+			isSaving: expertEditState.isSaving,
+			hasQueryData: !!queryData,
+			hasCurrentCVData: !!queryData?.currentCVData,
+			cvId: queryData?.currentCVData?._id
+		});
+		
+		if (expertEditState.isSaving || !queryData?.currentCVData) {
+			console.log('🔍 Save blocked:', {
+				isSaving: expertEditState.isSaving,
+				hasQueryData: !!queryData,
+				hasCurrentCVData: !!queryData?.currentCVData
+			});
+			return;
+		}
 
+		console.log('🔍 Starting save process...');
 		expertEditStore.setSaving(true);
 		expertEditStore.setSaveError(null);
 
-		const result = await saveExpertProfile(client, {
-			cvId: expertEditState.currentCVData._id,
-			experience: expertEditState.userExperience,
-			education: expertEditState.userEducation
+		console.log('🔍 Calling saveExpertProfile with:', {
+			cvId: queryData.currentCVData._id,
+			experience: queryData.experience,
+			education: queryData.education
 		});
+
+		const result = await saveExpertProfile(client, {
+			cvId: queryData.currentCVData._id,
+			experience: queryData.experience,
+			education: queryData.education
+		});
+
+		console.log('🔍 Save result:', result);
 
 		if (result.success) {
 			toast.success('Expert profile updated successfully!');
@@ -112,7 +117,6 @@
 	
 		<ExpertQueries expertId={expertId} orgId={expertEditState.validOrgId}>
 			{#snippet children(queryDataFromComponent: any)}
-				{@const _ = (() => { queryData = queryDataFromComponent; })()}
 				
 				<div class="max-w-4xl mx-auto px-6 py-8">
 					<!-- Header -->
@@ -199,6 +203,8 @@
 							availableServices={queryDataFromComponent.availableServices}
 							selectedServices={queryDataFromComponent.selectedServices}
 							serviceRoles={queryDataFromComponent.serviceRoles}
+							experience={queryDataFromComponent.experience}
+							education={queryDataFromComponent.education}
 							expertEditState={expertEditState}
 							serviceVersions={queryDataFromComponent.existingServiceAssignments}
 							organizationApprovals={queryDataFromComponent.organizationApprovalsData}
@@ -208,7 +214,7 @@
 							{handleUpdateEducation}
 						/>
 
-						<ExpertEditActions isSaving={expertEditState.isSaving} onSave={handleSave} />
+						<ExpertEditActions isSaving={expertEditState.isSaving} onSave={() => handleSave(queryDataFromComponent)} />
 					{/if}
 				</div>
 			{/snippet}

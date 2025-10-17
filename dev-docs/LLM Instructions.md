@@ -660,6 +660,45 @@ Checkout Flow → Submit ExpertCV + Update ServiceAssignments → Payment → Re
 4. Provide user feedback
 5. Handle success/error states
 
+### Data Flow Debugging Patterns
+
+When debugging data flow issues in Svelte 5 + Convex applications:
+
+1. **Trace Data Flow with Console Logs**:
+   ```svelte
+   <!-- Add debug logs at each step -->
+   {console.log('🔍 Step 1: Raw query data:', queryResult)}
+   {console.log('🔍 Step 2: Processed data:', processedData)}
+   {console.log('🔍 Step 3: Props passed to child:', props)}
+   ```
+
+2. **Identify Race Conditions**:
+   - Check if business logic functions are called before dependencies are loaded
+   - Make business logic conditional on data being available
+   - Use `$derived` with proper dependency checks
+
+3. **Props vs Store State**:
+   - When data is calculated in a parent component, pass it as props
+   - Don't rely on store state that might be empty or not yet initialized
+   - Update component interfaces when adding new props
+
+4. **Component Interface Updates**:
+   ```typescript
+   // Always update interface when adding props
+   interface Props {
+     existingProp: any;
+     newProp: any[]; // Add new prop here
+   }
+   
+   // Add to $props() destructuring
+   let { existingProp, newProp }: Props = $props();
+   ```
+
+5. **Micro-Step Debugging**:
+   - Break complex issues into tiny, manageable steps
+   - Test each step individually before moving to the next
+   - Use isolated test pages to validate specific functionality
+
 ## 🔮 Future Enhancements
 
 ### Planned Features
@@ -732,6 +771,10 @@ Checkout Flow → Submit ExpertCV + Update ServiceAssignments → Payment → Re
 - **Query Component Pattern** - Reusable query components with Svelte 5 snippets for Convex-Svelte integration
 - **Separation of Concerns** - Queries isolated in dedicated components, UI logic in page components
 - **Reusable Data Fetching** - Query components can be used across multiple pages with consistent data structure
+- **Props vs Store State** - Pass calculated data as props rather than relying on empty store state
+- **Race Condition Prevention** - Make business logic conditional on data dependencies being loaded
+- **Data Flow Debugging** - Use console logs at each step to trace where data gets lost
+- **Component Interface Updates** - Always update component interfaces when adding new props
 
 ### User Preferences (Important!)
 
@@ -743,6 +786,6 @@ Checkout Flow → Submit ExpertCV + Update ServiceAssignments → Payment → Re
 
 ---
 
-**Last Updated**: December 2024
-**Version**: 2.0 - CV Versioning Architecture
+**Last Updated**: January 2025
+**Version**: 2.1 - Data Flow Debugging & Component Props
 **Maintainer**: Development Team

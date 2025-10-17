@@ -9,6 +9,8 @@
 		availableServices: any[];
 		selectedServices: any[];
 		serviceRoles: any;
+		experience: any[];
+		education: any[];
 		expertEditState: any;
 		serviceVersions: any;
 		organizationApprovals: any;
@@ -23,6 +25,8 @@
 		availableServices, 
 		selectedServices,
 		serviceRoles,
+		experience,
+		education,
 		expertEditState, 
 		serviceVersions,
 		organizationApprovals,
@@ -73,7 +77,7 @@
 		<p class="text-gray-600">Add relevant work experience and achievements</p>
 	</div>
 	<Step4Experience
-		experience={expertEditState.userExperience}
+		experience={experience}
 		on:updateExperience={(e) => handleUpdateExperience(e.detail)}
 	/>
 </div>
@@ -84,5 +88,5 @@
 		<h2 class="text-xl font-bold text-gray-800 mb-2">Step 5: Education & Certifications</h2>
 		<p class="text-gray-600">Add educational background and relevant certifications</p>
 	</div>
-	<Step5Education education={expertEditState.userEducation} on:updateEducation={(e) => handleUpdateEducation(e.detail)} />
+	<Step5Education education={education} on:updateEducation={(e) => handleUpdateEducation(e.detail)} />
 </div>
