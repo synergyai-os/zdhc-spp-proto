@@ -3,10 +3,6 @@
 	import { goto } from '$app/navigation';
 	import { organizationState } from '$lib/stores/organization.svelte';
 	import OrganizationRequired from '$lib/components/OrganizationRequired.svelte';
-	import Step2Confirmation from '$lib/components/expert-wizard/Step2Confirmation.svelte';
-	import Step3Services from '$lib/components/expert-wizard/Step3Services.svelte';
-	import Step4Experience from '$lib/components/expert-wizard/Step4Experience.svelte';
-	import Step5Education from '$lib/components/expert-wizard/Step5Education.svelte';
 	import { toast } from 'svelte-sonner';
 	import { 
 		expertEditState, 
@@ -18,6 +14,11 @@
 	import { syncServiceAssignments } from '$lib/services/expertService';
 	import { api } from '$lib';
 	import { useConvexClient, useQuery } from 'convex-svelte';
+
+	import ExpertEditHeader from '$lib/components/expert-edit/ExpertEditHeader.svelte';
+	import ExpertEditErrorBoundary from '$lib/components/expert-edit/ExpertEditErrorBoundary.svelte';
+	import ExpertEditSteps from '$lib/components/expert-edit/ExpertEditSteps.svelte';
+	import ExpertEditActions from '$lib/components/expert-edit/ExpertEditActions.svelte';
 
 	// Get expert ID from URL params
 	const expertId = $derived($page.params.expertId);
@@ -277,140 +278,23 @@
 			</div>
 		{:else}
 			<!-- Expert Info Header -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-				<div class="flex items-center">
-					<div class="flex-shrink-0 h-16 w-16">
-						<div
-							class="h-16 w-16 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xl"
-						>
-							{userDataResult
-								? `${userDataResult.firstName?.[0] || ''}${userDataResult.lastName?.[0] || ''}`
-								: '?'}
-						</div>
-					</div>
-					<div class="ml-6">
-							<h2 class="text-2xl font-bold text-gray-900">
-								{userDataResult
-									? `${userDataResult.firstName || ''} ${userDataResult.lastName || ''}`.trim() ||
-										userDataResult.email
-									: 'Unknown User'}
-							</h2>
-							<p class="text-gray-600">{userDataResult?.email}</p>
-						<div class="mt-2 flex items-center space-x-4">
-							<span
-												class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {expertEditState.currentCVData.status === 'locked'
-													? 'bg-green-100 text-green-800'
-													: expertEditState.currentCVData.status === 'submitted'
-													? 'bg-yellow-100 text-yellow-800'
-													: 'bg-blue-100 text-blue-800'}"
-							>
-												{expertEditState.currentCVData.status === 'locked'
-													? 'Complete'
-													: expertEditState.currentCVData.status === 'submitted'
-													? 'Under Review'
-													: `Draft - CV v${expertEditState.currentCVData.version}`}
-							</span>
-							<span
-								class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {userDataResult
-									?.isActive
-									? 'bg-green-100 text-green-800'
-									: 'bg-red-100 text-red-800'}"
-							>
-												{userDataResult?.isActive ? 'Active' : 'Invited'}
-							</span>
-						</div>
-					</div>
-				</div>
-			</div>
+			<ExpertEditHeader userDataResult={userDataResult} currentCVData={expertEditState.currentCVData} />
 
-			<!-- Save Error Display -->
-				{#if expertEditState.saveError}
-				<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-					<div class="flex items-center">
-						<svg class="w-5 h-5 text-red-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-							<path
-								fill-rule="evenodd"
-								d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-						<div>
-							<h3 class="text-sm font-medium text-red-800">Save Error</h3>
-									<p class="text-sm text-red-700 mt-1">{expertEditState.saveError}</p>
-						</div>
-					</div>
-				</div>
-			{/if}
+			<ExpertEditErrorBoundary saveError={expertEditState.saveError} />
 
-			<!-- STEP 2: Expert Confirmation -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-				<div class="mb-4">
-					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 2: Expert Confirmation</h2>
-					<p class="text-gray-600">Verify expert information and invitation status</p>
-				</div>
-				<Step2Confirmation
-					userData={userDataResult}
-					isDraftMode={!userDataResult?.isActive}
-					invitedUserEmail={userDataResult?.email}
-				/>
-			</div>
+			<ExpertEditSteps 
+				{userDataResult}
+				{availableServices}
+				{expertEditState}
+				{serviceVersions}
+				{organizationApprovals}
+				{handleToggleService}
+				{handleToggleRole}
+				{handleUpdateExperience}
+				{handleUpdateEducation}
+			/>
 
-			<!-- STEP 3: Select Services -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-				<div class="mb-4">
-					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 3: Select Services & Roles</h2>
-					<p class="text-gray-600">Choose which services this expert will provide and their role</p>
-				</div>
-				<Step3Services
-					availableServices={availableServices}
-							selectedServices={expertEditState.userSelectedServices}
-							serviceRoles={expertEditState.userServiceRoles}
-							currentOrgId={expertEditState.validOrgId}
-					isLoadingServices={serviceVersions?.isLoading || organizationApprovals?.isLoading}
-					isDraftMode={!userDataResult?.isActive}
-					on:toggleService={(e) => handleToggleService(e.detail)}
-					on:toggleRole={(e) => handleToggleRole(e.detail)}
-				/>
-			</div>
-
-			<!-- STEP 4: Professional Experience -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-				<div class="mb-4">
-					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 4: Professional Experience</h2>
-					<p class="text-gray-600">Add relevant work experience and achievements</p>
-				</div>
-							<Step4Experience
-								experience={expertEditState.userExperience}
-								on:updateExperience={(e) => handleUpdateExperience(e.detail)}
-							/>
-			</div>
-
-			<!-- STEP 5: Education -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-				<div class="mb-4">
-					<h2 class="text-xl font-bold text-gray-800 mb-2">Step 5: Education & Certifications</h2>
-					<p class="text-gray-600">Add educational background and relevant certifications</p>
-				</div>
-						<Step5Education education={expertEditState.userEducation} on:updateEducation={(e) => handleUpdateEducation(e.detail)} />
-			</div>
-
-			<!-- Save Button -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-				<div class="flex items-center justify-center">
-					<button
-						type="button"
-						onclick={handleSave}
-								disabled={expertEditState.isSaving}
-						class="px-8 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-medium"
-					>
-								{#if expertEditState.isSaving}
-							Saving Profile...
-						{:else}
-							Save Complete Profile
-						{/if}
-					</button>
-				</div>
-			</div>
+			<ExpertEditActions isSaving={expertEditState.isSaving} onSave={handleSave} />
 		{/if}
 	</div>
 	{/if}
