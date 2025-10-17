@@ -58,7 +58,7 @@
 	function goToUserManagement() {
 		// Clear checkout data
 		checkoutStore.clearCheckout();
-		window.location.href = '/user-management';
+		window.location.href = '/user-management?section=experts';
 	}
 
 	function goToCheckout() {

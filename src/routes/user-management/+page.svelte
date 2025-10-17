@@ -5,13 +5,18 @@
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../convex/_generated/api';
 	import { organizationStore } from '$lib/stores/organization.svelte';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	// Organization context
 	let currentOrgId = $state<string | null>(null);
 	let orgContext = $derived($organizationStore);
 
-	// Toggle state for switching between sections
-	let activeSection = $state<'staff' | 'experts' | 'services'>('staff');
+	// Get section from URL parameter, default to 'staff'
+	let activeSection = $derived.by(() => {
+		const section = $page.url.searchParams.get('section');
+		return (section === 'experts' || section === 'services') ? section : 'staff';
+	});
 
 	// Update currentOrgId when organization changes
 	$effect(() => {
@@ -19,13 +24,19 @@
 	});
 
 	// Get data from Convex
-	const users = useQuery(api.expertAssignments.getUsers, () => ({}));
-	const organizations = useQuery(api.expertAssignments.getOrganizations, () => ({}));
+	const users = useQuery(api.utilities.getUsers, () => ({}));
+	const organizations = useQuery(api.utilities.getOrganizations, () => ({}));
 
-	// Get expert assignments for services section
-	const expertAssignments = useQuery(
-		api.expertAssignments.getExpertAssignmentsByOrganizationWithDetails,
-		() => ({ organizationId: (currentOrgId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any })
+	// Get expert CVs for services section (new schema)
+	const expertCVs = useQuery(
+		api.expertCVs.getExpertCVs,
+		() => ({ organizationId: currentOrgId as any })
+	);
+
+	// Get expert service assignments for services section
+	const expertServiceAssignments = useQuery(
+		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
+		() => currentOrgId ? { organizationId: currentOrgId as any } : { organizationId: 'j1j1j1j1j1j1j1j1j1j1j1j1' as any }
 	);
 
 	// Get organization approvals (same as approved-services page)
@@ -66,7 +77,7 @@
 		}
 	];
 
-	// Create approved services for display (same logic as approved-services page)
+	// Create approved services for display (updated for new schema)
 	let approvedServicesForDisplay = $derived.by(() => {
 		if (!organizationApprovals?.data || !serviceVersions?.data || !serviceParents?.data) return [];
 
@@ -101,16 +112,18 @@
 					...parent,
 					versions: parentVersions.map((version: any) => ({
 						...version,
-						// Add experts for this service version (from expert assignments)
+						// Add experts for this service version (from new service assignments)
 						experts:
-							expertAssignments.data
+							expertServiceAssignments.data
 								?.filter((assignment: any) => assignment.serviceVersionId === version._id)
 								.map((assignment: any) => ({
 									name: `${assignment.user?.firstName || ''} ${assignment.user?.lastName || ''}`.trim(),
 									role: assignment.role === 'lead' ? 'Lead Expert' : 'Expert',
 									initials: `${assignment.user?.firstName?.[0] || ''}${assignment.user?.lastName?.[0] || ''}`,
 									isLead: assignment.role === 'lead',
-									status: assignment.status
+									status: assignment.status,
+									cvVersion: assignment.expertCV?.version || 'Unknown',
+									cvStatus: assignment.expertCV?.status || 'Unknown'
 								})) || []
 					}))
 				};
@@ -156,6 +169,17 @@
 	function handleCompleteProfile(expertId: string) {
 		window.location.href = `/user-management/experts/${expertId}/edit`;
 	}
+
+	// Function to handle section changes and update URL
+	function setActiveSection(section: 'staff' | 'experts' | 'services') {
+		const url = new URL($page.url);
+		if (section === 'staff') {
+			url.searchParams.delete('section');
+		} else {
+			url.searchParams.set('section', section);
+		}
+		goto(url.toString(), { replaceState: false });
+	}
 </script>
 
 <!-- User Management Page -->
@@ -173,7 +197,7 @@
 			<div class="bg-white border border-gray-200 rounded-lg p-1 inline-flex">
 				<button
 					type="button"
-					onclick={() => (activeSection = 'staff')}
+					onclick={() => setActiveSection('staff')}
 					class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 {activeSection ===
 					'staff'
 						? 'bg-blue-500 text-white shadow-sm'
@@ -183,7 +207,7 @@
 				</button>
 				<button
 					type="button"
-					onclick={() => (activeSection = 'experts')}
+					onclick={() => setActiveSection('experts')}
 					class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 {activeSection ===
 					'experts'
 						? 'bg-blue-500 text-white shadow-sm'
@@ -193,7 +217,7 @@
 				</button>
 				<button
 					type="button"
-					onclick={() => (activeSection = 'services')}
+					onclick={() => setActiveSection('services')}
 					class="px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 {activeSection ===
 					'services'
 						? 'bg-blue-500 text-white shadow-sm'

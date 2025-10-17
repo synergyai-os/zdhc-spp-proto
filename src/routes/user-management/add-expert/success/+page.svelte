@@ -14,7 +14,7 @@
 
 	// Get draft experts count for current organization (unique experts, not assignments)
 	const draftExperts = useQuery(
-		api.expertAssignments.getExpertAssignmentsByStatusWithDetails,
+		api.adminCVReview.getExpertsForCVReview,
 		() =>
 			currentOrgId
 				? { organizationId: currentOrgId as any, status: 'draft' as const }
@@ -46,7 +46,7 @@
 	}
 
 	function goToUserManagement() {
-		window.location.href = '/user-management';
+		window.location.href = '/user-management?section=experts';
 	}
 
 	// Get draft count (unique experts, not assignments)

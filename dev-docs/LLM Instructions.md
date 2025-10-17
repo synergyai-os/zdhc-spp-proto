@@ -51,8 +51,10 @@ src/
 │           └── CVDetailView.svelte     # Individual CV review component
 ├── convex/                  # Convex backend functions
 │   ├── schema.ts           # Database schema definition
-│   ├── expertAssignments.ts # CRUD operations for experts
+│   ├── expertCVs.ts        # CV versioning and management
+│   ├── expertServiceAssignments.ts # Service assignment management
 │   ├── adminCVReview.ts    # Admin CV review queries and mutations
+│   ├── utilities.ts        # Common utility functions
 │   └── _generated/         # Auto-generated API files
 ├── routes/
 │   ├── +layout.svelte       # Root layout with Convex setup
@@ -62,6 +64,12 @@ src/
 │   │   └── cv/
 │   │       └── [userId]/
 │   │           └── +page.svelte # Individual CV review page
+│   ├── checkout/              # Expert checkout and payment flow
+│   │   ├── +page.svelte       # Checkout selection page
+│   │   ├── payment/
+│   │   │   └── +page.svelte   # Payment details page
+│   │   └── confirmation/
+│   │       └── +page.svelte   # Payment confirmation page
 │   ├── approved-services/   # Service approval management
 │   │   └── +page.svelte     # Service approval toggle interface
 │   ├── test-convex/         # Database testing page
@@ -69,8 +77,16 @@ src/
 │   │   └── +page.svelte     # Service data seeding and testing
 │   └── user-management/
 │       ├── +page.svelte     # User management main page
-│       └── add-expert/
-│           └── +page.svelte # Add/Edit expert wizard
+│       ├── add-expert/
+│       │   ├── +page.svelte # Add/Edit expert wizard
+│       │   └── success/
+│       │       └── +page.svelte # Expert creation success page
+│       └── experts/
+│           └── [expertId]/
+│               ├── edit/
+│               │   └── +page.svelte # Expert edit page
+│               └── cv-history/
+│                   └── +page.svelte # CV version history view
 ├── app.css                  # Tailwind CSS imports
 └── app.html                 # HTML template
 ```
@@ -150,7 +166,7 @@ src/
 - **Loading states** - Context-aware loading messages and error handling
 - **Data consistency** - Synchronized data between user management and approval pages
 
-### Add Expert Wizard (5-Step Process)
+### Add Expert Wizard (5-Step Process) - UPDATED FOR CV VERSIONING
 
 - **Step 1: Email Lookup** - Check if user exists in PDC (external platform)
 - **Step 2: Confirm PDC Data** - Display read-only user data (name, email, country)
@@ -158,30 +174,51 @@ src/
 - **Step 4: Professional Experience** - SPP-owned data for legal compliance (dynamic add/remove)
 - **Step 5: Education** - SPP-owned data for legal compliance (dynamic add/remove)
 - **Progress Tracker** - Visual indicator showing current step and progress (5 steps)
+- **CV Creation** - Creates ExpertCV with version 1 and ExpertServiceAssignments
 - **Invitation Flow** - Send ZDHC invitation if user not found (90-day expiry)
 - **Data Governance** - PDC data is read-only, SPP owns experience/education data
 - **Mock PDC Integration** - Simulated API for testing before real integration
 - **Service Role Management** - Visual badges distinguish LEAD vs Regular experts per service
 - **Legal Compliance** - Experience and education required for SPP legal responsibility
-- **Persistent Save** - Expert data automatically saved to Convex database
+- **Persistent Save** - Expert CV and service assignments saved to Convex database
 - **Success Feedback** - Confirmation message and redirect to user management
 - **Database Integration** - Real-time data persistence with Convex backend
 - **Organization Management** - Automatic creation of default organization
 - **Data Validation** - Server-side validation with proper error handling
 
-### Admin CV Review System
+### Admin CV Review System - UPDATED FOR CV VERSIONING
 
 - **CV Review Dashboard** - Admin interface at `/admin/` for reviewing expert CVs
-- **Expert Table View** - One row per user showing all their service assignments with status badges
-- **Advanced Filtering** - Filter by status (paid, training_completed, approved, rejected), organization, and search by name/email
-- **CV Detail Page** - Full CV review at `/admin/cv/[userId]` showing user info, experience, education, and per-service approvals
-- **Per-Service Approval** - Approve or reject individual service versions for each expert
-- **Review Tracking** - Track who reviewed, when, and add notes for each service version
+- **Expert Table View** - One row per user showing their latest CV and service assignment statuses
+- **Advanced Filtering** - Filter by status (submitted, pending_review, approved, rejected, locked), organization, and search by name/email
+- **CV Detail Page** - Full CV review at `/admin/cv/[userId]` showing CV history, experience, education, and per-service approvals
+- **Per-Service Approval** - Approve or reject individual service assignments linked to specific CV versions
+- **CV Version Comparison** - Compare different CV versions to see what changed
+- **Auto-Lock Logic** - CV automatically locks when all linked service assignments are decided
+- **Review Tracking** - Track who reviewed, when, and add notes for each service assignment
 - **Real-time Updates** - Automatic UI updates when approval status changes
 - **Navigation Flow** - Previous/Next buttons for efficient review of multiple experts
-- **Status Management** - Visual status indicators (paid=blue, training_completed=purple, approved=green, rejected=red)
+- **Status Management** - Visual status indicators (submitted=yellow, pending_review=blue, approved=green, rejected=red, locked=gray)
 - **Admin Notes** - Optional notes field for approval/rejection with predefined rejection reasons
 - **Audit Trail** - Complete history of approval/rejection actions with timestamps and admin IDs
+
+### Checkout and Payment Flow - NEW
+
+- **Expert Selection** - Select experts and services for payment and review submission
+- **Service Assignment Management** - Link selected services to expert CVs for review
+- **Payment Processing** - Handle payment for CV review submissions
+- **Status Updates** - Update CV status to 'submitted' and service assignments to 'pending_review'
+- **Review Queue** - Submitted CVs appear in admin review dashboard
+- **Payment Confirmation** - Confirmation page with submission details
+- **Real-time Updates** - Automatic status updates across the platform
+
+### CV History and Versioning - NEW
+
+- **CV History View** - View all CV versions for a specific expert
+- **Version Comparison** - Compare different CV versions to see changes
+- **Timeline Display** - Chronological view of CV submissions and status changes
+- **Edit Latest CV** - Edit the most recent CV version (if not locked)
+- **New CV Creation** - Create new CV versions after review completion
 
 ## 🔄 Data Management (Implemented)
 
@@ -194,11 +231,14 @@ src/
 - **Server-side validation** - Data validation at the database level ✅
 - **Cross-session persistence** - Data survives browser restarts ✅
 
-### Database Schema
+### Database Schema (NEW CV VERSIONING ARCHITECTURE)
 
 - **Users table** - PDC user data (firstName, lastName, email, country)
 - **Organizations table** - Solution provider organizations
-- **Expert Assignments table** - Links users to organizations with services and roles
+- **Expert CVs table** - Versioned CV snapshots with experience/education data
+- **Expert Service Assignments table** - Links specific CV versions to service versions for review
+- **Service Parents/Versions** - Hierarchical service management
+- **Organization Service Approvals** - Service approval workflow
 - **Automatic timestamps** - Created/updated timestamps for all records
 - **Type safety** - Full TypeScript support with Convex validation
 
@@ -286,47 +326,75 @@ interface OrganizationServiceApproval {
 	updatedAt: number;
 }
 
-// Expert Assignments (Links users to organizations)
-interface ExpertAssignment {
-	_id: Id<'expertAssignments'>;
+// Expert CVs (Versioned CV snapshots)
+interface ExpertCV {
+	_id: Id<'expertCVs'>;
 	userId: Id<'users'>;
 	organizationId: Id<'organizations'>;
-	services: string[];
-	status: 'draft' | 'active' | 'inactive';
+	version: number; // Auto-increment per user+org (1, 2, 3, ...)
+	
+	// CV Content
 	experience: Experience[];
 	education: Education[];
-	assignedAt: number;
-	assignedBy: string;
+	
+	// Status Lifecycle: draft → submitted → locked
+	status: 'draft' | 'submitted' | 'locked';
+	
+	// Timestamps
+	createdAt: number;
+	createdBy: string; // SPP Manager ID
+	submittedAt?: number; // When payment processed
+	paidAt?: number; // When payment confirmed
+	lockedAt?: number; // When all services decided
 	notes?: string;
 }
 
-// Service Version Expert Assignments
-interface ServiceVersionExpertAssignment {
-	_id: Id<'serviceVersionExpertAssignments'>;
+// Expert Service Assignments (Links CV versions to specific services)
+interface ExpertServiceAssignment {
+	_id: Id<'expertServiceAssignments'>;
 	userId: Id<'users'>;
 	organizationId: Id<'organizations'>;
-	serviceVersionId: Id<'serviceVersions'>;
-	status:
-		| 'draft'
-		| 'approved'
-		| 'paid'
-		| 'ready_for_training'
-		| 'training_started'
-		| 'training_completed'
-		| 'rejected'
-		| 'inactive';
-	assignedAt: number;
-	assignedBy: string;
-	notes?: string;
+	expertCVId: Id<'expertCVs'>; // Reference to CV version
+	serviceVersionId: Id<'serviceVersions'>; // Reference to service
+	role: 'lead' | 'regular';
+	
+	// Review Status
+	status: 'pending_review' | 'approved' | 'rejected' | 'inactive';
+	
+	// Review Metadata
+	reviewedAt?: number;
+	reviewedBy?: string; // ZDHC Admin ID
+	approvedAt?: number;
+	approvedBy?: string; // ZDHC Admin ID
+	rejectedAt?: number;
+	rejectedBy?: string; // ZDHC Admin ID
+	rejectionReason?: string;
+	reviewNotes?: string;
+	
+	// Metadata
+	createdAt: number;
+	assignedBy: string; // SPP Manager ID who created assignment
 }
 ```
 
-### Data Flow
+### Data Flow (NEW CV VERSIONING ARCHITECTURE)
 
 ```
-Add Expert Wizard → Convex Mutations → Database → Real-time UI Updates
-Service Approval Management → Organization Context → Conditional Queries → Real-time Updates
+Add Expert Wizard → Create ExpertCV + ServiceAssignments → Database → Real-time UI Updates
+CV Editing → Update ExpertCV → Database → Real-time UI Updates
+Service Review → Update ServiceAssignment Status → Auto-lock CV when complete → Real-time UI Updates
+Checkout Flow → Submit ExpertCV + Update ServiceAssignments → Payment → Review Queue
 ```
+
+### CV Versioning Architecture (NEW)
+
+- **Versioned CVs** - Each expert CV is a snapshot that can be versioned
+- **Service-Specific Assignments** - Individual services are approved/rejected per CV version
+- **CV Lifecycle** - Draft → Submitted (Paid) → Locked (when all services decided)
+- **Historical Tracking** - Complete audit trail of CV changes and service approvals
+- **Re-submission Workflow** - New CV versions can be created after review completion
+- **Template Copying** - New CV versions auto-copy from previous version for editing
+- **Admin Comparison** - ZDHC Admins can compare CV versions during review
 
 ### Organization Context Management
 
@@ -468,6 +536,10 @@ Service Approval Management → Organization Context → Conditional Queries →
 - **Conditional Data Loading** - Queries only run when organization is selected
 - **Service Approval Workflow** - Real-time toggle interface for service approvals
 - **Convex-Svelte Integration** - Using empty string fallback instead of "skip" pattern
+- **CV Versioning Architecture** - Separate ExpertCV and ExpertServiceAssignment entities for better data management
+- **Clean Break Migration** - Removed old expertAssignments table and migrated to new schema
+- **Service-Specific Reviews** - Individual service approvals linked to specific CV versions
+- **Auto-Lock Logic** - CVs automatically lock when all linked services are decided
 
 ### User Preferences (Important!)
 
@@ -480,5 +552,5 @@ Service Approval Management → Organization Context → Conditional Queries →
 ---
 
 **Last Updated**: December 2024
-**Version**: 1.0
+**Version**: 2.0 - CV Versioning Architecture
 **Maintainer**: Development Team

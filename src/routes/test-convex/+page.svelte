@@ -10,8 +10,8 @@
 	let isLoading = $state(false);
 
 	// Use reactive queries
-	const users = useQuery(api.expertAssignments.getUsers, () => ({}));
-	const organizations = useQuery(api.expertAssignments.getOrganizations, () => ({}));
+	const users = useQuery(api.utilities.getUsers, () => ({}));
+	const organizations = useQuery(api.utilities.getOrganizations, () => ({}));
 
 	async function testConnection() {
 		isLoading = true;
@@ -23,7 +23,7 @@
 			testResults += `✅ Organizations query reactive: ${organizations?.data?.length || 0} organizations found\n`;
 
 			// Test 2: Create a test user
-			const userId = await client.mutation(api.expertAssignments.createUser, {
+			const userId = await client.mutation(api.utilities.createUser, {
 				firstName: 'Test',
 				lastName: 'User',
 				email: 'test@example.com',
@@ -32,7 +32,7 @@
 			testResults += `✅ User created with ID: ${userId}\n`;
 
 			// Test 3: Create a test organization
-			const orgId = await client.mutation(api.expertAssignments.createOrganization, {
+			const orgId = await client.mutation(api.utilities.createOrganization, {
 				name: 'Test Organization',
 				type: 'solution_provider',
 				contactEmail: 'admin@testorg.com'
@@ -73,7 +73,7 @@
 		testResults = 'Seeding initial data...\n';
 
 		try {
-			const result = await client.mutation(api.expertAssignments.seedInitialData, {});
+			const result = await client.mutation(api.utilities.seedInitialData, {});
 			testResults += `✅ Initial data seeded successfully!\n`;
 			testResults += `   - Users: ${result.users.length}\n`;
 			testResults += `   - Organizations: ${result.organizations.length}\n`;
@@ -96,7 +96,7 @@
 
 		try {
 			const result = await client.mutation(
-				api.expertAssignments.seedOrganizationServiceApprovals,
+				api.utilities.seedOrganizationServiceApprovals,
 				{}
 			);
 			testResults += `✅ Organization service approvals seeded successfully!\n`;
@@ -119,7 +119,7 @@
 		testResults = 'Seeding test data...\n';
 
 		try {
-			const result = await client.mutation(api.expertAssignments.seedInitialData, {});
+			const result = await client.mutation(api.utilities.seedInitialData, {});
 			testResults += `✅ Created ${result.users.length} users\n`;
 			testResults += `✅ Created ${result.organizations.length} organizations\n`;
 			testResults += `✅ Created ${result.staffMembers.length} staff members\n`;
@@ -138,7 +138,7 @@
 		testResults = 'Clearing test data...\n';
 
 		try {
-			const result = await client.mutation(api.expertAssignments.clearAllData, {});
+			const result = await client.mutation(api.utilities.clearAllData, {});
 			testResults += `✅ ${result.message}\n`;
 			testResults += '🎉 All test data cleared successfully!';
 		} catch (error: any) {
@@ -154,7 +154,7 @@
 		testResults = 'Running expert role migration...\n';
 
 		try {
-			const result = await client.mutation(api.expertAssignments.migrateExistingExpertRoles, {});
+			const result = await client.mutation(api.utilities.migrateExistingExpertRoles, {});
 			testResults += `✅ ${result.message}\n`;
 			testResults += `📊 Updated ${result.updatedCount} expert assignments\n`;
 			testResults += '🎉 Migration completed successfully!';
@@ -189,8 +189,8 @@
 
 		try {
 			// First get some users and organizations
-			const users = await client.query(api.expertAssignments.getUsers, {});
-			const organizations = await client.query(api.expertAssignments.getOrganizations, {});
+			const users = await client.query(api.utilities.getUsers, {});
+			const organizations = await client.query(api.utilities.getOrganizations, {});
 			const serviceVersions = await client.query(api.serviceVersions.getServiceVersions, {});
 
 			if (users.length === 0 || organizations.length === 0 || serviceVersions.length === 0) {
@@ -206,7 +206,7 @@
 				const org = organizations[i % organizations.length];
 				const serviceVersion = serviceVersions[i % serviceVersions.length];
 
-				const assignmentId = await client.mutation(api.expertAssignments.createExpertAssignment, {
+				const assignmentId = await client.mutation(api.utilities.createExpertAssignment, {
 					userId: user._id,
 					organizationId: org._id,
 					serviceVersionId: serviceVersion._id,

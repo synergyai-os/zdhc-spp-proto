@@ -22,11 +22,11 @@
 			testResults = 'Testing basic functionality...\n';
 
 			// Test getting organizations (we know this works)
-			const orgs = await client.query(api.expertAssignments.getOrganizations, {});
+			const orgs = await client.query(api.utilities.getOrganizations, {});
 			testResults += `✅ Organizations: ${orgs?.length || 0} found\n`;
 
 			// Test getting users
-			const users = await client.query(api.expertAssignments.getUsers, {});
+			const users = await client.query(api.utilities.getUsers, {});
 			testResults += `✅ Users: ${users?.length || 0} found\n`;
 
 			testResults += '\n🎉 Basic functionality working!';
@@ -69,7 +69,7 @@
 			testResults += `✅ Service data seeded: ${JSON.stringify(serviceResult, null, 2)}\n`;
 
 			// Seed initial data
-			const initialResult = await client.mutation(api.expertAssignments.seedInitialData, {});
+			const initialResult = await client.mutation(api.utilities.seedInitialData, {});
 			testResults += `✅ Initial data seeded: ${JSON.stringify(initialResult, null, 2)}\n`;
 
 			testResults += '\n🎉 All data seeded successfully!';

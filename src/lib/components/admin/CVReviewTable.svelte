@@ -11,21 +11,33 @@
 			email: string;
 			country: string;
 		};
-		assignments: Array<{
+		cvs: Array<{
 			_id: string;
-			status: string;
-			serviceVersion: {
-				name: string;
-				version: string;
-			};
-			organization: {
-				name: string;
-			};
+			version: number;
+			status: 'draft' | 'submitted' | 'locked';
+			createdAt: number;
+			submittedAt?: number;
+			lockedAt?: number;
+			assignments: Array<{
+				_id: string;
+				status: 'pending_review' | 'approved' | 'rejected' | 'inactive';
+				serviceVersion: {
+					name: string;
+					version: string;
+				};
+				organization: {
+					name: string;
+				};
+			}>;
+			pendingAssignments: Array<any>;
+			approvedAssignments: Array<any>;
+			rejectedAssignments: Array<any>;
 		}>;
 		organizations: string[];
 		pendingCount: number;
 		lastUpdated: number;
-		totalServices: number;
+		totalCVs: number;
+		latestCV: any;
 	}
 
 	interface Props {
@@ -37,7 +49,7 @@
 	const client = useConvexClient();
 
 	// Filter state
-	let statusFilter = $state<'paid' | 'training_completed' | 'approved' | 'rejected' | 'inactive' | ''>('paid'); // Default to paid status
+	let statusFilter = $state<'submitted' | 'pending_review' | 'approved' | 'rejected' | 'locked' | ''>('submitted'); // Default to submitted status
 	let organizationFilter = $state<string>('');
 	let searchTerm = $state<string>('');
 
@@ -53,17 +65,21 @@
 	let organizations = $derived(organizationsData?.data || []);
 	let stats = $derived(adminStats?.data || { pendingReview: 0, total: 0 });
 
-	// Status color mapping
+	// Status color mapping (updated for new CV schema)
 	const getStatusColor = (status: string): string => {
 		switch (status) {
-			case 'paid':
+			case 'draft':
+				return 'bg-gray-100 text-gray-800';
+			case 'submitted':
 				return 'bg-blue-100 text-blue-800';
-			case 'training_completed':
-				return 'bg-purple-100 text-purple-800';
+			case 'pending_review':
+				return 'bg-yellow-100 text-yellow-800';
 			case 'approved':
 				return 'bg-green-100 text-green-800';
 			case 'rejected':
 				return 'bg-red-100 text-red-800';
+			case 'locked':
+				return 'bg-purple-100 text-purple-800';
 			case 'inactive':
 				return 'bg-gray-100 text-gray-800';
 			default:
@@ -73,14 +89,18 @@
 
 	const getStatusDisplayName = (status: string): string => {
 		switch (status) {
-			case 'paid':
-				return 'Paid';
-			case 'training_completed':
-				return 'Training Completed';
+			case 'draft':
+				return 'Draft';
+			case 'submitted':
+				return 'Submitted';
+			case 'pending_review':
+				return 'Pending Review';
 			case 'approved':
 				return 'Approved';
 			case 'rejected':
 				return 'Rejected';
+			case 'locked':
+				return 'Locked';
 			case 'inactive':
 				return 'Inactive';
 			default:

@@ -30,12 +30,25 @@
 		description: string;
 	}
 
-	interface ServiceAssignment {
+	interface ExpertCV {
 		_id: string;
-		status: string;
-		role?: string;
+		version: number;
+		status: 'draft' | 'submitted' | 'locked';
 		experience: Experience[];
 		education: Education[];
+		createdAt: number;
+		submittedAt?: number;
+		lockedAt?: number;
+		assignments: ServiceAssignment[];
+		pendingAssignments: ServiceAssignment[];
+		approvedAssignments: ServiceAssignment[];
+		rejectedAssignments: ServiceAssignment[];
+	}
+
+	interface ServiceAssignment {
+		_id: string;
+		status: 'pending_review' | 'approved' | 'rejected' | 'inactive';
+		role: 'lead' | 'regular';
 		serviceVersion: {
 			_id: string;
 			name: string;
@@ -47,7 +60,7 @@
 		organization: {
 			name: string;
 		};
-		assignedAt: number;
+		createdAt: number;
 		approvedAt?: number;
 		approvedBy?: string;
 		rejectedAt?: number;
@@ -62,10 +75,13 @@
 		user: User;
 		organizationGroups: Array<{
 			organization: { name: string };
-			assignments: ServiceAssignment[];
+			cvs: ExpertCV[];
 		}>;
+		totalCVs: number;
 		totalAssignments: number;
 		pendingAssignments: number;
+		submittedCVs: number;
+		lockedCVs: number;
 	}
 
 	interface Props {
@@ -88,17 +104,21 @@
 	let errorMessage = $state('');
 	let successMessage = $state('');
 
-	// Status color mapping
+	// Status color mapping (updated for new CV schema)
 	const getStatusColor = (status: string): string => {
 		switch (status) {
-			case 'paid':
+			case 'draft':
+				return 'bg-gray-100 text-gray-800';
+			case 'submitted':
 				return 'bg-blue-100 text-blue-800';
-			case 'training_completed':
-				return 'bg-purple-100 text-purple-800';
+			case 'pending_review':
+				return 'bg-yellow-100 text-yellow-800';
 			case 'approved':
 				return 'bg-green-100 text-green-800';
 			case 'rejected':
 				return 'bg-red-100 text-red-800';
+			case 'locked':
+				return 'bg-purple-100 text-purple-800';
 			case 'inactive':
 				return 'bg-gray-100 text-gray-800';
 			default:
@@ -134,11 +154,11 @@
 	};
 
 	const canApprove = (assignment: ServiceAssignment): boolean => {
-		return assignment.status === 'paid' || assignment.status === 'training_completed';
+		return assignment.status === 'pending_review';
 	};
 
 	const canReject = (assignment: ServiceAssignment): boolean => {
-		return assignment.status === 'paid' || assignment.status === 'training_completed';
+		return assignment.status === 'pending_review';
 	};
 
 	const handleApprove = (assignment: ServiceAssignment) => {
@@ -162,7 +182,7 @@
 		successMessage = '';
 
 		try {
-			await client.mutation((api as any).adminCVReview.approveExpertForService, {
+			await client.mutation((api as any).adminCVReview.approveServiceAssignment, {
 				assignmentId: activeAssignment._id,
 				reviewNotes: approvalNotes || undefined,
 				reviewedBy: 'admin-user' // TODO: Get actual admin user ID
@@ -187,7 +207,7 @@
 		successMessage = '';
 
 		try {
-			await client.mutation((api as any).adminCVReview.rejectExpertForService, {
+			await client.mutation((api as any).adminCVReview.rejectServiceAssignment, {
 				assignmentId: activeAssignment._id,
 				rejectionReason,
 				reviewNotes: rejectionNotes || undefined,

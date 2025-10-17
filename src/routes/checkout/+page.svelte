@@ -16,13 +16,22 @@
 		currentOrgId = orgContext.currentOrganization?._id || null;
 	});
 
-	// Get draft experts for current organization with full details
-	const draftExperts = useQuery(
-		api.expertAssignments.getExpertAssignmentsByStatusWithDetails,
+	// Get draft CVs for current organization with full details (new schema)
+	const draftCVs = useQuery(
+		api.expertCVs.getExpertCVs,
 		() =>
 			currentOrgId
 				? { organizationId: currentOrgId as any, status: 'draft' as const }
 				: { organizationId: '' as any, status: 'draft' as const }
+	);
+
+	// Get service assignments for draft CVs
+	const draftServiceAssignments = useQuery(
+		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
+		() =>
+			currentOrgId
+				? { organizationId: currentOrgId as any }
+				: { organizationId: '' as any }
 	);
 
 	// Store state
@@ -30,43 +39,56 @@
 	let isLoading = $derived(storeState.isLoading);
 	let error = $derived(storeState.error);
 
-	// Group experts by user for display
+	// Group experts by user for display (updated for new CV schema)
 	let groupedExperts = $derived.by(() => {
-		if (!draftExperts?.data) return [];
+		if (!draftCVs?.data || !draftServiceAssignments?.data) return [];
 
-		// Group assignments by user ID
+		// Group CVs by user ID
 		const userGroups = new Map();
 
-		draftExperts.data.forEach((assignment: any) => {
-			if (!assignment.user) return;
+		draftCVs.data.forEach((cv: any) => {
+			if (!cv.user) return;
 
-			const userId = assignment.user._id;
+			const userId = cv.user._id;
 			if (!userGroups.has(userId)) {
 				userGroups.set(userId, {
-					userId: assignment.userId,
-					userName: assignment.user
-						? `${assignment.user.firstName || ''} ${assignment.user.lastName || ''}`.trim() ||
-							assignment.user.email
+					userId: cv.userId,
+					userName: cv.user
+						? `${cv.user.firstName || ''} ${cv.user.lastName || ''}`.trim() ||
+							cv.user.email
 						: 'Unknown User',
-					userEmail: assignment.user?.email || 'unknown@example.com',
-					isUserVerified: assignment.user?.isActive || false,
-					isProfileComplete: assignment.isProfileComplete || false,
-					profileCompletionStep: assignment.profileCompletionStep || 0,
+					userEmail: cv.user?.email || 'unknown@example.com',
+					isUserVerified: cv.user?.isActive || false,
+					isProfileComplete: cv.status !== 'draft', // CV is complete if not draft
+					profileCompletionStep: cv.status === 'draft' ? 1 : 5,
+					cvVersion: cv.version,
+					cvStatus: cv.status,
 					assignments: [],
 					totalPrice: 0
 				});
 			}
 
-			const serviceAssignment = {
-				assignmentId: assignment._id,
-				serviceVersionName: assignment.serviceVersion?.name || 'Unknown Service',
-				serviceParentName: assignment.serviceParent?.name || 'Unknown Category',
-				role: assignment.role || 'regular',
-				price: 100 // Hardcoded €100 per service version
-			};
+			// Find service assignments for this CV
+			const cvAssignments = draftServiceAssignments.data.filter(
+				(assignment: any) => assignment.expertCVId === cv._id
+			);
 
-			userGroups.get(userId).assignments.push(serviceAssignment);
-			userGroups.get(userId).totalPrice += serviceAssignment.price;
+			cvAssignments.forEach((assignment: any) => {
+				const serviceAssignment = {
+					expertCVId: cv._id,
+					expertServiceAssignmentId: assignment._id,
+					cvVersion: cv.version,
+					cvStatus: cv.status,
+					assignmentId: assignment._id, // Legacy field
+					serviceVersionName: assignment.serviceVersion?.name || 'Unknown Service',
+					serviceParentName: assignment.serviceParent?.name || 'Unknown Category',
+					role: assignment.role || 'regular',
+					price: 100 // Hardcoded €100 per service version
+				};
+
+				userGroups.get(userId).assignments.push(serviceAssignment);
+				userGroups.get(userId).totalPrice += serviceAssignment.price;
+			});
 		});
 
 		return Array.from(userGroups.values());
@@ -78,26 +100,39 @@
 
 	// Initialize checkout store with flattened experts data for selection logic (only complete profiles)
 	$effect(() => {
-		if (draftExperts?.data && currentOrgId) {
-			// Only include assignments with complete profiles
-			const completeAssignments = draftExperts.data.filter(
-				(assignment: any) => assignment.isProfileComplete
-			);
+		if (draftCVs?.data && draftServiceAssignments?.data && currentOrgId) {
+			// Only include CVs with complete profiles (not draft)
+			const completeCVs = draftCVs.data.filter((cv: any) => cv.status !== 'draft');
 
-			const checkoutExperts: CheckoutExpert[] = completeAssignments.map((assignment: any) => ({
-				assignmentId: assignment._id,
-				userId: assignment.userId,
-				userName: assignment.user
-					? `${assignment.user.firstName || ''} ${assignment.user.lastName || ''}`.trim() ||
-						assignment.user.email
-					: 'Unknown User',
-				userEmail: assignment.user?.email || 'unknown@example.com',
-				serviceVersionName: assignment.serviceVersion?.name || 'Unknown Service',
-				serviceParentName: assignment.serviceParent?.name || 'Unknown Category',
-				role: assignment.role || 'regular',
-				price: 100, // Hardcoded €100 per service version
-				isUserVerified: assignment.user?.isActive || false
-			}));
+			const checkoutExperts: CheckoutExpert[] = [];
+
+			completeCVs.forEach((cv: any) => {
+				// Find service assignments for this CV
+				const cvAssignments = draftServiceAssignments.data.filter(
+					(assignment: any) => assignment.expertCVId === cv._id
+				);
+
+				cvAssignments.forEach((assignment: any) => {
+					checkoutExperts.push({
+						expertCVId: cv._id,
+						expertServiceAssignmentId: assignment._id,
+						cvVersion: cv.version,
+						cvStatus: cv.status,
+						assignmentId: assignment._id, // Legacy field
+						userId: cv.userId,
+						userName: cv.user
+							? `${cv.user.firstName || ''} ${cv.user.lastName || ''}`.trim() ||
+								cv.user.email
+							: 'Unknown User',
+						userEmail: cv.user?.email || 'unknown@example.com',
+						serviceVersionName: assignment.serviceVersion?.name || 'Unknown Service',
+						serviceParentName: assignment.serviceParent?.name || 'Unknown Category',
+						role: assignment.role || 'regular',
+						price: 100, // Hardcoded €100 per service version
+						isUserVerified: cv.user?.isActive || false
+					});
+				});
+			});
 
 			checkoutStore.initializeExperts(checkoutExperts);
 		}

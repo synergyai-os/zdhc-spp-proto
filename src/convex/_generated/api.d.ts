@@ -9,8 +9,10 @@
  */
 
 import type * as adminCVReview from "../adminCVReview.js";
-import type * as expertAssignments from "../expertAssignments.js";
+import type * as expertCVs from "../expertCVs.js";
+import type * as expertServiceAssignments from "../expertServiceAssignments.js";
 import type * as serviceVersions from "../serviceVersions.js";
+import type * as utilities from "../utilities.js";
 
 import type {
   ApiFromModules,
@@ -28,8 +30,10 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   adminCVReview: typeof adminCVReview;
-  expertAssignments: typeof expertAssignments;
+  expertCVs: typeof expertCVs;
+  expertServiceAssignments: typeof expertServiceAssignments;
   serviceVersions: typeof serviceVersions;
+  utilities: typeof utilities;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

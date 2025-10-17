@@ -6,7 +6,12 @@ import { browser } from '$app/environment';
 // TYPES
 // ==========================================
 export interface CheckoutExpert {
-	assignmentId: string;
+	// New CV schema fields
+	expertCVId: string;
+	expertServiceAssignmentId: string;
+	cvVersion: number;
+	cvStatus: string;
+	// Existing fields
 	userId: string;
 	userName: string;
 	userEmail: string;
@@ -15,6 +20,8 @@ export interface CheckoutExpert {
 	role: 'lead' | 'regular';
 	price: number; // €100 per service version
 	isUserVerified: boolean;
+	// Legacy field for backward compatibility
+	assignmentId?: string;
 }
 
 export interface PaymentDetails {

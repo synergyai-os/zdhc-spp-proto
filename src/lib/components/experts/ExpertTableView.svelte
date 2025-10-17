@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ExpertTableRow } from '$lib/stores/experts.svelte';
-	import { getStatusColor, getPaymentStatusColor } from '$lib/stores/experts.svelte';
+	import { getStatusColorCV } from '$lib/stores/experts.svelte';
 
 	function getProfileStatusText(expert: ExpertTableRow): string {
 		if (expert.isProfileComplete) return 'Complete';
@@ -208,7 +208,7 @@
 							<!-- Current Status -->
 							<td class="px-6 py-4 whitespace-nowrap">
 								<span
-									class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getStatusColor(
+									class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getStatusColorCV(
 										expert.currentStatus
 									)}"
 								>
@@ -219,9 +219,7 @@
 							<!-- Payment Status -->
 							<td class="px-6 py-4 whitespace-nowrap">
 								<span
-									class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getPaymentStatusColor(
-										expert.paymentStatus
-									)}"
+									class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {expert.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : expert.paymentStatus === 'unpaid' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}"
 								>
 									{expert.paymentStatus}
 								</span>

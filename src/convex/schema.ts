@@ -78,22 +78,19 @@ export default defineSchema({
 		lastLoginAt: v.optional(v.number())
 	}),
 
-	// Expert Assignments table (enhanced for organization context)
-	expertAssignments: defineTable({
+	// ==========================================
+	// NEW: Expert CV Versioning System
+	// ==========================================
+
+	// Expert CVs table - Versioned CV snapshots
+	// Each CV represents a snapshot of an expert's credentials at a specific point in time
+	// CVs are linked to service assignments for approval workflow
+	expertCVs: defineTable({
 		userId: v.id('users'),
 		organizationId: v.id('organizations'),
-		serviceVersionId: v.optional(v.id('serviceVersions')), // Reference to specific service version (optional for shell assignments)
-		role: v.optional(v.union(v.literal('lead'), v.literal('regular'))), // Expert role for this service
-		status: v.union(
-			v.literal('draft'),
-			v.literal('paid'),
-			v.literal('ready_for_training'),
-			v.literal('training_started'),
-			v.literal('training_completed'),
-			v.literal('approved'),
-			v.literal('rejected'),
-			v.literal('inactive')
-		),
+		version: v.number(), // Auto-increment per user+org (1, 2, 3, ...)
+
+		// CV Content
 		experience: v.array(
 			v.object({
 				title: v.string(),
@@ -115,31 +112,56 @@ export default defineSchema({
 				description: v.string()
 			})
 		),
-		assignedAt: v.number(),
-		assignedBy: v.string(), // User ID who made the assignment
-		notes: v.optional(v.string()),
 
-		// Profile completion tracking
-		profileCompletionStep: v.optional(v.number()), // Track which step (1-5) completed
-		isProfileComplete: v.optional(v.boolean()), // True only when all 5 steps done
+		// Status Lifecycle: draft → submitted → locked
+		status: v.union(
+			v.literal('draft'), // SPP Manager creating/editing
+			v.literal('submitted'), // Paid, under ZDHC review
+			v.literal('locked') // All services decided (approved/rejected), immutable
+		),
 
-		// Workflow tracking
-		submittedAt: v.optional(v.number()),
-		paidAt: v.optional(v.number()),
-		trainingInvitedAt: v.optional(v.number()),
-		trainingStartedAt: v.optional(v.number()),
-		trainingCompletedAt: v.optional(v.number()),
+		// Timestamps
+		createdAt: v.number(),
+		createdBy: v.string(), // SPP Manager ID
+		submittedAt: v.optional(v.number()), // When payment processed
+		paidAt: v.optional(v.number()), // When payment confirmed
+		lockedAt: v.optional(v.number()), // When all services decided
+		notes: v.optional(v.string())
+	}),
+
+	// Expert Service Assignments table - Links CV versions to specific service versions
+	// One assignment per CV + service combination
+	// Tracks approval status for each service independently
+	expertServiceAssignments: defineTable({
+		userId: v.id('users'),
+		organizationId: v.id('organizations'),
+		expertCVId: v.id('expertCVs'), // Reference to CV version
+		serviceVersionId: v.id('serviceVersions'), // Reference to service
+		role: v.union(v.literal('lead'), v.literal('regular')),
+
+		// Review Status
+		status: v.union(
+			v.literal('pending_review'), // Submitted, awaiting ZDHC review
+			v.literal('approved'), // ZDHC approved this service
+			v.literal('rejected'), // ZDHC rejected this service
+			v.literal('inactive') // Deactivated/superseded
+		),
+
+		// Review Metadata
+		reviewedAt: v.optional(v.number()),
+		reviewedBy: v.optional(v.string()), // ZDHC Admin ID
 		approvedAt: v.optional(v.number()),
 		approvedBy: v.optional(v.string()), // ZDHC Admin ID
 		rejectedAt: v.optional(v.number()),
-		rejectedBy: v.optional(v.string()),
+		rejectedBy: v.optional(v.string()), // ZDHC Admin ID
 		rejectionReason: v.optional(v.string()),
+		reviewNotes: v.optional(v.string()),
 
-		// CV Review tracking
-		reviewedAt: v.optional(v.number()),
-		reviewedBy: v.optional(v.string()), // Admin ID who reviewed
-		reviewNotes: v.optional(v.string()), // Admin notes for this specific service version
+		// Metadata
+		createdAt: v.number(),
+		assignedBy: v.string() // SPP Manager ID who created assignment
 	}),
+
 
 	// User Sessions table (for organization context switching)
 	userSessions: defineTable({

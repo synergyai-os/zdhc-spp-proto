@@ -12,7 +12,7 @@
 	let storeState = $derived($checkoutStore);
 	let selectedExperts = $derived(
 		storeState.experts.filter((expert) =>
-			storeState.selectedExpertIds.includes(expert.assignmentId)
+			storeState.selectedExpertIds.includes(expert.expertServiceAssignmentId)
 		)
 	);
 	let paymentMethod = $derived(storeState.paymentMethod);
@@ -70,10 +70,19 @@
 			});
 
 			// Determine status based on payment method
-			const newStatus = paymentMethod === 'credit_card' ? 'paid' : 'pending_payment';
+			const newStatus = paymentMethod === 'credit_card' ? 'approved' : 'pending_review';
 
-			// Update expert statuses in database
-			const result = await client.mutation(api.expertAssignments.updateMultipleExpertStatuses, {
+			// Update CV status to submitted (since payment was processed)
+			const cvIds = [...new Set(selectedExperts.map(expert => expert.expertCVId))];
+			
+			for (const cvId of cvIds) {
+				await client.mutation(api.expertCVs.submitExpertCV, {
+					id: cvId as any
+				});
+			}
+
+			// Update service assignment statuses in database
+			const result = await client.mutation(api.expertServiceAssignments.updateMultipleAssignmentStatuses, {
 				assignmentIds: storeState.selectedExpertIds,
 				status: newStatus,
 				updatedBy: 'current-user-id', // TODO: Get actual user ID

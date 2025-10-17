@@ -34,20 +34,29 @@
 	// View state - always table view
 	let viewMode = $state<'table'>('table');
 
-	// Get expert assignments data
-	const expertAssignments = useQuery(
-		api.expertAssignments.getExpertAssignmentsByOrganizationWithDetails,
-		() => ({ organizationId: (organizationId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any })
+	// Get expert CVs data (new schema)
+	const expertCVs = useQuery(
+		api.expertCVs.getExpertCVs,
+		() => ({ organizationId: organizationId as any })
+	);
+
+	// Get expert service assignments data
+	const expertServiceAssignments = useQuery(
+		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
+		() => organizationId ? { organizationId: organizationId as any } : { organizationId: 'j1j1j1j1j1j1j1j1j1j1j1j1' as any }
 	);
 
 	// Get service versions and parents for display
 	const serviceVersions = useQuery((api as any).serviceVersions.getServiceVersions, {});
 	const serviceParents = useQuery((api as any).serviceVersions.getServiceParents, {});
 
-	// Update expert store when data changes
+	// Update expert store when data changes (updated for new schema)
 	$effect(() => {
-		if (expertAssignments?.data) {
-			expertStore.setExpertAssignments(expertAssignments.data as any);
+		if (expertCVs?.data) {
+			expertStore.setExpertCVs(expertCVs.data as any);
+		}
+		if (expertServiceAssignments?.data) {
+			expertStore.setExpertServiceAssignments(expertServiceAssignments.data as any);
 		}
 		if (serviceVersions?.data) {
 			expertStore.setServiceVersions(serviceVersions.data);
@@ -58,7 +67,8 @@
 
 		// Set loading state
 		expertStore.setLoading(
-			expertAssignments?.isLoading ||
+			expertCVs?.isLoading ||
+				expertServiceAssignments?.isLoading ||
 				serviceVersions?.isLoading ||
 				serviceParents?.isLoading ||
 				false
@@ -66,7 +76,8 @@
 
 		// Set error state
 		const error =
-			expertAssignments?.error?.message ||
+			expertCVs?.error?.message ||
+			expertServiceAssignments?.error?.message ||
 			serviceVersions?.error?.message ||
 			serviceParents?.error?.message ||
 			null;
@@ -77,10 +88,11 @@
 	let expertsForTable = $derived($expertsTableData);
 	let pendingExperts = $derived($pendingVerificationData);
 	let isLoading = $derived(
-		expertAssignments?.isLoading || serviceVersions?.isLoading || serviceParents?.isLoading || false
+		expertCVs?.isLoading || expertServiceAssignments?.isLoading || serviceVersions?.isLoading || serviceParents?.isLoading || false
 	);
 	let error = $derived(
-		expertAssignments?.error?.message ||
+		expertCVs?.error?.message ||
+			expertServiceAssignments?.error?.message ||
 			serviceVersions?.error?.message ||
 			serviceParents?.error?.message ||
 			null

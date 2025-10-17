@@ -25,7 +25,7 @@
 	// ==========================================
 
 	// Query existing users (PDC data)
-	const existingUsers = useQuery(api.expertAssignments.getUsers, {});
+	const existingUsers = useQuery(api.utilities.getUsers, {});
 
 	// Query available service versions
 	const serviceVersions = useQuery((api as any).serviceVersions.getServiceVersions, {});
@@ -95,7 +95,7 @@
 
 	// Draft tracking state
 	let userId = $state<string | null>(null);
-	let draftAssignmentIds = $state<any[]>([]);
+	let draftCVId = $state<string | null>(null);
 	let isSaving = $state(false);
 	let saveError = $state<string | null>(null);
 
@@ -187,7 +187,7 @@
 	}
 
 	/**
-	 * Save draft after step 1 - create user record and shell assignments
+	 * Save draft after step 1 - create user record and draft CV
 	 */
 	async function saveDraftAfterStep1() {
 		if (isSaving) return;
@@ -198,7 +198,7 @@
 
 			if (isDraftMode) {
 				// Create user record for invited user
-				userId = await client.mutation(api.expertAssignments.createUser, {
+				userId = await client.mutation(api.utilities.createUser, {
 					firstName: invitedUserEmail.split('@')[0],
 					lastName: '',
 					email: invitedUserEmail,
@@ -215,7 +215,7 @@
 					userId = existingUser._id;
 				} else {
 					// Create new user record for PDC user
-					userId = await client.mutation(api.expertAssignments.createUser, {
+					userId = await client.mutation(api.utilities.createUser, {
 						firstName: pdcUserData.firstName,
 						lastName: pdcUserData.lastName,
 						email: pdcUserData.email,
@@ -227,24 +227,22 @@
 				throw new Error('No user data found to save');
 			}
 
-			// Create shell assignment to connect user to organization
-			// This assignment has NO service assigned yet - that happens in step 3
+			// Create draft CV for this user and organization
 			if (!currentOrgId) {
 				throw new Error('No organization selected');
 			}
 
-			// Create a shell assignment without any service
-			// This will be updated in step 3 when actual services are selected
-			const shellAssignment = await client.mutation(api.expertAssignments.createShellAssignment, {
+			// Create a draft CV (services will be added in step 3)
+			draftCVId = await client.mutation(api.expertCVs.createExpertCV, {
 				userId: userId as Id<'users'>,
 				organizationId: currentOrgId as Id<'organizations'>,
-				assignedBy: 'current-user-id', // TODO: Get actual user ID
-				notes: 'Shell assignment - services will be assigned in step 3'
+				experience: [], // Will be filled in step 4
+				education: [], // Will be filled in step 5
+				createdBy: 'current-user-id', // TODO: Get actual user ID
+				notes: 'Draft CV - services and details will be added in subsequent steps'
 			});
 
-			draftAssignmentIds = [shellAssignment];
-			console.log('✅ Shell assignment created (no service):', shellAssignment);
-
+			console.log('✅ Draft CV created:', draftCVId);
 			console.log('✅ User created/saved:', userId);
 		} catch (error) {
 			console.error('Error saving user:', error);
@@ -256,17 +254,17 @@
 	}
 
 	/**
-	 * Save services step - update shell assignment or create new ones
+	 * Save services step - create service assignments for the draft CV
 	 */
 	async function saveServicesStep() {
-		if (isSaving || !userId || selectedServices.length === 0) return;
+		if (isSaving || !draftCVId || selectedServices.length === 0) return;
 
 		try {
 			isSaving = true;
 			saveError = null;
 
-			if (!currentOrgId) {
-				throw new Error('No organization selected');
+			if (!currentOrgId || !userId) {
+				throw new Error('Missing organization or user data');
 			}
 
 			const serviceAssignments = selectedServices.map((serviceName) => {
@@ -282,40 +280,19 @@
 				};
 			});
 
-			if (draftAssignmentIds.length === 1 && selectedServices.length === 1) {
-				// Update existing shell assignment
-				const serviceVersion = serviceVersions?.data?.find(
-					(version: any) => version.name === selectedServices[0]
-				);
-				if (serviceVersion) {
-					await client.mutation(api.expertAssignments.updateExpertAssignmentService, {
-						id: draftAssignmentIds[0] as Id<'expertAssignments'>,
-						serviceVersionId: serviceVersion._id,
-						role: serviceRoles[selectedServices[0]] || 'regular',
-						profileCompletionStep: 3
-					});
-					console.log('✅ Shell assignment updated with service:', selectedServices[0]);
+			// Create service assignments for the draft CV
+			const assignmentIds = await client.mutation(
+				api.expertServiceAssignments.createMultipleServiceAssignments,
+				{
+					userId: userId as Id<'users'>,
+					organizationId: currentOrgId as Id<'organizations'>,
+					expertCVId: draftCVId as Id<'expertCVs'>,
+					serviceAssignments: serviceAssignments,
+					assignedBy: 'current-user-id' // TODO: Get actual user ID
 				}
-			} else {
-				// Delete shell assignment and create new ones for multiple services
-				if (draftAssignmentIds.length > 0) {
-					await client.mutation(api.expertAssignments.deleteExpertAssignment, {
-						id: draftAssignmentIds[0] as Id<'expertAssignments'>
-					});
-				}
+			);
 
-				draftAssignmentIds = await client.mutation(
-					api.expertAssignments.createExpertAssignmentsForUser,
-					{
-						userId: userId as Id<'users'>,
-						organizationId: currentOrgId as Id<'organizations'>,
-						serviceAssignments: serviceAssignments,
-						assignedBy: 'current-user-id' // TODO: Get actual user ID
-					}
-				);
-
-				console.log('✅ Services saved, assignment IDs:', draftAssignmentIds);
-			}
+			console.log('✅ Services saved, assignment IDs:', assignmentIds.assignmentIds);
 		} catch (error) {
 			console.error('Error saving services:', error);
 			saveError = error instanceof Error ? error.message : 'Unknown error';
@@ -326,10 +303,10 @@
 	}
 
 	/**
-	 * Save experience step
+	 * Save experience step - update CV with experience data
 	 */
 	async function saveExperienceStep() {
-		if (isSaving || draftAssignmentIds.length === 0) return;
+		if (isSaving || !draftCVId) return;
 
 		try {
 			isSaving = true;
@@ -347,13 +324,12 @@
 					description: exp.description
 				}));
 
-			await client.mutation(api.expertAssignments.updateMultipleAssignmentsExperience, {
-				assignmentIds: draftAssignmentIds,
-				experience: experienceData,
-				profileCompletionStep: 4
+			await client.mutation(api.expertCVs.updateExpertCV, {
+				id: draftCVId as Id<'expertCVs'>,
+				experience: experienceData
 			});
 
-			console.log('✅ Experience saved for assignments:', draftAssignmentIds);
+			console.log('✅ Experience saved for CV:', draftCVId);
 		} catch (error) {
 			console.error('Error saving experience:', error);
 			saveError = error instanceof Error ? error.message : 'Unknown error';
@@ -364,10 +340,10 @@
 	}
 
 	/**
-	 * Save education step and mark profile as complete
+	 * Save education step and mark CV as complete
 	 */
 	async function saveEducationStep() {
-		if (isSaving || draftAssignmentIds.length === 0) return;
+		if (isSaving || !draftCVId) return;
 
 		try {
 			isSaving = true;
@@ -384,14 +360,12 @@
 					description: edu.description
 				}));
 
-			await client.mutation(api.expertAssignments.updateMultipleAssignmentsEducation, {
-				assignmentIds: draftAssignmentIds,
-				education: educationData,
-				profileCompletionStep: 5,
-				isProfileComplete: true
+			await client.mutation(api.expertCVs.updateExpertCV, {
+				id: draftCVId as Id<'expertCVs'>,
+				education: educationData
 			});
 
-			console.log('✅ Education saved, profile complete for assignments:', draftAssignmentIds);
+			console.log('✅ Education saved, CV complete:', draftCVId);
 
 			// Store expert name for success page
 			const expertDisplayName = isDraftMode
