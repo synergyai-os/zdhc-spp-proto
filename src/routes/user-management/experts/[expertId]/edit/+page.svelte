@@ -34,10 +34,14 @@
 	// Query CV history for this expert
 	const cvHistory = useQuery(
 		api.expertCVs.getExpertCVHistory,
-		() => ({ 
-			userId: (expertId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any, 
-			organizationId: ($organizationStore.currentOrganization?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any 
-		})
+		() => {
+			const queryArgs = { 
+				userId: (expertId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any, 
+				organizationId: ($organizationStore.currentOrganization?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any 
+			};
+			console.log('CV History query args:', queryArgs);
+			return queryArgs;
+		}
 	);
 
 	// Get user ID from latest CV
@@ -59,7 +63,10 @@
 	);
 
 	// Query available services for this organization
-	const serviceVersions = useQuery(api.utilities.getServiceVersions, () => ({}));
+	const serviceVersions = useQuery(api.utilities.getServiceVersions, () => {
+		console.log('Service versions query args: {}');
+		return {};
+	});
 
 	const organizationApprovals = useQuery(
 		api.utilities.getOrganizationApprovals,
@@ -72,7 +79,12 @@
 	// Query existing service assignments for this CV
 	const existingServiceAssignments = useQuery(
 		api.expertServiceAssignments.getExpertServiceAssignments,
-		() => ({ expertCVId: (currentCVData?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any })
+		() => {
+			const queryArgs = { expertCVId: (currentCVData?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any };
+			console.log('Service assignments query args:', queryArgs);
+			console.log('Current CV data:', currentCVData);
+			return queryArgs;
+		}
 	);
 
 	// Loading and error states
@@ -85,6 +97,18 @@
 	let userDataResult = $derived(userData?.data);
 	let serviceVersionsData = $derived(serviceVersions?.data);
 	let organizationApprovalsData = $derived(organizationApprovals?.data);
+
+	// Debug logging for query results
+	$effect(() => {
+		console.log('Query Results:', {
+			latestCV: latestCV?.data,
+			cvHistory: cvHistory?.data,
+			userData: userData?.data,
+			serviceVersions: serviceVersions?.data,
+			organizationApprovals: organizationApprovals?.data,
+			existingServiceAssignments: existingServiceAssignments?.data
+		});
+	});
 
 	// Edit state
 	let isSaving = $state(false);
@@ -115,20 +139,32 @@
 	// Current form data (editable fields) - derived from CV data
 	let selectedServices = $derived.by((): string[] => {
 		if (!currentCVData || !existingServiceAssignments?.data || !serviceVersionsData) {
+			console.log('Missing data for selectedServices:', {
+				currentCVData: !!currentCVData,
+				existingServiceAssignments: !!existingServiceAssignments?.data,
+				serviceVersionsData: !!serviceVersionsData
+			});
 			return [];
 		}
+		
+		console.log('All service assignments:', existingServiceAssignments.data);
 		
 		// Only include active assignments (not inactive)
 		const activeAssignments = existingServiceAssignments.data.filter(
 			(assignment: any) => assignment.status !== 'inactive'
 		);
 		
-		return activeAssignments.map((assignment: any) => {
+		console.log('Active assignments:', activeAssignments);
+		
+		const services = activeAssignments.map((assignment: any) => {
 			const serviceVersion = serviceVersionsData.find(
 				(version: any) => version._id === assignment.serviceVersionId
 			);
 			return serviceVersion?.name || '';
 		}).filter(Boolean);
+		
+		console.log('Selected services:', services);
+		return services;
 	});
 
 	let serviceRoles = $derived.by((): Record<string, 'lead' | 'regular'> => {
@@ -152,6 +188,7 @@
 			}
 		});
 		
+		console.log('Service roles:', roles);
 		return roles;
 	});
 
@@ -169,116 +206,119 @@
 	
 	// Use a single effect to initialize user state from derived state
 	$effect(() => {
+		console.log('Initialization effect running:', {
+			hasInitialized,
+			selectedServicesLength: selectedServices.length,
+			serviceRolesKeys: Object.keys(serviceRoles).length,
+			experienceLength: experience.length,
+			educationLength: education.length,
+			selectedServices,
+			serviceRoles
+		});
+		
 		if (!hasInitialized && (selectedServices.length > 0 || Object.keys(serviceRoles).length > 0 || experience.length > 0 || education.length > 0)) {
+			console.log('Initializing user state from derived state');
 			userSelectedServices = [...selectedServices];
 			userServiceRoles = { ...serviceRoles };
 			userExperience = [...experience];
 			userEducation = [...education];
 			hasInitialized = true;
+			console.log('User state initialized:', {
+				userSelectedServices,
+				userServiceRoles,
+				userExperience,
+				userEducation
+			});
 		}
 	});
 
 	async function syncServiceAssignments() {
 		if (!currentCVData || !serviceVersionsData) return;
 
-		// Get current active assignments from database
-		const currentAssignments = (existingServiceAssignments?.data || []).filter(
-			(assignment: any) => assignment.status !== 'inactive'
-		);
+		console.log('Starting service assignment sync...');
+		console.log('User selected services:', userSelectedServices);
+		console.log('User service roles:', userServiceRoles);
 
-		// Convert current assignments to a map for easy lookup
-		const currentMap = new Map(
-			currentAssignments.map((assignment: any) => [
-				assignment.serviceVersionId,
-				assignment
-			])
-		);
+		// Get ALL current assignments (including inactive ones)
+		const allCurrentAssignments = existingServiceAssignments?.data || [];
+		console.log('All current assignments:', allCurrentAssignments);
 
-		// Convert user selections to desired assignments
-		const desiredAssignments = userSelectedServices.map(serviceName => {
-			const serviceVersion = serviceVersionsData.find(
-				(version: any) => version.name === serviceName
+		// Create a map of service name to service version ID for easier lookup
+		const serviceNameToId = new Map<string, string>();
+		serviceVersionsData.forEach((service: any) => {
+			serviceNameToId.set(service.name, service._id);
+		});
+
+		// Process each user-selected service
+		for (const serviceName of userSelectedServices) {
+			const serviceVersionId = serviceNameToId.get(serviceName);
+			if (!serviceVersionId) {
+				console.warn(`Service version not found for: ${serviceName}`);
+				continue;
+			}
+
+			const desiredRole = userServiceRoles[serviceName] || 'regular';
+			
+			// Find existing assignment for this service
+			const existingAssignment = allCurrentAssignments.find((assignment: any) => 
+				assignment.serviceVersionId === serviceVersionId
 			);
-			return serviceVersion ? {
-				serviceVersionId: serviceVersion._id,
-				role: userServiceRoles[serviceName] || 'regular'
-			} : null;
-		}).filter((assignment): assignment is { serviceVersionId: Id<'serviceVersions'>; role: 'lead' | 'regular' } => assignment !== null);
 
-		// Find assignments to remove (in current but not in desired)
-		const toRemove = currentAssignments.filter((assignment: any) => 
-			!userSelectedServices.some(serviceName => {
-				const serviceVersion = serviceVersionsData.find(
-					(version: any) => version.name === serviceName
-				);
-				return serviceVersion?._id === assignment.serviceVersionId;
-			})
+			if (existingAssignment) {
+				// Update existing assignment if role changed
+				if (existingAssignment.role !== desiredRole) {
+					console.log(`Updating role for ${serviceName}: ${existingAssignment.role} -> ${desiredRole}`);
+					// First delete the old assignment completely
+					await client.mutation(api.expertServiceAssignments.deleteAssignment, {
+						assignmentId: existingAssignment._id
+					});
+					// Create new assignment with updated role
+					await client.mutation(api.expertServiceAssignments.createMultipleServiceAssignments, {
+						organizationId: validOrgId as Id<'organizations'>,
+						userId: userId as Id<'users'>,
+						expertCVId: currentCVData._id as Id<'expertCVs'>,
+						assignedBy: 'system',
+						serviceAssignments: [{
+							serviceVersionId: serviceVersionId as Id<'serviceVersions'>,
+							role: desiredRole
+						}]
+					});
+				} else {
+					console.log(`Role for ${serviceName} is already correct: ${desiredRole}`);
+				}
+			} else {
+				// Create new assignment
+				console.log(`Creating new assignment for ${serviceName} with role: ${desiredRole}`);
+				await client.mutation(api.expertServiceAssignments.createMultipleServiceAssignments, {
+					organizationId: validOrgId as Id<'organizations'>,
+					userId: userId as Id<'users'>,
+					expertCVId: currentCVData._id as Id<'expertCVs'>,
+					assignedBy: 'system',
+					serviceAssignments: [{
+						serviceVersionId: serviceVersionId as Id<'serviceVersions'>,
+						role: desiredRole
+					}]
+				});
+			}
+		}
+
+		// Remove assignments for services that are no longer selected
+		const selectedServiceIds = userSelectedServices.map(name => serviceNameToId.get(name)).filter(Boolean);
+		const assignmentsToRemove = allCurrentAssignments.filter((assignment: any) => 
+			!selectedServiceIds.includes(assignment.serviceVersionId)
 		);
 
-		// Find assignments to add (new) vs update (existing but role changed)
-		const toAdd = desiredAssignments.filter(desired => {
-			const current = currentMap.get(desired.serviceVersionId);
-			return !current; // No existing assignment
-		});
-
-		const toUpdate = desiredAssignments.filter(desired => {
-			const current = currentMap.get(desired.serviceVersionId);
-			return current && current.role !== desired.role; // Existing assignment with different role
-		});
-
-		console.log('Service Assignment Sync:', {
-			toRemove: toRemove.length,
-			toAdd: toAdd.length,
-			toUpdate: toUpdate.length,
-			currentAssignments: currentAssignments.map(a => ({ id: a._id, serviceId: a.serviceVersionId, role: a.role })),
-			desiredAssignments: desiredAssignments,
-			userSelectedServices,
-			userServiceRoles
-		});
-
-		// Remove assignments by setting to inactive
-		if (toRemove.length > 0) {
-			await client.mutation(api.expertServiceAssignments.updateMultipleAssignmentStatuses, {
-				assignmentIds: toRemove.map((a: any) => a._id),
-				status: 'inactive',
-				updatedBy: 'system'
-			});
+		if (assignmentsToRemove.length > 0) {
+			console.log('Removing assignments for unselected services:', assignmentsToRemove.map((a: any) => a._id));
+			// Actually delete these assignments
+			for (const assignment of assignmentsToRemove) {
+				await client.mutation(api.expertServiceAssignments.deleteAssignment, {
+					assignmentId: assignment._id
+				});
+			}
 		}
 
-		// Update existing assignments by removing old and creating new
-		if (toUpdate.length > 0) {
-			// First, set existing assignments to inactive
-			const assignmentsToInactivate = toUpdate.map(desired => {
-				const current = currentMap.get(desired.serviceVersionId);
-				return current._id;
-			});
-
-			await client.mutation(api.expertServiceAssignments.updateMultipleAssignmentStatuses, {
-				assignmentIds: assignmentsToInactivate,
-				status: 'inactive',
-				updatedBy: 'system'
-			});
-
-			// Then create new assignments with updated roles
-			await client.mutation(api.expertServiceAssignments.createMultipleServiceAssignments, {
-				organizationId: validOrgId as Id<'organizations'>,
-				userId: userId as Id<'users'>,
-				expertCVId: currentCVData._id as Id<'expertCVs'>,
-				assignedBy: 'system',
-				serviceAssignments: toUpdate
-			});
-		}
-
-		// Add new assignments (only truly new ones)
-		if (toAdd.length > 0) {
-			await client.mutation(api.expertServiceAssignments.createMultipleServiceAssignments, {
-				organizationId: validOrgId as Id<'organizations'>,
-				userId: userId as Id<'users'>,
-				expertCVId: currentCVData._id as Id<'expertCVs'>,
-				assignedBy: 'system',
-				serviceAssignments: toAdd
-			});
-		}
+		console.log('Service assignment sync completed');
 	}
 
 	function goBack() {

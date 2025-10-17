@@ -455,3 +455,31 @@ export const updateMultipleAssignmentStatuses = mutation({
 		};
 	}
 });
+
+export const deleteAssignment = mutation({
+	args: {
+		assignmentId: v.id('expertServiceAssignments')
+	},
+	handler: async (ctx, args) => {
+		// Check if assignment exists
+		const assignment = await ctx.db.get(args.assignmentId);
+		if (!assignment) {
+			throw new Error('Assignment not found');
+		}
+
+		// Only allow deletion of draft CVs or inactive assignments
+		const cv = await ctx.db.get(assignment.expertCVId);
+		if (cv && cv.status !== 'draft') {
+			throw new Error('Can only delete assignments for draft CVs');
+		}
+
+		// Delete the assignment
+		await ctx.db.delete(args.assignmentId);
+
+		return {
+			success: true,
+			deletedId: args.assignmentId,
+			timestamp: Date.now()
+		};
+	}
+});
