@@ -7,6 +7,8 @@
 	interface Props {
 		userDataResult: any;
 		availableServices: any[];
+		selectedServices: any[];
+		serviceRoles: any;
 		expertEditState: any;
 		serviceVersions: any;
 		organizationApprovals: any;
@@ -19,6 +21,8 @@
 	let { 
 		userDataResult, 
 		availableServices, 
+		selectedServices,
+		serviceRoles,
 		expertEditState, 
 		serviceVersions,
 		organizationApprovals,
@@ -49,10 +53,11 @@
 		<h2 class="text-xl font-bold text-gray-800 mb-2">Step 3: Select Services & Roles</h2>
 		<p class="text-gray-600">Choose which services this expert will provide and their role</p>
 	</div>
+    
 	<Step3Services
 		availableServices={availableServices}
-		selectedServices={expertEditState.userSelectedServices}
-		serviceRoles={expertEditState.userServiceRoles}
+		selectedServices={selectedServices}
+		serviceRoles={serviceRoles}
 		currentOrgId={expertEditState.validOrgId}
 		isLoadingServices={serviceVersions?.isLoading || organizationApprovals?.isLoading}
 		isDraftMode={!userDataResult?.isActive}

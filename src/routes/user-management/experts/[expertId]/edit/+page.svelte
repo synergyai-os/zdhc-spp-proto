@@ -8,7 +8,7 @@
 		expertEditState, 
 		expertEditStore
 	} from '$lib/stores/expertEdit.svelte';
-	import { syncServiceAssignments } from '$lib/services/expertService';
+	import { syncServiceAssignments, saveExpertProfile } from '$lib/services/expertService';
 	import { api } from '$lib';
 	import { useConvexClient } from 'convex-svelte';
 
@@ -57,30 +57,24 @@
 	async function handleSave() {
 		if (expertEditState.isSaving || !expertEditState.currentCVData) return;
 
-		try {
-			expertEditStore.setSaving(true);
-			expertEditStore.setSaveError(null);
+		expertEditStore.setSaving(true);
+		expertEditStore.setSaveError(null);
 
-			// Update the CV with new experience and education
-			await client.mutation(api.expertCVs.updateExpertCV, {
-				id: expertEditState.currentCVData._id,
-				experience: expertEditState.userExperience,
-				education: expertEditState.userEducation
-			});
+		const result = await saveExpertProfile(client, {
+			cvId: expertEditState.currentCVData._id,
+			experience: expertEditState.userExperience,
+			education: expertEditState.userEducation
+		});
 
-			// Show success message
+		if (result.success) {
 			toast.success('Expert profile updated successfully!');
-			
-			// Navigate back to user management
 			goto('/user-management?section=experts');
-
-		} catch (error) {
-			console.error('Error saving expert:', error);
-			expertEditStore.setSaveError(error instanceof Error ? error.message : 'An error occurred while saving');
+		} else {
+			expertEditStore.setSaveError(result.error || 'An error occurred while saving');
 			toast.error('Failed to update expert profile');
-		} finally {
-			expertEditStore.setSaving(false);
 		}
+
+		expertEditStore.setSaving(false);
 	}
 
 	function handleToggleService(serviceName: string) {
@@ -115,9 +109,11 @@
 	{:else if !organizationState.hasCurrentOrganization}
 		<OrganizationRequired />
 	{:else if expertId}
+	
 		<ExpertQueries expertId={expertId} orgId={expertEditState.validOrgId}>
 			{#snippet children(queryDataFromComponent: any)}
 				{@const _ = (() => { queryData = queryDataFromComponent; })()}
+				
 				<div class="max-w-4xl mx-auto px-6 py-8">
 					<!-- Header -->
 					<div class="mb-8">
@@ -201,6 +197,8 @@
 						<ExpertEditSteps 
 							userDataResult={queryDataFromComponent.userDataResult}
 							availableServices={queryDataFromComponent.availableServices}
+							selectedServices={queryDataFromComponent.selectedServices}
+							serviceRoles={queryDataFromComponent.serviceRoles}
 							expertEditState={expertEditState}
 							serviceVersions={queryDataFromComponent.existingServiceAssignments}
 							organizationApprovals={queryDataFromComponent.organizationApprovalsData}

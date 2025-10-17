@@ -10,17 +10,11 @@
 		children: any;
 	}>();
 
-	// Debug logging
-	console.log('🔍 ExpertQueries component initialized:', { expertId, orgId });
-
 	// Query the latest CV for this expert
-	const latestCV = useQuery(api.expertCVs.getLatestExpertCV, () => {
-		console.log('🔍 Querying latestCV with:', { expertId, orgId });
-		return {
-			userId: expertId as any,
-			organizationId: orgId as any
-		};
-	});
+	const latestCV = useQuery(api.expertCVs.getLatestExpertCV, () => ({
+		userId: expertId as any,
+		organizationId: orgId as any
+	}));
 
 	// Get user ID from latest CV
 	const userId = $derived(latestCV?.data?.userId || expertId);
@@ -47,8 +41,22 @@
 	);
 
 	// Loading and error states
-	const isLoading = $derived(latestCV?.isLoading || userData?.isLoading || false);
-	const hasError = $derived(latestCV?.error || userData?.error || false);
+	const isLoading = $derived(
+		latestCV?.isLoading || 
+		userData?.isLoading || 
+		serviceVersions?.isLoading || 
+		organizationApprovals?.isLoading || 
+		existingServiceAssignments?.isLoading || 
+		false
+	);
+	const hasError = $derived(
+		latestCV?.error || 
+		userData?.error || 
+		serviceVersions?.error || 
+		organizationApprovals?.error || 
+		existingServiceAssignments?.error || 
+		false
+	);
 
 	// Derived states
 	const userDataResult = $derived(userData?.data);
@@ -71,22 +79,16 @@
 		organizationApprovalsData,
 		userId,
 
-		// Business logic results
-		availableServices: getAvailableServices(
-			serviceVersionsData || [],
-			organizationApprovalsData || [],
-			orgId
-		),
-		selectedServices: getSelectedServices(
-			currentCVData,
-			existingServiceAssignments?.data || [],
-			serviceVersionsData || []
-		),
-		serviceRoles: getServiceRoles(
-			currentCVData,
-			existingServiceAssignments?.data || [],
-			serviceVersionsData || []
-		),
+		// Business logic results - only calculate when both queries are loaded
+		availableServices: (serviceVersionsData && organizationApprovalsData) 
+			? getAvailableServices(serviceVersionsData, organizationApprovalsData, orgId)
+			: [],
+		selectedServices: (currentCVData && serviceVersionsData)
+			? getSelectedServices(currentCVData, existingServiceAssignments?.data || [], serviceVersionsData)
+			: [],
+		serviceRoles: (currentCVData && serviceVersionsData)
+			? getServiceRoles(currentCVData, existingServiceAssignments?.data || [], serviceVersionsData)
+			: {},
 		experience: currentCVData?.experience || [],
 		education: currentCVData?.education || [],
 
@@ -95,16 +97,6 @@
 		hasError
 	});
 
-	// Debug query results
-	$effect(() => {
-		console.log('🔍 Query results updated:', {
-			isLoading,
-			hasError,
-			currentCVData: !!currentCVData,
-			userDataResult: !!userDataResult,
-			serviceVersionsData: serviceVersionsData?.length || 0
-		});
-	});
 </script>
 
 {#if children}
