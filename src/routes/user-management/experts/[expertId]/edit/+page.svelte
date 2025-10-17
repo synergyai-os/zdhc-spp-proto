@@ -84,27 +84,36 @@
 	const serviceVersionsData = $derived(serviceVersions?.data);
 	const organizationApprovalsData = $derived(organizationApprovals?.data);
 
-	// Derived states from queries
+	// Parallel data preparation to prevent waterfall effects
+	const parallelData = $derived({
+		serviceVersionsData: serviceVersionsData || [],
+		organizationApprovalsData: organizationApprovalsData || [],
+		existingServiceAssignments: existingServiceAssignments?.data || [],
+		currentCVData,
+		validOrgId: expertEditState.validOrgId
+	});
+
+	// Derived states from parallel data - no waterfall effects
 	let availableServices = $derived(getAvailableServices(
-		serviceVersionsData || [],
-		organizationApprovalsData || [],
-		expertEditState.validOrgId
+		parallelData.serviceVersionsData,
+		parallelData.organizationApprovalsData,
+		parallelData.validOrgId
 	));
 
 	let selectedServices = $derived(getSelectedServices(
-		currentCVData,
-		existingServiceAssignments?.data || [],
-		serviceVersionsData || []
+		parallelData.currentCVData,
+		parallelData.existingServiceAssignments,
+		parallelData.serviceVersionsData
 	));
 
 	let serviceRoles = $derived(getServiceRoles(
-		currentCVData,
-		existingServiceAssignments?.data || [],
-		serviceVersionsData || []
+		parallelData.currentCVData,
+		parallelData.existingServiceAssignments,
+		parallelData.serviceVersionsData
 	));
 
-	let experience = $derived(currentCVData?.experience || []);
-	let education = $derived(currentCVData?.education || []);
+	let experience = $derived(parallelData.currentCVData?.experience || []);
+	let education = $derived(parallelData.currentCVData?.education || []);
 
 	// Initialize user state from derived data
 	$effect(() => {
@@ -147,8 +156,8 @@
 				validOrgId: expertEditState.validOrgId,
 				userSelectedServices: expertEditState.userSelectedServices,
 				userServiceRoles: expertEditState.userServiceRoles,
-				existingServiceAssignments: existingServiceAssignments?.data || [],
-				serviceVersionsData: serviceVersionsData || []
+				existingServiceAssignments: parallelData.existingServiceAssignments,
+				serviceVersionsData: parallelData.serviceVersionsData
 			});
 
 			if (!syncResult.success) {
@@ -286,8 +295,8 @@
 				{userDataResult}
 				{availableServices}
 				{expertEditState}
-				{serviceVersions}
-				{organizationApprovals}
+				serviceVersions={serviceVersions}
+				organizationApprovals={organizationApprovals}
 				{handleToggleService}
 				{handleToggleRole}
 				{handleUpdateExperience}

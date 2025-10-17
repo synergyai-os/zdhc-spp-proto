@@ -29,6 +29,7 @@
 	}: Props = $props();
 </script>
 
+
 <!-- STEP 2: Expert Confirmation -->
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
 	<div class="mb-4">
