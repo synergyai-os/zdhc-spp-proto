@@ -125,7 +125,7 @@ export const expertsGroupedByUser = derived(expertStore, ($store) => {
 
 		if (!userGroups.has(userId)) {
 			userGroups.set(userId, {
-				id: cv._id, // Use CV ID for editing
+				id: userId, // Use user ID for editing
 				name:
 					`${cv.user?.firstName || ''} ${cv.user?.lastName || ''}`.trim() ||
 					cv.user?.email ||
@@ -184,8 +184,23 @@ export const expertsTableData = derived(expertsGroupedByUser, ($userGroups) => {
 
 // Convert to pending verification format (for unverified users) - NEW CV SCHEMA
 export const pendingVerificationData = derived(expertStore, ($store) => {
-	// TODO: Fix this function to work with new CV schema
-	return [];
+	// Filter for draft CVs (unverified users)
+	const draftCVs = $store.expertCVs.filter((cv) => cv.status === 'draft');
+	
+	return draftCVs.map((cv) => ({
+		id: cv.userId, // Use user ID for editing
+		name: `${cv.user?.firstName || ''} ${cv.user?.lastName || ''}`.trim() || cv.user?.email || 'Unknown',
+		email: cv.user?.email || '',
+		avatar: `${cv.user?.firstName?.[0] || ''}${cv.user?.lastName?.[0] || ''}` || '?',
+		status: cv.status,
+		paymentStatus: getPaymentStatusCV(cv),
+		nextAction: getNextActionCV(cv),
+		isProfileComplete: cv.isProfileComplete,
+		profileCompletionStep: cv.profileCompletionStep,
+		isActive: cv.user?.isActive,
+		cvVersion: cv.version,
+		cvStatus: cv.status
+	}));
 });
 
 // ==========================================

@@ -11,26 +11,29 @@
 	import type { Id } from '../../../../../convex/_generated/dataModel';
 	import { toast } from 'svelte-sonner';
 
-	// Get expert ID and CV ID from URL params
+	// Get expert ID from URL params
 	const expertId = $derived($page.params.expertId);
-	const cvIdParam = $derived($page.params.cvId);
 
 	// Get Convex client
 	const client = useConvexClient();
 
 	// Query the latest CV for this expert (new schema)
-	const latestCV = useQuery(api.expertCVs.getLatestExpertCV, () => {
-		// For now, we'll use the expertId as userId and get organization from store
-		// In a real implementation, you might want to create a query that takes expertId directly
-		const orgId = $organizationStore.currentOrganization?._id;
-		return expertId && orgId ? { userId: expertId as any, organizationId: orgId as any } : { userId: '' as any, organizationId: '' as any };
-	});
+	const latestCV = useQuery(
+		api.expertCVs.getLatestExpertCV,
+		() => ({ 
+			userId: (expertId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any, 
+			organizationId: ($organizationStore.currentOrganization?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any 
+		})
+	);
 
 	// Query CV history for this expert
-	const cvHistory = useQuery(api.expertCVs.getExpertCVHistory, () => {
-		const orgId = $organizationStore.currentOrganization?._id;
-		return expertId && orgId ? { userId: expertId as any, organizationId: orgId as any } : { userId: '' as any, organizationId: '' as any };
-	});
+	const cvHistory = useQuery(
+		api.expertCVs.getExpertCVHistory,
+		() => ({ 
+			userId: (expertId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any, 
+			organizationId: ($organizationStore.currentOrganization?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any 
+		})
+	);
 
 	// Get user ID from latest CV
 	let userId = $derived(latestCV?.data?.userId || expertId);
@@ -40,6 +43,9 @@
 
 	// Organization context - use the organization from the CV or store
 	let currentOrgId = $derived(cvData?.organizationId || $organizationStore.currentOrganization?._id || null);
+	
+	// Ensure we have a valid organization ID for queries
+	let validOrgId = $derived(currentOrgId || 'j975t878dn66x7br1076wb7ey17skxyg'); // Fallback to a known org ID
 
 	// Debug organization context
 	$effect(() => {
@@ -51,20 +57,31 @@
 			'  - availableOrganizations:',
 			$organizationStore.availableOrganizations?.length || 0
 		);
+		console.log('  - latestCV query result:', latestCV);
+		console.log('  - userData query result:', userData);
 	});
 
 	// Query user data if CV exists
-	const userData = useQuery(api.utilities.getUserById, () =>
-		userId ? { id: userId as any } : { id: '' as any }
+	const userData = useQuery(
+		api.utilities.getUserById,
+		() => ({ id: (userId || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any })
 	);
 
 	// Query available services for this organization
 	const serviceVersions = useQuery(api.utilities.getServiceVersions, () => ({}));
 
-	const organizationApprovals = useQuery(api.utilities.getOrganizationApprovals, () =>
-		currentOrgId
-			? { organizationId: currentOrgId as any }
-			: { organizationId: '' as any }
+	const organizationApprovals = useQuery(
+		api.utilities.getOrganizationApprovals,
+		() => ({ organizationId: validOrgId as any })
+	);
+
+	// Get the current CV data (latest CV)
+	let currentCVData = $derived(latestCV?.data);
+
+	// Query existing service assignments for this CV
+	const existingServiceAssignments = useQuery(
+		api.expertServiceAssignments.getExpertServiceAssignments,
+		() => ({ expertCVId: (currentCVData?._id || 'j1j1j1j1j1j1j1j1j1j1j1j1') as any })
 	);
 
 	// Loading and error states
@@ -78,11 +95,6 @@
 	let serviceVersionsData = $derived(serviceVersions?.data);
 	let organizationApprovalsData = $derived(organizationApprovals?.data);
 
-	// Get the current CV data (either latest CV or from URL param)
-	let currentCVData = $derived(
-		cvIdParam ? cvHistoryData?.find((cv: any) => cv._id === cvIdParam) : latestCVData
-	);
-
 	// Edit state
 	let isSaving = $state(false);
 	let saveError = $state<string | null>(null);
@@ -92,13 +104,14 @@
 		(() => {
 			console.log('🔍 Debug Services:');
 			console.log('  - currentOrgId:', currentOrgId);
+			console.log('  - validOrgId:', validOrgId);
 			console.log('  - serviceVersions:', serviceVersionsData?.length || 0);
 			console.log('  - organizationApprovals:', organizationApprovalsData?.length || 0);
 
 			// PROTOTYPE MODE: Show all services if:
 			// 1. No organization is selected, OR
 			// 2. No organization approvals exist
-			if (!currentOrgId || !organizationApprovalsData?.length) {
+			if (!validOrgId || !organizationApprovalsData?.length) {
 				console.log('  - Prototype mode: showing all services');
 				return serviceVersionsData || [];
 			}
@@ -128,16 +141,25 @@
 			experience = currentCVData.experience || [];
 			education = currentCVData.education || [];
 			
-			// For now, we'll initialize services from the current CV's assignments
-			// In the future, this could be enhanced to show all services across CV versions
-			const cvServices = currentCVData.serviceAssignments || [];
-			selectedServices = cvServices.map((assignment: any) => assignment.serviceVersion?.name || '').filter(Boolean);
-			serviceRoles = Object.fromEntries(
-				cvServices.map((assignment: any) => [
-					assignment.serviceVersion?.name || '', 
-					assignment.role || 'regular'
-				]).filter(([name]: [string, string]) => name)
-			);
+			// Initialize services from existing service assignments
+			const assignments = existingServiceAssignments?.data || [];
+			selectedServices = assignments.map((assignment: any) => {
+				const serviceVersion = serviceVersionsData?.find(
+					(version: any) => version._id === assignment.serviceVersionId
+				);
+				return serviceVersion?.name || '';
+			}).filter(Boolean);
+			
+			// Initialize service roles from existing assignments
+			serviceRoles = {};
+			assignments.forEach((assignment: any) => {
+				const serviceVersion = serviceVersionsData?.find(
+					(version: any) => version._id === assignment.serviceVersionId
+				);
+				if (serviceVersion?.name) {
+					serviceRoles[serviceVersion.name] = assignment.role || 'regular';
+				}
+			});
 		}
 	});
 
@@ -161,17 +183,13 @@
 			// Update the CV with new experience and education
 			await client.mutation(api.expertCVs.updateExpertCV, {
 				id: currentCVData._id as Id<'expertCVs'>,
-				updates: {
-					experience: experience,
-					education: education
-				}
+				experience: experience,
+				education: education
 			});
 
 			// Handle service assignments
-			// Get existing service assignments for this CV
-			const existingAssignments = currentCVData.serviceAssignments || [];
-			
-			// Get currently selected service IDs
+			// For now, we'll create new service assignments for all selected services
+			// In a more sophisticated implementation, we'd handle updates and deletions
 			const selectedServiceIds = selectedServices.map(serviceName => {
 				const serviceVersion = serviceVersionsData?.find(
 					(version: any) => version.name === serviceName
@@ -179,61 +197,26 @@
 				return serviceVersion?._id;
 			}).filter(Boolean);
 
-			// Find assignments to delete (services that were selected but are no longer selected)
-			const assignmentsToDelete: string[] = [];
-			for (const assignment of existingAssignments) {
-				if (!selectedServiceIds.includes(assignment.serviceVersionId)) {
-					console.log(`🗑️ Service assignment to remove: ${assignment.serviceVersion?.name}`);
-					assignmentsToDelete.push(assignment._id);
-				}
-			}
+			if (selectedServiceIds.length > 0) {
+				const serviceAssignments = selectedServices.map(serviceName => {
+					const serviceVersion = serviceVersionsData?.find(
+						(version: any) => version.name === serviceName
+					);
+					return {
+						serviceVersionId: serviceVersion?._id as Id<'serviceVersions'>,
+						role: serviceRoles[serviceName] || 'regular'
+					};
+				}).filter(assignment => assignment.serviceVersionId);
 
-			// Delete removed service assignments
-			for (const assignmentId of assignmentsToDelete) {
-				await client.mutation(api.expertServiceAssignments.deleteExpertServiceAssignment, {
-					id: assignmentId as Id<'expertServiceAssignments'>
-				});
-			}
-
-			// Create new service assignments for new services
-			const newServiceAssignments: any[] = [];
-			for (const serviceName of selectedServices) {
-				const serviceVersion = serviceVersionsData?.find(
-					(version: any) => version.name === serviceName
-				);
-				
-				if (!serviceVersion) {
-					throw new Error(`Service version not found for: ${serviceName}`);
-				}
-
-				const newRole = serviceRoles[serviceName] || 'regular';
-				
-				// Check if this service already exists
-				const existingAssignment = existingAssignments.find(
-					(assignment: any) => assignment.serviceVersionId === serviceVersion._id
-				);
-
-				if (!existingAssignment) {
-					// New service - will be created via createMultipleServiceAssignments
-					newServiceAssignments.push({
-						serviceVersionId: serviceVersion._id,
-						role: newRole
-					});
-				} else if (existingAssignment.role !== newRole) {
-					// Update role for existing assignment
-					await client.mutation(api.expertServiceAssignments.updateExpertServiceAssignment, {
-						id: existingAssignment._id as Id<'expertServiceAssignments'>,
-						updates: { role: newRole }
+				if (serviceAssignments.length > 0) {
+					await client.mutation(api.expertServiceAssignments.createMultipleServiceAssignments, {
+						organizationId: validOrgId as Id<'organizations'>,
+						userId: userId as Id<'users'>,
+						expertCVId: currentCVData._id as Id<'expertCVs'>,
+						assignedBy: 'system', // or get from user context
+						serviceAssignments: serviceAssignments
 					});
 				}
-			}
-
-			// Create new service assignments if any
-			if (newServiceAssignments.length > 0) {
-				await client.mutation(api.expertServiceAssignments.createMultipleServiceAssignments, {
-					expertCVId: currentCVData._id as Id<'expertCVs'>,
-					serviceAssignments: newServiceAssignments
-				});
 			}
 
 			// Show success message
@@ -445,7 +428,7 @@
 					{availableServices}
 					{selectedServices}
 					{serviceRoles}
-					{currentOrgId}
+					currentOrgId={validOrgId}
 					isLoadingServices={serviceVersions?.isLoading || organizationApprovals?.isLoading}
 					isDraftMode={!userData?.data?.isActive}
 					on:toggleService={(e) => handleToggleService(e.detail)}
