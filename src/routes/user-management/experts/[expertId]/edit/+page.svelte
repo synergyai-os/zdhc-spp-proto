@@ -3,6 +3,7 @@
 	import { useQuery, useConvexClient } from 'convex-svelte';
 	import { api, type Id } from '$lib';
 	import { DEFAULT_ORG_ID } from '$lib/config';
+	import { calculateServicePricing } from '$lib/pricing';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -40,6 +41,9 @@
 	let isSaving = $state(false);
 	let saveError = $state(null);
 	
+	// Reactive pricing calculation using utility function
+	let pricing = $derived(calculateServicePricing(selectedServices.length));
+	
 	// ==========================================
 	// 2. FUNCTIONS
 	// ==========================================
@@ -65,6 +69,7 @@
 		if (!assignedServices?.data) return [];
 		return assignedServices.data.map((assignment: any) => assignment.serviceVersionId);
 	}
+	
 	
 	// Analysis function for save logic
 	function analyzeServiceChanges() {
@@ -356,6 +361,40 @@
 					<p class="text-gray-500">No available services found for this organization</p>
 			{/if}
 			</div>
+
+			<!-- Pricing Summary -->
+			{#if selectedServices.length > 0}
+				<div class="mt-8 p-6 bg-gray-50 rounded-lg border">
+					<h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Estimated Cost</h3>
+					
+					<div class="space-y-3">
+						{#each pricing.breakdown as item}
+							<div class="flex justify-between items-center">
+								<span class="text-sm text-gray-600">
+									Service {item.serviceNumber}
+									{#if item.discountPercentage > 0}
+										<span class="text-green-600 ml-2">({item.discountPercentage}% off)</span>
+									{/if}
+								</span>
+								<span class="font-medium">€{item.finalPrice.toFixed(2)}</span>
+							</div>
+						{/each}
+						
+						<hr class="my-3">
+						
+						<div class="flex justify-between items-center text-lg font-semibold">
+							<span>Total</span>
+							<span class="text-blue-600">€{pricing.total.toFixed(2)}</span>
+						</div>
+						
+						{#if pricing.savings > 0}
+							<div class="text-center text-green-600 font-medium">
+								🎉 You save €{pricing.savings.toFixed(2)}!
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			<div class="mt-6">
 				<button onclick={save} disabled={isSaving} class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
