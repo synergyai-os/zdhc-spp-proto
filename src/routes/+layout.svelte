@@ -7,6 +7,7 @@
 	import { PUBLIC_CONVEX_URL } from '$env/static/public';
 	import { organizationStore } from '$lib/stores/organization.svelte';
 	import { api } from '../convex/_generated/api';
+	import { DEFAULT_ORG_ID } from '$lib/config';
 
 	let { children }: LayoutProps = $props();
 

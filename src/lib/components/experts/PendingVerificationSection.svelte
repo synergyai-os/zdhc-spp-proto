@@ -209,11 +209,19 @@
 
 							<!-- Verification Status -->
 							<td class="px-6 py-4 whitespace-nowrap">
-								<span
-									class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
-								>
-									Not Verified
-								</span>
+								{#if expert.isActive}
+									<span
+										class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+									>
+										Verified
+									</span>
+								{:else}
+									<span
+										class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
+									>
+										Not Verified
+									</span>
+								{/if}
 							</td>
 
 							<!-- Actions -->

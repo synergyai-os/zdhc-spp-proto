@@ -135,9 +135,9 @@ export const expertsGroupedByUser = derived(expertStore, ($store) => {
 			cvId: cv._id
 		});
 
-		// Skip draft CVs (unverified users) - they should be handled separately
-		if (cv.status === 'draft') {
-			console.log('⏭️ Skipping draft CV:', userId);
+		// Skip draft CVs only for unverified users - verified users should appear in main table
+		if (cv.status === 'draft' && !cv.user?.isActive) {
+			console.log('⏭️ Skipping draft CV for unverified user:', userId);
 			return;
 		}
 
@@ -217,8 +217,8 @@ export const expertsTableData = derived(expertsGroupedByUser, ($userGroups) => {
 
 // Convert to pending verification format (for unverified users) - NEW CV SCHEMA
 export const pendingVerificationData = derived(expertStore, ($store) => {
-	// Filter for draft CVs (unverified users)
-	const draftCVs = $store.expertCVs.filter((cv) => cv.status === 'draft');
+	// Filter for draft CVs of unverified users only
+	const draftCVs = $store.expertCVs.filter((cv) => cv.status === 'draft' && !cv.user?.isActive);
 	
 	console.log('🔄 Processing pending verification data:', {
 		totalCVs: $store.expertCVs.length,
