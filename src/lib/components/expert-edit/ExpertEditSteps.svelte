@@ -14,7 +14,6 @@
 		expertEditState: any;
 		serviceVersions: any;
 		organizationApprovals: any;
-		handleToggleService: (serviceName: string) => void;
 		handleToggleRole: (serviceName: string) => void;
 		handleUpdateExperience: (experience: any[]) => void;
 		handleUpdateEducation: (education: any[]) => void;
@@ -23,14 +22,13 @@
 	let { 
 		userDataResult, 
 		availableServices, 
-		selectedServices,
-		serviceRoles,
+		selectedServices = $bindable(),
+		serviceRoles = $bindable(),
 		experience,
 		education,
 		expertEditState, 
 		serviceVersions,
 		organizationApprovals,
-		handleToggleService, 
 		handleToggleRole, 
 		handleUpdateExperience, 
 		handleUpdateEducation 
@@ -60,12 +58,11 @@
     
 	<Step3Services
 		availableServices={availableServices}
-		selectedServices={selectedServices}
-		serviceRoles={serviceRoles}
+		bind:selectedServices={selectedServices}
+		bind:serviceRoles={serviceRoles}
 		currentOrgId={expertEditState.validOrgId}
 		isLoadingServices={serviceVersions?.isLoading || organizationApprovals?.isLoading}
 		isDraftMode={!userDataResult?.isActive}
-		on:toggleService={(e) => handleToggleService(e.detail)}
 		on:toggleRole={(e) => handleToggleRole(e.detail)}
 	/>
 </div>

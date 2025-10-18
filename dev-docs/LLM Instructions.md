@@ -58,10 +58,14 @@ src/
 │       └── expertService.ts         # Expert service assignment logic
 ├── convex/                  # Convex backend functions
 │   ├── schema.ts           # Database schema definition
-│   ├── expertCVs.ts        # CV versioning and management
+│   ├── expertCVs.ts        # CV versioning and management (API layer)
 │   ├── expertServiceAssignments.ts # Service assignment management
 │   ├── adminCVReview.ts    # Admin CV review queries and mutations
 │   ├── utilities.ts        # Common utility functions
+│   ├── model/              # Model layer (business logic)
+│   │   ├── types.ts        # TypeScript interfaces and types
+│   │   ├── validators.ts   # Data validation utilities
+│   │   └── expertCVs.ts    # Core CV business logic functions
 │   └── _generated/         # Auto-generated API files
 ├── routes/
 │   ├── +layout.svelte       # Root layout with Convex setup
@@ -313,7 +317,66 @@ src/
    });
    ```
 
-### 3. File-Based Routing
+### 3. Model Layer Pattern (Convex Best Practice)
+
+**CRITICAL**: Follow the Model Layer Pattern for Convex backend organization:
+
+1. **Model Layer Structure**:
+   ```
+   src/convex/model/
+   ├── types.ts              # TypeScript interfaces and types
+   ├── validators.ts         # Data validation utilities
+   └── expertCVs.ts          # Core business logic functions
+   ```
+
+2. **API Layer (Thin)**:
+   ```typescript
+   // src/convex/expertCVs.ts - API layer should be minimal
+   export const updateExpertCV = mutation({
+     args: { /* validation args */ },
+     handler: async (ctx, args) => {
+       // Delegate to model layer
+       const result = await ExpertCVs.updateExpertCV(ctx, args);
+       
+       // Handle errors from model layer
+       if (!result.success) {
+         throw new Error(result.error || 'Operation failed');
+       }
+       
+       return result.cvId;
+     }
+   });
+   ```
+
+3. **Model Layer Functions**:
+   ```typescript
+   // src/convex/model/expertCVs.ts - Business logic
+   export async function updateExpertCV(ctx: MutationCtx, args: UpdateExpertCVArgs): Promise<CVUpdateResult> {
+     try {
+       // Business logic here
+       // Validation
+       // Database operations
+       // Return structured result
+     } catch (error) {
+       return { success: false, error: error.message };
+     }
+   }
+   ```
+
+4. **Benefits of Model Layer Pattern**:
+   - ✅ **Separation of Concerns** - Business logic separated from API layer
+   - ✅ **Testability** - Model functions can be tested independently
+   - ✅ **Reusability** - Model functions can be used by multiple mutations
+   - ✅ **Maintainability** - Easy to modify business rules in one place
+   - ✅ **Error Handling** - Structured error responses with specific messages
+   - ✅ **Type Safety** - Full TypeScript support throughout
+
+5. **Validation Strategy**:
+   - **Draft CVs**: Always saveable, no validation required
+   - **Submitted CVs**: Full validation required before submission
+   - **Clear Error Messages**: Specific validation errors for debugging
+
+### 4. File-Based Routing
 
 - **Nested routes** for logical hierarchy (`/user-management/add-expert`)
 - **Layout inheritance** - Header component shared across all pages
@@ -775,6 +838,10 @@ When debugging data flow issues in Svelte 5 + Convex applications:
 - **Race Condition Prevention** - Make business logic conditional on data dependencies being loaded
 - **Data Flow Debugging** - Use console logs at each step to trace where data gets lost
 - **Component Interface Updates** - Always update component interfaces when adding new props
+- **Model Layer Pattern** - Extract business logic from Convex mutations to dedicated model layer for better maintainability
+- **Draft vs Submitted Validation** - Allow saving draft CVs without validation, enforce validation only on submission
+- **Comprehensive Error Handling** - Return structured error responses from model layer with specific error messages
+- **Type-Safe Business Logic** - Full TypeScript interfaces for all model layer functions and validation
 
 ### User Preferences (Important!)
 
@@ -783,9 +850,14 @@ When debugging data flow issues in Svelte 5 + Convex applications:
 - **Svelte 5 focus** - always use modern Svelte syntax
 - **Security and quality** - build with security and quality from day one
 - **Step-by-step approach** - don't overwhelm with too much new information
+- **SMALL MICRO STEPS** - Always break down problems into tiny, manageable steps
+- **Investigate First** - Identify and validate the actual problem before proposing solutions
+- **Write Business Logic** - Clearly understand and document business logic before implementing
+- **No Speedy Actions** - Take time to understand, validate, and confirm each step
+- **Stop and Validate** - Always confirm understanding before proceeding to next step
 
 ---
 
 **Last Updated**: January 2025
-**Version**: 2.1 - Data Flow Debugging & Component Props
+**Version**: 2.2 - Model Layer Pattern & Expert CV Refactoring
 **Maintainer**: Development Team

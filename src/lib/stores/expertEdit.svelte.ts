@@ -66,16 +66,6 @@ export const expertEditStore = {
     expertEditState.userEducation = education;
   },
 
-  // Toggle service selection
-  toggleService(serviceName: string) {
-    if (expertEditState.userSelectedServices.includes(serviceName)) {
-      expertEditState.userSelectedServices = expertEditState.userSelectedServices.filter((s) => s !== serviceName);
-      delete expertEditState.userServiceRoles[serviceName];
-    } else {
-      expertEditState.userSelectedServices = [...expertEditState.userSelectedServices, serviceName];
-      expertEditState.userServiceRoles[serviceName] = 'regular';
-    }
-  },
 
   // Toggle service role
   toggleRole(serviceName: string) {

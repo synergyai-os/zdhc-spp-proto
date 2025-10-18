@@ -19,17 +19,22 @@
 
 	let {
 		availableServices,
-		selectedServices,
-		serviceRoles,
+		selectedServices = $bindable([]),
+		serviceRoles = $bindable({}),
 		isLoadingServices,
 		currentOrgId,
 		isDraftMode
 	}: Props = $props();
 
-	function toggleService(service: string) {
-		dispatch('toggleService', service);
-	}
+	$effect(() => {
+		console.log('🔍 Step3Services - selectedServices:', selectedServices);
+		console.log('🔍 Step3Services - selectedServices type:', typeof selectedServices);
+		console.log('🔍 Step3Services - selectedServices isArray:', Array.isArray(selectedServices));
+		console.log("Service roles:", serviceRoles);
+	});
 
+
+	// Debug logging
 	function toggleRole(serviceName: string) {
 		dispatch('toggleRole', serviceName);
 	}
@@ -120,8 +125,8 @@
 					<label class="flex items-center cursor-pointer flex-1">
 						<input
 							type="checkbox"
-							checked={selectedServices.includes(service.name)}
-							onchange={() => toggleService(service.name)}
+							bind:group={selectedServices}
+							value={service.name}
 							class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
 						/>
 						<span class="ml-3 text-sm font-medium text-gray-900">{service.name}</span>

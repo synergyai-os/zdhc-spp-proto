@@ -61,6 +61,127 @@ export async function saveExpertProfile(
   }
 }
 
+export async function saveExpertProfileWithServices(
+  client: ConvexClient,
+  params: {
+    cvId: Id<'expertCVs'>;
+    experience: any[];
+    education: any[];
+    userSelectedServices: string[];
+    userServiceRoles: Record<string, 'lead' | 'regular'>;
+    existingServiceAssignments: ServiceAssignment[];
+    serviceVersionsData: ServiceVersion[];
+    userId: string;
+    validOrgId: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Save CV data first
+    const cvResult = await saveExpertProfile(client, {
+      cvId: params.cvId,
+      experience: params.experience,
+      education: params.education
+    });
+
+    if (!cvResult.success) {
+      return cvResult;
+    }
+
+    // 2. Check if there are service changes
+    console.log('🔍 Checking for service changes...');
+    console.log('🔍 User selected services:', params.userSelectedServices);
+    console.log('🔍 Existing assignments:', params.existingServiceAssignments);
+    console.log('🔍 Service versions data:', params.serviceVersionsData);
+    
+    const hasServiceChanges = checkForServiceChanges(
+      params.userSelectedServices,
+      params.userServiceRoles,
+      params.existingServiceAssignments,
+      params.serviceVersionsData
+    );
+
+    console.log('🔍 Has service changes:', hasServiceChanges);
+
+    if (!hasServiceChanges) {
+      console.log('No service changes detected, skipping service sync');
+      return { success: true };
+    }
+
+    // 3. Sync service assignments if there are changes
+    const serviceResult = await syncServiceAssignments(client, {
+      currentCVData: { _id: params.cvId },
+      userId: params.userId,
+      validOrgId: params.validOrgId,
+      userSelectedServices: params.userSelectedServices,
+      userServiceRoles: params.userServiceRoles,
+      existingServiceAssignments: params.existingServiceAssignments,
+      serviceVersionsData: params.serviceVersionsData
+    });
+
+    return serviceResult;
+  } catch (error) {
+    console.error('Error saving expert profile with services:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An error occurred while saving'
+    };
+  }
+}
+
+// Helper function to check if services have changed
+function checkForServiceChanges(
+  userSelectedServices: string[],
+  userServiceRoles: Record<string, 'lead' | 'regular'>,
+  existingServiceAssignments: ServiceAssignment[],
+  serviceVersionsData: ServiceVersion[]
+): boolean {
+  console.log('🫥 checkForServiceChanges - Input data:');
+  console.log('  - userSelectedServices:', userSelectedServices);
+  console.log('  - userServiceRoles:', userServiceRoles);
+  console.log('  - existingServiceAssignments:', existingServiceAssignments);
+  console.log('  - serviceVersionsData length:', serviceVersionsData.length);
+  
+  // Get current service names from existing assignments
+  const currentServices = existingServiceAssignments
+    .filter(assignment => assignment.status !== 'inactive')
+    .map(assignment => {
+      const serviceVersion = serviceVersionsData.find(
+        version => version._id === assignment.serviceVersionId
+      );
+      return serviceVersion?.name || '';
+    })
+    .filter(Boolean);
+  
+  console.log('🫥 Current services from DB:', currentServices);
+  
+  // Check if selected services match existing services
+  const servicesChanged = 
+    userSelectedServices.length !== currentServices.length ||
+    !userSelectedServices.every(service => currentServices.includes(service));
+  
+  console.log('🫥 Services changed:', servicesChanged);
+  console.log('  - Length match:', userSelectedServices.length === currentServices.length);
+  console.log('  - All services match:', userSelectedServices.every(service => currentServices.includes(service)));
+  
+  // Check if roles have changed
+  const rolesChanged = existingServiceAssignments.some(assignment => {
+    const serviceVersion = serviceVersionsData.find(
+      version => version._id === assignment.serviceVersionId
+    );
+    const serviceName = serviceVersion?.name;
+    if (!serviceName) return false;
+    
+    const currentRole = assignment.role;
+    const newRole = userServiceRoles[serviceName];
+    return newRole && newRole !== currentRole;
+  });
+
+  console.log('🫥 Roles changed:', rolesChanged);
+  console.log('🫥 Final result (servicesChanged || rolesChanged):', servicesChanged || rolesChanged);
+
+  return servicesChanged || rolesChanged;
+}
+
 export async function syncServiceAssignments(
   client: ConvexClient,
   params: ServiceAssignmentSyncParams
