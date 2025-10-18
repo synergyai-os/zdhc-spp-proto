@@ -104,7 +104,8 @@ export const addService = mutation({
 		cvId: v.id('expertCVs'),
 		userId: v.id('users'),
 		organizationId: v.id('organizations'),
-		serviceVersionId: v.id('serviceVersions')
+		serviceVersionId: v.id('serviceVersions'),
+		role: v.optional(v.union(v.literal('lead'), v.literal('regular')))
 	},
 	handler: async (ctx, args) => {
 		// 1. Verify the CV exists and belongs to this user/org (security check)
@@ -137,7 +138,7 @@ export const addService = mutation({
 			organizationId: args.organizationId,
 			expertCVId: args.cvId,
 			serviceVersionId: args.serviceVersionId,
-			role: 'regular', // Default role
+			role: args.role || 'regular', // Use provided role or default to 'regular'
 			status: 'pending_review', // Default status
 			createdAt: Date.now(),
 			assignedBy: 'user' // TODO: Get actual user ID
@@ -191,6 +192,35 @@ export const removeService = mutation({
 
 		// 3. Delete the assignment
 		await ctx.db.delete(assignment._id);
+
+		return { success: true };
+	}
+});
+
+/**
+ * Update the role of an existing service assignment
+ * 
+ * What it does:
+ * 1. Verifies the assignment exists and belongs to the user/org (security)
+ * 2. Updates the role field
+ * 3. Returns success confirmation
+ * 
+ * Usage: Used when user changes role dropdown
+ */
+export const updateServiceRole = mutation({
+	args: {
+		assignmentId: v.id('expertServiceAssignments'),
+		newRole: v.union(v.literal('lead'), v.literal('regular'))
+	},
+	handler: async (ctx, args) => {
+		// 1. Verify the assignment exists
+		const assignment = await ctx.db.get(args.assignmentId);
+		if (!assignment) {
+			throw new Error('Service assignment not found');
+		}
+
+		// 2. Update the role
+		await ctx.db.patch(args.assignmentId, { role: args.newRole });
 
 		return { success: true };
 	}

@@ -30,6 +30,13 @@
 	// 2. STATE
 	// ==========================================
 	let selectedServices = $derived(getSelectedServiceIds());
+	let serviceRoles = $derived.by(() => {
+		if (!assignedServices?.data) return {};
+		return Object.fromEntries(
+			assignedServices.data.map((a: any) => [a.serviceVersionId, a.role])
+		);
+	});
+	let roleChanges = $state({}); // Track user role changes
 	let isSaving = $state(false);
 	let saveError = $state(null);
 	
@@ -63,15 +70,27 @@
 	function analyzeServiceChanges() {
 		const current = assignedServices?.data || [];
 		const selected = selectedServices;
+		const roles = serviceRoles;
+		const changes = roleChanges;
 		
-		// Convert current assignments to service IDs for comparison
+		// Extract complex logic to variables for readability
 		const currentServiceIds = current.map((assignment: any) => assignment.serviceVersionId);
 		
-		return {
-			toAdd: selected.filter((id: any) => !currentServiceIds.includes(id)),
-			toRemove: currentServiceIds.filter((id: any) => !selected.includes(id)),
-			toUpdate: [] // Skip role updates for now
-		};
+		const toAdd = selected.filter((id: any) => !currentServiceIds.includes(id));
+		const toRemove = currentServiceIds.filter((id: any) => !selected.includes(id));
+		
+		// Simple role update logic - use user changes
+		const roleUpdates = current.filter((assignment: any) => {
+			const serviceId = assignment.serviceVersionId;
+			return (changes as any)[serviceId] && (changes as any)[serviceId] !== assignment.role;
+		});
+		
+		const toUpdate = roleUpdates.map((assignment: any) => ({
+			assignmentId: assignment._id,
+			newRole: (changes as any)[assignment.serviceVersionId]
+		}));
+		
+		return { toAdd, toRemove, toUpdate };
 	}
 	
 	// Action functions for save logic
@@ -80,11 +99,15 @@
 			throw new Error('No CV data available');
 		}
 		
+		// Get the role from roleChanges or default to 'regular'
+		const role = (roleChanges as any)[serviceId] || 'regular';
+		
 		return client.mutation(api.expert.addService, {
 			cvId: expertCV.data._id as Id<'expertCVs'>,
 			userId: expertId as Id<'users'>,
 			organizationId: orgId as Id<'organizations'>,
-			serviceVersionId: serviceId as Id<'serviceVersions'>
+			serviceVersionId: serviceId as Id<'serviceVersions'>,
+			role: role as 'lead' | 'regular'
 		});
 	}
 	
@@ -101,6 +124,13 @@
 		});
 	}
 	
+	async function updateServiceRole(assignmentId: string, newRole: string) {
+		return client.mutation(api.expert.updateServiceRole, {
+			assignmentId: assignmentId as Id<'expertServiceAssignments'>,
+			newRole: newRole as 'lead' | 'regular'
+		});
+	}
+	
 	async function save() {
 		isSaving = true;
 		saveError = null;
@@ -111,6 +141,8 @@
 			console.log('📊 Changes to make:', changes);
 			console.log('Current assigned services:', assignedServices?.data);
 			console.log('User selected services:', selectedServices);
+			console.log('Current service roles:', serviceRoles);
+			console.log('Role changes:', roleChanges);
 			
 			// Step 2: Execute the changes
 			if (changes.toAdd.length > 0) {
@@ -129,7 +161,15 @@
 				}
 			}
 			
-			if (changes.toAdd.length === 0 && changes.toRemove.length === 0) {
+			if (changes.toUpdate.length > 0) {
+				console.log('🔄 Updating roles:', changes.toUpdate);
+				for (const update of changes.toUpdate) {
+					await updateServiceRole(update.assignmentId, update.newRole);
+					console.log(`✅ Updated role: ${update.assignmentId} → ${update.newRole}`);
+				}
+			}
+			
+			if (changes.toAdd.length === 0 && changes.toRemove.length === 0 && changes.toUpdate.length === 0) {
 				console.log('✅ No changes needed');
 			}
 			
@@ -146,6 +186,15 @@
 	function handleError(error: any) {
 		saveError = error.message;
 		console.error('❌ Error:', error);
+	}
+	
+	// Role management handler - track user changes
+	function handleRoleChange(serviceId: string, newRole: string) {
+		console.log('🎭 Role change:', { serviceId, newRole });
+		// Track the role change for saving
+		(roleChanges as any)[serviceId] = newRole;
+		// Trigger reactivity
+		roleChanges = { ...roleChanges };
 	}
 
 
@@ -182,6 +231,15 @@
 			error: availableServices?.error
 		});
 		console.log('🔍 Selected Services:', selectedServices);
+		console.log('🎭 Service Roles (derived):', serviceRoles);
+		console.log('🔍 Assigned Services Data:', assignedServices?.data);
+		
+		// Debug: Check if roles are being set correctly
+		if (assignedServices?.data) {
+			assignedServices.data.forEach((assignment: any) => {
+				console.log(`🔍 Assignment: ${assignment.serviceVersionId} → Role: ${assignment.role}`);
+			});
+		}
 	});
 </script>
 
@@ -247,35 +305,53 @@
 				{:else if availableServices?.error}
 					<p class="text-red-500">Error loading services: {availableServices.error}</p>
 				{:else if availableServices?.data && availableServices.data.length > 0}
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-						{#each availableServices.data as service}
-							<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-								<div class="flex items-start space-x-3">
-									<input 
-										type="checkbox" 
-										id="service-{service._id}"
-										bind:group={selectedServices}
-										value={service._id}
-										class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-									/>
-									<div class="flex-1">
-										<label for="service-{service._id}" class="block cursor-pointer">
-											<h4 class="text-sm font-semibold text-gray-800">{service.name}</h4>
-											<p class="text-xs text-gray-600 mt-1">{service.description}</p>
-											<div class="flex items-center space-x-2 mt-2">
-												<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-													{service.version}
-							</span>
-												{#if service.serviceParent}
-													<span class="text-xs text-gray-500">{service.serviceParent.name}</span>
-												{/if}
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{#each availableServices.data as service}
+									<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+										<div class="flex items-start space-x-3">
+											<input 
+												type="checkbox" 
+												id="service-{service._id}"
+												bind:group={selectedServices}
+												value={service._id}
+												class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+											/>
+											<div class="flex-1">
+												<label for="service-{service._id}" class="block cursor-pointer">
+													<h4 class="text-sm font-semibold text-gray-800">{service.name}</h4>
+													<p class="text-xs text-gray-600 mt-1">{service.description}</p>
+													<div class="flex items-center space-x-2 mt-2">
+														<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+															{service.version}
+														</span>
+														{#if service.serviceParent}
+															<span class="text-xs text-gray-500">{service.serviceParent.name}</span>
+														{/if}
 						</div>
-										</label>
+												</label>
 					</div>
+											<!-- Role Dropdown - Only show when service is selected -->
+											{#if selectedServices.includes(service._id)}
+												<div class="ml-4 flex-shrink-0">
+													<select 
+														class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] shadow-sm"
+														onchange={(e) => handleRoleChange(service._id, (e.target as HTMLSelectElement).value)}
+														value={(roleChanges as any)[service._id] || (serviceRoles as any)[service._id] || 'regular'}
+													>
+														<!-- Debug: Log what's happening with this service -->
+														{console.log(`🔍 Service ${service._id}: serviceRoles[${service._id}] = ${(serviceRoles as any)[service._id] || 'undefined'}`)}
+														<option value="regular">Regular</option>
+														<option value="lead">Lead</option>
+													</select>
+				</div>
+											{:else}
+												<!-- Placeholder for consistent layout -->
+												<div class="ml-4 flex-shrink-0 w-[100px]"></div>
+			{/if}
 				</div>
 			</div>
-						{/each}
-					</div>
+								{/each}
+				</div>
 				{:else}
 					<p class="text-gray-500">No available services found for this organization</p>
 			{/if}
