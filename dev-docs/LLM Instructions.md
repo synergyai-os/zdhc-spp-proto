@@ -290,16 +290,34 @@ src/
    };
    ```
 
-5. **Convex conditional queries**: Use fallback IDs instead of "skip" or undefined:
+5. **Convex conditional queries**: Use dummy fallback IDs instead of "skip" or undefined:
    ```typescript
-   // ✅ CORRECT - Use fallback organization ID
-   const expertCVs = useQuery(
-     api.expertCVs.getExpertCVs,
-     () => currentOrgId ? { organizationId: currentOrgId } : { organizationId: 'fallback-id' }
-   );
+   // ✅ CORRECT - Use dummy fallback ID when data unavailable
+   const serviceAssignments = useQuery(api.expert.getServicesByCV, () => {
+     if (!cvData?.data) {
+       return {
+         cvId: 'dummy' as Id<'expertCVs'>, // Dummy ID that returns empty
+         userId: expertId as Id<'users'>,
+         organizationId: orgId as Id<'organizations'>
+       };
+     }
+     return {
+       cvId: cvData.data._id as Id<'expertCVs'>, // Real ID when data available
+       userId: expertId as Id<'users'>,
+       organizationId: orgId as Id<'organizations'>
+     };
+   });
    
    // ❌ WRONG - "skip" not supported by convex-svelte
-   const expertCVs = useQuery(api.expertCVs.getExpertCVs, () => "skip");
+   const serviceAssignments = useQuery(api.expert.getServicesByCV, () => "skip");
+   
+   // ❌ WRONG - undefined causes "undefined is not a valid Convex value" error
+   const serviceAssignments = useQuery(api.expert.getServicesByCV, () => undefined);
+   
+   // ❌ WRONG - Conditional useQuery calls break Svelte reactivity
+   const serviceAssignments = cvData?.data 
+     ? useQuery(api.expert.getServicesByCV, () => ({...}))
+     : { isLoading: true, data: undefined, error: undefined };
    ```
 
 6. **Organization validation**: Include validate getter for component validation:
@@ -723,6 +741,63 @@ Checkout Flow → Submit ExpertCV + Update ServiceAssignments → Payment → Re
 4. Provide user feedback
 5. Handle success/error states
 
+### Promise Chain Management Patterns
+
+**CRITICAL**: When dealing with dependent queries in Convex-Svelte applications:
+
+1. **Promise Chain Problem**:
+   ```typescript
+   // ❌ PROBLEM: Second query runs before first query completes
+   const cvData = useQuery(api.expert.getLatestCV, () => ({...}));
+   const serviceAssignments = useQuery(api.expert.getServicesByCV, () => ({
+     cvId: cvData.data._id // ❌ cvData.data is undefined initially!
+   }));
+   ```
+
+2. **Dummy Fallback Pattern**:
+   ```typescript
+   // ✅ SOLUTION: Always provide valid arguments, use dummy when data unavailable
+   const serviceAssignments = useQuery(api.expert.getServicesByCV, () => {
+     if (!cvData?.data) {
+       return {
+         cvId: 'dummy' as Id<'expertCVs'>, // Backend returns empty array
+         userId: expertId as Id<'users'>,
+         organizationId: orgId as Id<'organizations'>
+       };
+     }
+     return {
+       cvId: cvData.data._id as Id<'expertCVs'>, // Real data when available
+       userId: expertId as Id<'users'>,
+       organizationId: orgId as Id<'organizations'>
+     };
+   });
+   ```
+
+3. **UI Conditional Rendering**:
+   ```svelte
+   <!-- Only show data when real CV exists -->
+   {#if serviceAssignments?.data && serviceAssignments.data.length > 0 && cvData?.data}
+     <!-- Show service assignments -->
+   {:else}
+     <p>No service assignments found</p>
+   {/if}
+   ```
+
+4. **Backend Dummy Handling**:
+   ```typescript
+   // Backend should handle dummy IDs gracefully
+   export const getServicesByCV = query({
+     handler: async (ctx, args) => {
+       // Dummy ID will not match any real CV, returns empty array
+       const cv = await ctx.db.get(args.cvId);
+       if (!cv || args.cvId === 'dummy') {
+         return []; // Return empty array for dummy requests
+       }
+       // ... rest of logic
+     }
+   });
+   ```
+
 ### Data Flow Debugging Patterns
 
 When debugging data flow issues in Svelte 5 + Convex applications:
@@ -842,6 +917,91 @@ When debugging data flow issues in Svelte 5 + Convex applications:
 - **Draft vs Submitted Validation** - Allow saving draft CVs without validation, enforce validation only on submission
 - **Comprehensive Error Handling** - Return structured error responses from model layer with specific error messages
 - **Type-Safe Business Logic** - Full TypeScript interfaces for all model layer functions and validation
+- **Promise Chain Management** - Use dummy fallback IDs for dependent queries instead of conditional useQuery calls
+- **Convex-Svelte Conditional Queries** - Always call useQuery with valid arguments, use dummy IDs when data unavailable
+- **Data Enrichment Pattern** - Enrich backend queries with related data (service names, descriptions) for better UX
+- **Table Name Verification** - Always verify correct table names in Convex schema before writing queries
+- **Service Assignment Save Pattern** - Clean separation of analysis, actions, and execution for service assignment management
+- **Backend Security Validation** - Always verify CV ownership before allowing service assignment modifications
+- **Micro-Step Implementation** - Break complex save operations into analysis → backend functions → execution steps
+
+### Service Assignment Save Pattern (NEW)
+
+**CRITICAL**: When implementing service assignment save functionality, follow this proven pattern:
+
+1. **Analysis Function**:
+   ```typescript
+   function analyzeServiceChanges() {
+     const current = assignedServices?.data || [];
+     const selected = selectedServices;
+     
+     const currentServiceIds = current.map((assignment: any) => assignment.serviceVersionId);
+     
+     return {
+       toAdd: selected.filter((id: any) => !currentServiceIds.includes(id)),
+       toRemove: currentServiceIds.filter((id: any) => !selected.includes(id)),
+       toUpdate: [] // Skip role updates for now
+     };
+   }
+   ```
+
+2. **Backend Functions** (in `src/convex/expert.ts`):
+   ```typescript
+   export const addService = mutation({
+     args: {
+       cvId: v.id('expertCVs'),
+       userId: v.id('users'),
+       organizationId: v.id('organizations'),
+       serviceVersionId: v.id('serviceVersions')
+     },
+     handler: async (ctx, args) => {
+       // 1. Verify CV ownership (security)
+       // 2. Check for duplicates
+       // 3. Create assignment
+     }
+   });
+   
+   export const removeService = mutation({
+     // Similar pattern for removal
+   });
+   ```
+
+3. **Frontend Action Functions**:
+   ```typescript
+   async function addServiceAssignment(serviceId: string) {
+     return client.mutation(api.expert.addService, {
+       cvId: expertCV.data._id as Id<'expertCVs'>,
+       userId: expertId as Id<'users'>,
+       organizationId: orgId as Id<'organizations'>,
+       serviceVersionId: serviceId as Id<'serviceVersions'>
+     });
+   }
+   ```
+
+4. **Save Execution**:
+   ```typescript
+   async function save() {
+     const changes = analyzeServiceChanges();
+     
+     // Execute additions
+     for (const serviceId of changes.toAdd) {
+       await addServiceAssignment(serviceId);
+     }
+     
+     // Execute removals
+     for (const serviceId of changes.toRemove) {
+       await removeServiceAssignment(serviceId);
+     }
+   }
+   ```
+
+5. **Benefits of This Pattern**:
+   - ✅ **Clear Separation** - Analysis, backend, and execution are distinct
+   - ✅ **Security First** - CV ownership verified before any modifications
+   - ✅ **Error Handling** - Each step can fail independently with clear messages
+   - ✅ **Debugging** - Console logs at each step for troubleshooting
+   - ✅ **Type Safety** - Proper TypeScript types throughout
+   - ✅ **Testable** - Each function can be tested independently
 
 ### User Preferences (Important!)
 
@@ -859,5 +1019,5 @@ When debugging data flow issues in Svelte 5 + Convex applications:
 ---
 
 **Last Updated**: January 2025
-**Version**: 2.2 - Model Layer Pattern & Expert CV Refactoring
+**Version**: 2.4 - Service Assignment Save Pattern & Micro-Step Implementation
 **Maintainer**: Development Team

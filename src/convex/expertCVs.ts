@@ -66,16 +66,7 @@ export const getExpertCVById = query({
 	}
 });
 
-export const getLatestExpertCV = query({
-	args: {
-		userId: v.id('users'),
-		organizationId: v.id('organizations')
-	},
-	handler: async (ctx, args) => {
-		// Use model layer for business logic
-		return await ExpertCVs.getLatestExpertCV(ctx, args.userId, args.organizationId);
-	}
-});
+
 
 export const getExpertCVHistory = query({
 	args: {
