@@ -217,7 +217,17 @@
 		saveError = null;
 		
 		try {
-			// Step 1: Analyze what changes need to be made
+			// Step 1: Save CV data changes FIRST (experience/education)
+			if (localCVData) {
+				await client.mutation(api.expert.updateCV, {
+					cvId: localCVData._id,
+					organizationId: orgId as Id<'organizations'>,
+					experience: localCVData.experience,
+					education: localCVData.education
+				});
+			}
+			
+			// Step 2: Analyze what changes need to be made
 			const changes = analyzeServiceChanges();
 			console.log('📊 Changes to make:', changes);
 			console.log('Current assigned services:', assignedServices?.data);
@@ -225,7 +235,7 @@
 			console.log('Current service roles:', serviceRoles);
 			console.log('Role changes:', roleChanges);
 			
-			// Step 1.5: Log CV status and validation (NEW)
+			// Step 3: Log CV status and validation (NEW)
 			console.log('🎯 CV Status:', expertCV?.data?.status);
 			console.log('🎯 Can edit services:', canEditServices(expertCV?.data?.status || 'draft'));
 			console.log('🎯 Can edit CV content:', canEditCVContent(expertCV?.data?.status || 'draft'));
@@ -242,34 +252,26 @@
 				console.log('🎯 Education length:', localCVData.education?.length);
 				console.log('🎯 Service assignments length:', assignedServices?.data?.length || 0);
 				
-			// Step 1.7: Handle status transitions based on validation
-			const currentStatus = expertCV?.data?.status;
-			
-			if (currentStatus === 'draft' && validation.isValid) {
-				// Draft → Completed: CV is now complete
-				console.log('🚀 Auto-transitioning: draft → completed');
-				await client.mutation(api.expert.updateCVStatus, {
-					cvId: localCVData._id,
-					newStatus: 'completed'
-				});
-				console.log('✅ Status updated to completed');
-			} else if (currentStatus === 'completed' && !validation.isValid) {
-				// Completed → Draft: CV is no longer complete (e.g., removed all education)
-				console.log('🚀 Auto-transitioning: completed → draft (CV no longer complete)');
-				await client.mutation(api.expert.updateCVStatus, {
-					cvId: localCVData._id,
-					newStatus: 'draft'
-				});
-				console.log('✅ Status reverted to draft');
-			} else if (currentStatus === 'unlocked_for_edits' && !validation.isValid) {
-				// Unlocked for edits → Draft: CV is no longer complete after edits
-				console.log('🚀 Auto-transitioning: unlocked_for_edits → draft (CV no longer complete)');
-				await client.mutation(api.expert.updateCVStatus, {
-					cvId: localCVData._id,
-					newStatus: 'draft'
-				});
-				console.log('✅ Status reverted to draft');
-			}
+				// Step 4: Handle status transitions based on validation
+				const currentStatus = expertCV?.data?.status;
+				
+				if (currentStatus === 'draft' && validation.isValid) {
+					// Draft → Completed: CV is now complete
+					console.log('🚀 Auto-transitioning: draft → completed');
+					await client.mutation(api.expert.updateCVStatus, {
+						cvId: localCVData._id,
+						newStatus: 'completed'
+					});
+					console.log('✅ Status updated to completed');
+				} else if (currentStatus === 'completed' && !validation.isValid) {
+					// Completed → Draft: CV is no longer complete (e.g., removed all education)
+					console.log('🚀 Auto-transitioning: completed → draft (CV no longer complete)');
+					await client.mutation(api.expert.updateCVStatus, {
+						cvId: localCVData._id,
+						newStatus: 'draft'
+					});
+					console.log('✅ Status reverted to draft');
+				}
 			}
 			
 			// Step 1.6: Check if service editing is allowed (NEW)
@@ -307,18 +309,6 @@
 			}
 			} else {
 				console.log('🚫 Service editing not allowed - skipping service changes');
-			}
-			
-			// Step 3: Save CV data changes (experience/education)
-			if (localCVData) {
-				console.log('💾 Saving CV data changes...');
-				await client.mutation(api.expert.updateCV, {
-					cvId: localCVData._id,
-					organizationId: orgId as Id<'organizations'>,
-					experience: localCVData.experience,
-					education: localCVData.education
-				});
-				console.log('✅ CV data saved');
 			}
 			
 			console.log('🎉 Save completed successfully!');
