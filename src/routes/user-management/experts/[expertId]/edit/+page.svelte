@@ -218,6 +218,9 @@
 		
 		try {
 			// Step 1: Save CV data changes FIRST (experience/education)
+			// NOTE: We save before validation for better UX in prototype, but this means
+			// we might temporarily save invalid data to the database before correcting the status.
+			// For production, consider validating first to maintain data integrity.
 			if (localCVData) {
 				await client.mutation(api.expert.updateCV, {
 					cvId: localCVData._id,

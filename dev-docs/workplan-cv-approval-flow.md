@@ -417,6 +417,13 @@ export function canEditCVContent(status: string): boolean
 - **Validation warnings needed**: Users should be warned before making changes that affect status
 - **Status transitions implemented**: `draft ↔ completed` only (safe transitions)
 
+### **⚠️ Data Integrity Concerns (Prototype vs Production)**
+- **Current approach**: Save data → Validate → Update status
+- **Risk**: Database may temporarily contain invalid data before status correction
+- **Prototype**: Acceptable for UX testing and rapid development
+- **Production**: Should validate first to maintain data integrity
+- **Mitigation**: Status field acts as data validity indicator
+
 ---
 
 ## 🔧 **IMPLEMENTATION PHASES**
@@ -613,6 +620,50 @@ interface StatusChangeLog {
 - [ ] Complete CV workflow
 - [ ] Admin review process
 - [ ] Error scenarios
+
+---
+
+## 🏭 **PRODUCTION CONSIDERATIONS**
+
+### **Data Integrity & Validation**
+- **Current Risk**: Save → Validate → Status approach may save invalid data temporarily
+- **Production Fix**: Implement Validate → Save → Status for data integrity
+- **Business Impact**: Invalid data in database could affect reporting and compliance
+- **Mitigation**: Status field indicates data validity, but consider validation-first approach
+
+### **Performance & Scalability**
+- **Convex Queries**: Monitor query performance as user base grows
+- **Real-time Updates**: Ensure status changes propagate quickly across all clients
+- **Caching**: Consider caching strategies for frequently accessed CV data
+- **Rate Limiting**: Implement save operation rate limiting to prevent abuse
+
+### **Security & Compliance**
+- **Data Validation**: Server-side validation required (client-side can be bypassed)
+- **Audit Logging**: Complete audit trail for all status changes and data modifications
+- **Access Control**: Implement proper user permissions beyond organization-level checks
+- **Data Retention**: Define policies for CV data retention and deletion
+- **GDPR Compliance**: Handle user data deletion and export requests
+
+### **Business Rules & Edge Cases**
+- **Payment Refunds**: Define process for handling payment refunds and status reversion
+- **Concurrent Edits**: Handle multiple users editing same CV simultaneously
+- **Data Migration**: Plan for schema changes and data migration strategies
+- **Backup & Recovery**: Implement robust backup and disaster recovery procedures
+- **Monitoring**: Set up alerts for failed status transitions and data inconsistencies
+
+### **User Experience**
+- **Validation Notifications**: Implement all warning modals and confirmations
+- **Error Handling**: Graceful error messages for all failure scenarios
+- **Loading States**: Clear loading indicators for all async operations
+- **Mobile Optimization**: Ensure full functionality on mobile devices
+- **Accessibility**: WCAG compliance for all UI components
+
+### **Testing & Quality Assurance**
+- **Unit Tests**: Comprehensive test coverage for all validation functions
+- **Integration Tests**: End-to-end testing of complete CV workflow
+- **Load Testing**: Performance testing under high user load
+- **Security Testing**: Penetration testing and vulnerability assessments
+- **User Acceptance Testing**: Real user testing of complete workflows
 
 ---
 
