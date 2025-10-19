@@ -268,13 +268,12 @@ export const updateCV = mutation({
 			description: v.optional(v.string())
 		}))),
 		education: v.optional(v.array(v.object({
-			institution: v.string(),
+			school: v.string(),
 			degree: v.string(),
-			field: v.optional(v.string()),
+			field: v.string(),
 			startDate: v.string(),
-			endDate: v.optional(v.string()),
-			current: v.boolean(),
-			description: v.optional(v.string())
+			endDate: v.string(),
+			description: v.string()
 		})))
 	},
 	handler: async (ctx, args) => {

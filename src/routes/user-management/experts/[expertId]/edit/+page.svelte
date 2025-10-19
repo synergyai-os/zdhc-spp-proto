@@ -89,12 +89,11 @@
 	function addEducation() {
 		if (!localCVData) return;
 		const newEducation = {
-			institution: '',
+			school: '',
 			degree: '',
 			field: '',
 			startDate: '',
 			endDate: '',
-			current: false,
 			description: ''
 		};
 		localCVData.education = [...(localCVData.education || []), newEducation];
@@ -639,8 +638,8 @@
 											<label class="block text-sm font-medium text-gray-700 mb-1">Institution *</label>
 											<input
 												type="text"
-												value={entry.institution}
-												oninput={(e) => updateEducation(index, 'institution', e.currentTarget.value)}
+												value={entry.school}
+												oninput={(e) => updateEducation(index, 'school', e.currentTarget.value)}
 												class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 												placeholder="e.g., University of Amsterdam"
 											/>
