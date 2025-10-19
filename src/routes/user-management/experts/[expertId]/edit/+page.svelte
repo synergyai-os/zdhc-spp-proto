@@ -31,7 +31,25 @@
 	// ==========================================
 	// 2. STATE
 	// ==========================================
-	let selectedServices = $derived(getSelectedServiceIds());
+	// UI state for tracking user selections (independent of database state)
+	let uiSelectedServices = $state<string[]>([]);
+	
+	// Combined initialization effect: UI selections + first group auto-expand
+	$effect(() => {
+		// Initialize UI selections from database when data loads
+		if (assignedServices?.data && uiSelectedServices.length === 0) {
+			uiSelectedServices = getSelectedServiceIds();
+		}
+		
+		// Auto-expand first group when services are loaded
+		if (Object.keys(groupedServices).length > 0 && expandedGroup === null) {
+			const firstGroupName = Object.keys(groupedServices)[0];
+			expandedGroup = firstGroupName;
+		}
+	});
+	
+	// Use UI selections for all UI interactions
+	let selectedServices = $derived(uiSelectedServices);
 	let serviceRoles = $derived.by(() => {
 		if (!assignedServices?.data) return {};
 		return Object.fromEntries(
@@ -48,6 +66,9 @@
 	// Toggle switcher state
 	let activeTab = $state<'services' | 'cv-details'>('services');
 	
+	// Group expand/collapse state - only one group open at a time
+	let expandedGroup = $state<string | null>(null);
+	
 	// Sync with query data when it becomes available
 	$effect(() => {
 		if (expertCV?.data) {
@@ -57,6 +78,23 @@
 	
 	// Reactive pricing calculation using utility function
 	let pricing = $derived(calculateServicePricing(selectedServices.length));
+	
+	// Group services by serviceParent
+	let groupedServices = $derived.by(() => {
+		if (!availableServices?.data) return {};
+		
+		return availableServices.data.reduce((groups: any, service: any) => {
+			const parentName = service.serviceParent?.name || 'Other';
+			if (!groups[parentName]) {
+				groups[parentName] = {
+					parent: service.serviceParent,
+					services: []
+				};
+			}
+			groups[parentName].services.push(service);
+			return groups;
+		}, {});
+	});
 	
 	// ==========================================
 	// 2. FUNCTIONS
@@ -149,11 +187,42 @@
 		return assignedServices.data.map((assignment: any) => assignment.serviceVersionId);
 	}
 	
+	// Group management functions - accordion style
+	function toggleGroup(groupName: string) {
+		// If clicking the same group, close it. Otherwise, open the new group
+		expandedGroup = expandedGroup === groupName ? null : groupName;
+	}
+	
+	function isGroupExpanded(groupName: string) {
+		return expandedGroup === groupName;
+	}
+	
+	
+	function getSelectedCountInGroup(groupName: string) {
+		const groups = groupedServices;
+		const group = (groups as any)[groupName];
+		if (!group) return 0;
+		return group.services.filter((service: any) => selectedServices.includes(service._id)).length;
+	}
+	
+	// Handle individual service toggle
+	function handleServiceToggle(serviceId: string, isChecked: boolean) {
+		if (isChecked) {
+			// Add service if not already in array
+			if (!uiSelectedServices.includes(serviceId)) {
+				uiSelectedServices = [...uiSelectedServices, serviceId];
+			}
+		} else {
+			// Remove service from array
+			uiSelectedServices = uiSelectedServices.filter(id => id !== serviceId);
+		}
+	}
+	
 	
 	// Analysis function for save logic
 	function analyzeServiceChanges() {
 		const current = assignedServices?.data || [];
-		const selected = selectedServices;
+		const selected = uiSelectedServices; // Use UI state for comparison
 		const roles = serviceRoles;
 		const changes = roleChanges;
 		
@@ -237,7 +306,7 @@
 			const changes = analyzeServiceChanges();
 			console.log('📊 Changes to make:', changes);
 			console.log('Current assigned services:', assignedServices?.data);
-			console.log('User selected services:', selectedServices);
+			console.log('User selected services (UI):', uiSelectedServices);
 			console.log('Current service roles:', serviceRoles);
 			console.log('Role changes:', roleChanges);
 			
@@ -381,38 +450,6 @@
 	// ==========================================
 	// 3. EFFECTS & REACTIVE LOGIC
 	// ==========================================
-	
-	// Debug: Log the data to see what we're getting
-	$effect(() => {
-		console.log('🔍 Expert CV:', {
-			isLoading: expertCV?.isLoading,
-			hasData: !!expertCV?.data,
-			data: expertCV?.data,
-			error: expertCV?.error
-		});
-		console.log('🔍 Assigned Services:', {
-			isLoading: assignedServices?.isLoading,
-			hasData: !!assignedServices?.data,
-			data: assignedServices?.data,
-			error: assignedServices?.error
-		});
-		console.log('🔍 Available Services:', {
-			isLoading: availableServices?.isLoading,
-			hasData: !!availableServices?.data,
-			data: availableServices?.data,
-			error: availableServices?.error
-		});
-		console.log('🔍 Selected Services:', selectedServices);
-		console.log('🎭 Service Roles (derived):', serviceRoles);
-		console.log('🔍 Assigned Services Data:', assignedServices?.data);
-		
-		// Debug: Check if roles are being set correctly
-		if (assignedServices?.data) {
-			assignedServices.data.forEach((assignment: any) => {
-				console.log(`🔍 Assignment: ${assignment.serviceVersionId} → Role: ${assignment.role}`);
-			});
-		}
-	});
 </script>
 
 <!-- 5. Simple template -->
@@ -476,56 +513,93 @@
 					{:else if availableServices?.error}
 						<p class="text-red-500">Error loading services: {availableServices.error}</p>
 					{:else if availableServices?.data && availableServices.data.length > 0}
-								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-									{#each availableServices.data as service}
-										<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-											<div class="flex items-start space-x-3">
-												<input 
-													type="checkbox" 
-													id="service-{service._id}"
-													bind:group={selectedServices}
-													value={service._id}
-													class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-												/>
-												<div class="flex-1">
-													<label for="service-{service._id}" class="block cursor-pointer">
-														<h4 class="text-sm font-semibold text-gray-800">{service.name}</h4>
-														<p class="text-xs text-gray-600 mt-1">{service.description}</p>
-														<div class="flex items-center space-x-2 mt-2">
-															<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-																{service.version}
-															</span>
-															{#if service.serviceParent}
-																<span class="text-xs text-gray-500">{service.serviceParent.name}</span>
+						<div class="space-y-6">
+							{#each Object.entries(groupedServices) as [groupName, group]}
+								{@const groupData = group as any}
+								<div class="border border-gray-200 rounded-lg overflow-hidden">
+									<!-- Group Header -->
+									<button
+										onclick={() => toggleGroup(groupName)}
+										class="w-full bg-gray-50 hover:bg-gray-100 px-4 py-3 text-left transition-colors"
+									>
+										<div class="flex items-center justify-between">
+											<div class="flex items-center space-x-3">
+												<svg 
+													class="w-5 h-5 text-gray-500 transition-transform {isGroupExpanded(groupName) ? 'rotate-90' : ''}"
+													fill="none" 
+													stroke="currentColor" 
+													viewBox="0 0 24 24"
+												>
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+												</svg>
+												<div>
+													<h4 class="text-sm font-semibold text-gray-900">{groupName}</h4>
+													{#if groupData.parent?.description}
+														<p class="text-xs text-gray-600">{groupData.parent.description}</p>
+													{/if}
+												</div>
+											</div>
+											<div class="flex items-center space-x-2">
+												<span class="text-xs text-gray-500">
+													{getSelectedCountInGroup(groupName)}/{groupData.services.length} selected
+												</span>
+											</div>
+										</div>
+									</button>
+									
+									<!-- Group Services -->
+									{#if isGroupExpanded(groupName)}
+										<div class="p-4 bg-white">
+											<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+												{#each groupData.services as service}
+													<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+														<div class="flex items-start space-x-3">
+															<input 
+																type="checkbox" 
+																id="service-{service._id}"
+																checked={uiSelectedServices.includes(service._id)}
+																onchange={(e) => handleServiceToggle(service._id, e.currentTarget.checked)}
+																class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+															/>
+															<div class="flex-1">
+																<label for="service-{service._id}" class="block cursor-pointer">
+																	<h4 class="text-sm font-semibold text-gray-800">{service.name}</h4>
+																	<p class="text-xs text-gray-600 mt-1">{service.description}</p>
+																	<div class="flex items-center space-x-2 mt-2">
+																		<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+																			{service.version}
+																		</span>
+																	</div>
+																</label>
+															</div>
+															<!-- Role Dropdown - Only show when service is selected -->
+															{#if selectedServices.includes(service._id)}
+																<div class="ml-4 flex-shrink-0">
+																	<select 
+																		class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] shadow-sm"
+																		onchange={(e) => handleRoleChange(service._id, (e.target as HTMLSelectElement).value)}
+																		value={(roleChanges as any)[service._id] || (serviceRoles as any)[service._id] || 'regular'}
+																	>
+																		<option value="regular">Regular</option>
+																		<option value="lead">Lead</option>
+																	</select>
+																</div>
+															{:else}
+																<!-- Placeholder for consistent layout -->
+																<div class="ml-4 flex-shrink-0 w-[100px]"></div>
 															{/if}
-							</div>
-													</label>
+														</div>
+													</div>
+												{/each}
+											</div>
+										</div>
+									{/if}
+								</div>
+							{/each}
 						</div>
-												<!-- Role Dropdown - Only show when service is selected -->
-												{#if selectedServices.includes(service._id)}
-													<div class="ml-4 flex-shrink-0">
-														<select 
-															class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] shadow-sm"
-															onchange={(e) => handleRoleChange(service._id, (e.target as HTMLSelectElement).value)}
-															value={(roleChanges as any)[service._id] || (serviceRoles as any)[service._id] || 'regular'}
-														>
-															<!-- Debug: Log what's happening with this service -->
-															{console.log(`🔍 Service ${service._id}: serviceRoles[${service._id}] = ${(serviceRoles as any)[service._id] || 'undefined'}`)}
-															<option value="regular">Regular</option>
-															<option value="lead">Lead</option>
-														</select>
-					</div>
-												{:else}
-													<!-- Placeholder for consistent layout -->
-													<div class="ml-4 flex-shrink-0 w-[100px]"></div>
-				{/if}
-					</div>
-				</div>
-									{/each}
-					</div>
 					{:else}
 						<p class="text-gray-500">No available services found for this organization</p>
-				{/if}
+					{/if}
 				</div>
 
 				<!-- Pricing Summary -->
