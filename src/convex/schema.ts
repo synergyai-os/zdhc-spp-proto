@@ -113,11 +113,15 @@ export default defineSchema({
 			})
 		),
 
-		// Status Lifecycle: draft → submitted → locked
+		// Status Lifecycle: draft → completed → payment_pending → paid → locked_for_review → unlocked_for_edits → locked_final
 		status: v.union(
-			v.literal('draft'), // SPP Manager creating/editing
-			v.literal('submitted'), // Paid, under ZDHC review
-			v.literal('locked') // All services decided (approved/rejected), immutable
+			v.literal('draft'), // Incomplete, can edit freely
+			v.literal('completed'), // Complete, ready for payment
+			v.literal('payment_pending'), // Payment initiated, awaiting confirmation
+			v.literal('paid'), // Payment confirmed, triggers automation
+			v.literal('locked_for_review'), // Automation complete, reviewer working
+			v.literal('unlocked_for_edits'), // Reviewer returned it for edits
+			v.literal('locked_final') // Review complete, immutable
 		),
 
 		// Timestamps

@@ -1,24 +1,15 @@
 <script lang="ts">
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../../../convex/_generated/api';
-	import { organizationStore } from '$lib/stores/organization.svelte';
+	import { DEFAULT_ORG_ID } from '$lib/config';
 
-	// Organization context
-	let currentOrgId = $state<string | null>(null);
-	let orgContext = $derived($organizationStore);
-
-	// Update currentOrgId when organization changes
-	$effect(() => {
-		currentOrgId = orgContext.currentOrganization?._id || null;
-	});
+	// Using hardcoded organization ID
+	const currentOrgId = DEFAULT_ORG_ID;
 
 	// Get draft experts count for current organization (unique experts, not assignments)
 	const draftExperts = useQuery(
 		api.adminCVReview.getExpertsForCVReview,
-		() =>
-			currentOrgId
-				? { organizationId: currentOrgId as any, status: 'draft' as const }
-				: { organizationId: '' as any, status: 'draft' as const }
+		() => ({ organizationId: currentOrgId as any, status: 'draft' as const })
 	);
 
 	// Get expert name from URL params or localStorage
@@ -92,27 +83,25 @@
 		</div>
 
 		<!-- Draft Experts Info -->
-		{#if currentOrgId}
-			<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-				<div class="flex items-center">
-					<svg class="w-5 h-5 text-blue-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
-						<path
-							fill-rule="evenodd"
-							d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-					<div>
-						<p class="text-sm font-medium text-blue-800">
-							You have {draftCount} expert{draftCount !== 1 ? 's' : ''} in draft status
-						</p>
-						<p class="text-xs text-blue-700 mt-1">
-							{draftCount > 0 ? 'Ready for payment processing' : 'No pending payments'}
-						</p>
-					</div>
+		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+			<div class="flex items-center">
+				<svg class="w-5 h-5 text-blue-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+					<path
+						fill-rule="evenodd"
+						d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+						clip-rule="evenodd"
+					/>
+				</svg>
+				<div>
+					<p class="text-sm font-medium text-blue-800">
+						You have {draftCount} expert{draftCount !== 1 ? 's' : ''} in draft status
+					</p>
+					<p class="text-xs text-blue-700 mt-1">
+						{draftCount > 0 ? 'Ready for payment processing' : 'No pending payments'}
+					</p>
 				</div>
 			</div>
-		{/if}
+		</div>
 
 		<!-- Action Cards -->
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

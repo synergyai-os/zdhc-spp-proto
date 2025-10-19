@@ -1,24 +1,13 @@
 <script lang="ts">
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../convex/_generated/api';
-	import { organizationStore } from '$lib/stores/organization.svelte';
+	import { DEFAULT_ORG_ID } from '$lib/config';
 	import ToggleSwitch from '$lib/components/ToggleSwitch.svelte';
 
 	const client = useConvexClient();
 
-	// Get current organization from store
-	let currentOrg = $derived($organizationStore?.currentOrganization);
-	let currentOrgId = $derived(currentOrg?._id);
-
-	// Debug organization loading
-	$effect(() => {
-		console.log('=== ORGANIZATION DEBUG ===');
-		console.log('Organization store:', $organizationStore);
-		console.log('Current org:', currentOrg);
-		console.log('Current org ID:', currentOrgId);
-		console.log('Available orgs:', $organizationStore?.availableOrganizations);
-		console.log('========================');
-	});
+	// Using hardcoded organization ID
+	const currentOrgId = DEFAULT_ORG_ID;
 
 	// State
 	let isLoading = $state(false);
@@ -26,15 +15,12 @@
 	let successMessage = $state('');
 	let queryRefreshKey = $state(0);
 
-	// Fetch data - only when organization is selected
+	// Fetch data - using hardcoded organization ID
 	const serviceParents = useQuery((api as any).serviceVersions.getServiceParents, {});
 	const serviceVersions = useQuery((api as any).serviceVersions.getServiceVersions, {});
 	const organizationApprovals = useQuery(
 		(api as any).serviceVersions.getOrganizationApprovals,
-		() =>
-			currentOrgId
-				? { organizationId: currentOrgId, refreshKey: queryRefreshKey }
-				: { organizationId: '', refreshKey: queryRefreshKey }
+		() => ({ organizationId: currentOrgId, refreshKey: queryRefreshKey })
 	);
 
 	// Group service versions by parent with approval status
@@ -140,44 +126,22 @@
 	</div>
 
 	<!-- Current Organization Display -->
-	{#if currentOrg}
-		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-			<div class="flex items-center space-x-3">
-				<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-					/>
-				</svg>
-				<div>
-					<h2 class="text-lg font-semibold text-blue-900">Current Organization</h2>
-					<p class="text-blue-700">{currentOrg.name}</p>
-				</div>
+	<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+		<div class="flex items-center space-x-3">
+			<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+				/>
+			</svg>
+			<div>
+				<h2 class="text-lg font-semibold text-blue-900">Current Organization</h2>
+				<p class="text-blue-700">Using DEFAULT_ORG_ID: {currentOrgId}</p>
 			</div>
 		</div>
-	{:else}
-		<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-			<div class="flex items-center space-x-3">
-				<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-					/>
-				</svg>
-				<div>
-					<h2 class="text-lg font-semibold text-yellow-900">No Organization Selected</h2>
-					<p class="text-yellow-700">
-						Please select an organization from the dropdown in the header to manage service
-						approvals.
-					</p>
-				</div>
-			</div>
-		</div>
-	{/if}
+	</div>
 
 	<!-- Messages -->
 	{#if successMessage}
@@ -213,32 +177,12 @@
 	{/if}
 
 	<!-- Services Table -->
-	{#if !currentOrgId}
-		<div class="text-center py-12">
-			<svg
-				class="w-12 h-12 text-gray-300 mx-auto mb-4"
-				fill="none"
-				stroke="currentColor"
-				viewBox="0 0 24 24"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-				/>
-			</svg>
-			<h3 class="text-lg font-medium text-gray-900 mb-2">Select an Organization</h3>
-			<p class="text-gray-500">
-				Choose an organization from the dropdown above to manage service approvals.
-			</p>
-		</div>
-	{:else if serviceParents?.isLoading || serviceVersions?.isLoading || (currentOrgId && organizationApprovals?.isLoading)}
+	{#if serviceParents?.isLoading || serviceVersions?.isLoading || organizationApprovals?.isLoading}
 		<div class="text-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-			<p class="text-gray-500">Loading services for {currentOrg?.name}...</p>
+			<p class="text-gray-500">Loading services...</p>
 		</div>
-	{:else if serviceParents?.error || serviceVersions?.error || (currentOrgId && organizationApprovals?.error)}
+	{:else if serviceParents?.error || serviceVersions?.error || organizationApprovals?.error}
 		<div class="text-center py-12">
 			<svg
 				class="w-12 h-12 text-red-300 mx-auto mb-4"
@@ -257,7 +201,7 @@
 			<p class="text-gray-500 mb-4">
 				{serviceParents?.error ||
 					serviceVersions?.error ||
-					(currentOrgId && organizationApprovals?.error)}
+					organizationApprovals?.error}
 			</p>
 		</div>
 	{:else if !serviceParents?.data || !serviceVersions?.data}

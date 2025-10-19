@@ -2,15 +2,14 @@
 	import UserCard from '$lib/components/UserCard.svelte';
 	import ServiceBox from '$lib/components/ServiceBox.svelte';
 	import ExpertSection from '$lib/components/experts/ExpertSection.svelte';
-	import OrganizationRequired from '$lib/components/OrganizationRequired.svelte';
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../convex/_generated/api';
-	import { organizationState } from '$lib/stores/organization.svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { DEFAULT_ORG_ID } from '$lib/config';
 
-	// Organization context
-	let currentOrgId = $state<string | null>(null);
+	// Using hardcoded organization ID
+	const currentOrgId = DEFAULT_ORG_ID;
 
 	// Get section from URL parameter, default to 'staff'
 	let activeSection = $derived.by(() => {
@@ -18,40 +17,29 @@
 		return (section === 'experts' || section === 'services') ? section : 'staff';
 	});
 
-	// Update currentOrgId when organization changes
-	$effect(() => {
-		currentOrgId = organizationState.currentOrganizationId;
-		console.log('🏢 Organization Context Updated:', {
-			currentOrgId,
-			organizationName: organizationState.organizationName,
-			hasOrganization: organizationState.hasCurrentOrganization,
-			isReady: organizationState.validate.isValid
-		});
-	});
-
-	// Organization context validation
-	let orgValidation = $derived(organizationState.validate);
+	// Log the organization ID being used
+	console.log('🏢 Using DEFAULT_ORG_ID:', currentOrgId);
 
 	// Get data from Convex
 	const users = useQuery(api.utilities.getUsers, () => ({}));
 	const organizations = useQuery(api.utilities.getOrganizations, () => ({}));
 
-	// Get expert CVs for services section (new schema) - only when organization is available
+	// Get expert CVs for services section (new schema)
 	const expertCVs = useQuery(
 		api.expertCVs.getExpertCVs,
-		() => currentOrgId ? { organizationId: currentOrgId as any } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
+		() => ({ organizationId: currentOrgId as any })
 	);
 
-	// Get expert service assignments for services section - only when organization is available
+	// Get expert service assignments for services section
 	const expertServiceAssignments = useQuery(
 		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
-		() => currentOrgId ? { organizationId: currentOrgId as any } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
+		() => ({ organizationId: currentOrgId as any })
 	);
 
-	// Get organization approvals (same as approved-services page) - only when organization is available
+	// Get organization approvals (same as approved-services page)
 	const organizationApprovals = useQuery(
 		(api as any).serviceVersions.getOrganizationApprovals,
-		() => currentOrgId ? { organizationId: currentOrgId } : { organizationId: 'j975t878dn66x7br1076wb7ey17skxyg' as any }
+		() => ({ organizationId: currentOrgId })
 	);
 
 	// Get service versions and parents for display
@@ -193,9 +181,6 @@
 
 <!-- User Management Page -->
 <div class="bg-gray-50 py-8">
-	{#if !orgValidation.isValid}
-		<OrganizationRequired />
-	{:else}
 	<div class="max-w-7xl mx-auto px-6">
 		<div class="mb-8">
 			<h1 class="text-3xl font-bold text-gray-800 mb-4">User Management</h1>
@@ -489,5 +474,4 @@
 			</div>
 		{/if}
 	</div>
-	{/if}
 </div>

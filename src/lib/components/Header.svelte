@@ -1,25 +1,12 @@
 <script lang="ts">
 	// Header component with navigation
 	import type { ComponentProps } from 'svelte';
-	import OrganizationSwitcher from './OrganizationSwitcher.svelte';
-	import {
-		organizationStore,
-		currentOrganizationName,
-		currentUserRole
-	} from '$lib/stores/organization.svelte';
 
 	interface Props {
 		// No specific props needed for now, but structure for future props
 	}
 
 	let { ...props }: Props = $props();
-
-	// Reactive stores with error handling
-	let currentOrgName = $derived(currentOrganizationName() || 'No Organization Selected');
-	let userRole = $derived(currentUserRole() || null);
-	let orgContext = $derived(
-		$organizationStore || { currentOrganization: null, isLoading: false, error: null }
-	);
 </script>
 
 <!-- Header -->
@@ -68,38 +55,16 @@
 			</div> -->
 		</nav>
 
-		<!-- Organization Switcher and User Info -->
-		<div class="flex items-center space-x-4">
-			<!-- Organization Switcher -->
-			<OrganizationSwitcher />
-
-			<!-- User Info -->
-			<div class="flex items-center space-x-3">
-				<div class="text-right">
-					<p class="text-sm font-medium text-gray-800">
-						{#if orgContext.currentOrganization}
-							{orgContext.currentOrganization.name}
-						{:else}
-							No Organization Selected
-						{/if}
-					</p>
-					<p class="text-sm text-gray-600">
-						{#if userRole}
-							{userRole === 'admin'
-								? 'Administrator'
-								: userRole === 'manager'
-									? 'Manager'
-									: 'Viewer'}
-						{:else}
-							Test User
-						{/if}
-					</p>
-				</div>
-				<div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-					<svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-						<path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-					</svg>
-				</div>
+		<!-- User Info -->
+		<div class="flex items-center space-x-3">
+			<div class="text-right">
+				<p class="text-sm font-medium text-gray-800">Solution Provider Platform</p>
+				<p class="text-sm text-gray-600">Test User</p>
+			</div>
+			<div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+				<svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+					<path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+				</svg>
 			</div>
 		</div>
 	</div>

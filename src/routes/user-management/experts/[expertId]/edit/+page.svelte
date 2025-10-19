@@ -4,6 +4,7 @@
 	import { api, type Id } from '$lib';
 	import { DEFAULT_ORG_ID } from '$lib/config';
 	import { calculateServicePricing } from '$lib/pricing';
+	import { validateCVCompletion, canEditServices, canEditCVContent } from '$lib/cvValidation';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -47,6 +48,20 @@
 	// ==========================================
 	// 2. FUNCTIONS
 	// ==========================================
+	
+	// Status color coding function
+	function getStatusColor(status: string): string {
+		switch (status) {
+			case 'draft': return 'bg-gray-100 text-gray-800';
+			case 'completed': return 'bg-blue-100 text-blue-800';
+			case 'payment_pending': return 'bg-yellow-100 text-yellow-800';
+			case 'paid': return 'bg-green-100 text-green-800';
+			case 'locked_for_review': return 'bg-orange-100 text-orange-800';
+			case 'unlocked_for_edits': return 'bg-red-100 text-red-800';
+			case 'locked_final': return 'bg-green-100 text-green-800';
+			default: return 'bg-gray-100 text-gray-800';
+		}
+	}
 	
 	// Helper functions for cleaner code
 	function getDummyServiceQueryArgs() {
@@ -149,7 +164,40 @@
 			console.log('Current service roles:', serviceRoles);
 			console.log('Role changes:', roleChanges);
 			
-			// Step 2: Execute the changes
+			// Step 1.5: Log CV status and validation (NEW)
+			console.log('🎯 CV Status:', expertCV?.data?.status);
+			console.log('🎯 Can edit services:', canEditServices(expertCV?.data?.status || 'draft'));
+			console.log('🎯 Can edit CV content:', canEditCVContent(expertCV?.data?.status || 'draft'));
+			if (expertCV?.data) {
+				// Create CV object with service assignments for validation
+				const cvForValidation = {
+					...expertCV.data,
+					serviceAssignments: assignedServices?.data || []
+				};
+				const validation = validateCVCompletion(cvForValidation);
+				console.log('🎯 CV Validation:', validation);
+				console.log('🎯 CV Data:', expertCV.data);
+				console.log('🎯 Experience length:', expertCV.data.experience?.length);
+				console.log('🎯 Education length:', expertCV.data.education?.length);
+				console.log('🎯 Service assignments length:', assignedServices?.data?.length || 0);
+				
+				// Step 1.7: Auto-transition from draft to completed (NEW)
+				if (expertCV.data.status === 'draft' && validation.isValid) {
+					console.log('🚀 Auto-transitioning: draft → completed');
+					await client.mutation(api.expert.updateCVStatus, {
+						cvId: expertCV.data._id,
+						newStatus: 'completed'
+					});
+					console.log('✅ Status updated to completed');
+				}
+			}
+			
+			// Step 1.6: Check if service editing is allowed (NEW)
+			const canEditServicesNow = canEditServices(expertCV?.data?.status || 'draft');
+			console.log('🎯 Can edit services:', canEditServicesNow);
+			
+			// Step 2: Execute the changes (only if service editing is allowed)
+			if (canEditServicesNow) {
 			if (changes.toAdd.length > 0) {
 				console.log('➕ Adding services:', changes.toAdd);
 				for (const serviceId of changes.toAdd) {
@@ -175,7 +223,10 @@
 			}
 			
 			if (changes.toAdd.length === 0 && changes.toRemove.length === 0 && changes.toUpdate.length === 0) {
-				console.log('✅ No changes needed');
+				console.log('✅ No service changes needed');
+			}
+			} else {
+				console.log('🚫 Service editing not allowed - skipping service changes');
 			}
 			
 			console.log('🎉 Save completed successfully!');
@@ -183,6 +234,34 @@
 		} catch (error: any) {
 			saveError = error.message;
 			console.error('❌ Save failed:', error);
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	async function resubmitForReview() {
+		if (expertCV?.data?.status !== 'unlocked_for_edits') {
+			throw new Error('Can only resubmit from unlocked_for_edits status');
+		}
+		
+		isSaving = true;
+		saveError = null;
+		
+		try {
+			// First save any CV content changes (services will be skipped automatically)
+			await save();
+			
+			// Then update status to locked_for_review
+			console.log('🚀 Resubmitting for review: unlocked_for_edits → locked_for_review');
+			await client.mutation(api.expert.updateCVStatus, {
+				cvId: expertCV.data._id,
+				newStatus: 'locked_for_review'
+			});
+			console.log('✅ Resubmitted for review');
+			
+		} catch (error: any) {
+			saveError = error.message;
+			console.error('❌ Resubmit failed:', error);
 		} finally {
 			isSaving = false;
 		}
@@ -270,7 +349,11 @@
 			<h2 class="text-xl font-semibold text-gray-800 mb-4">CV Found!</h2>
 			<div class="space-y-2 text-sm">
 				<p><strong>CV ID:</strong> {expertCV.data._id}</p>
-				<p><strong>Status:</strong> {expertCV.data.status}</p>
+				<p><strong>Status:</strong> 
+					<span class="px-2 py-1 rounded text-xs font-medium {getStatusColor(expertCV.data.status)}">
+						{expertCV.data.status}
+					</span>
+				</p>
 				<p><strong>Version:</strong> {expertCV.data.version}</p>
 				<p><strong>Experience entries:</strong> {expertCV.data.experience?.length || 0}</p>
 				<p><strong>Education entries:</strong> {expertCV.data.education?.length || 0}</p>
@@ -396,10 +479,16 @@
 				</div>
 			{/if}
 
-			<div class="mt-6">
+			<div class="mt-6 flex gap-3">
 				<button onclick={save} disabled={isSaving} class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
 					{isSaving ? 'Saving...' : 'Save CV'}
 				</button>
+				
+				{#if expertCV?.data?.status === 'unlocked_for_edits'}
+					<button onclick={resubmitForReview} disabled={isSaving} class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50">
+						{isSaving ? 'Submitting...' : 'Resubmit for Review'}
+					</button>
+				{/if}
 			</div>
 			</div>
 						{:else}

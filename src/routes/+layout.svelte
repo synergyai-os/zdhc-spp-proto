@@ -5,8 +5,6 @@
 	import Header from '$lib/components/Header.svelte';
 	import { setupConvex, useQuery } from 'convex-svelte';
 	import { PUBLIC_CONVEX_URL } from '$env/static/public';
-	import { organizationStore } from '$lib/stores/organization.svelte';
-	import { api } from '../convex/_generated/api';
 	import { DEFAULT_ORG_ID } from '$lib/config';
 
 	let { children }: LayoutProps = $props();
@@ -25,21 +23,8 @@
 		console.error('Error initializing Convex client:', error);
 	}
 
-	// Load organizations and initialize organization context
-	const organizations = PUBLIC_CONVEX_URL
-		? useQuery(api.utilities.getOrganizations, {})
-		: { data: [], isLoading: false, error: null };
-
-	// Initialize organization store when organizations are loaded
-	$effect(() => {
-		console.log('Organizations query result:', organizations);
-		if (organizations.data && organizations.data.length > 0) {
-			organizationStore.setAvailableOrganizations(organizations.data);
-		} else if (organizations.data && organizations.data.length === 0) {
-			console.warn('No organizations available in the system');
-			organizationStore.setError('No organizations available. Please contact an administrator.');
-		}
-	});
+	// Using hardcoded organization ID instead of dynamic organization selection
+	console.log('Using DEFAULT_ORG_ID:', DEFAULT_ORG_ID);
 </script>
 
 <svelte:head>

@@ -2,7 +2,7 @@
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
 	import type { Id } from '../../../convex/_generated/dataModel';
-	import { organizationStore } from '$lib/stores/organization.svelte';
+	import { DEFAULT_ORG_ID } from '$lib/config';
 
 	// Get Convex client
 	const client = useConvexClient();
@@ -11,14 +11,8 @@
 	// ORGANIZATION CONTEXT
 	// ==========================================
 
-	// Organization context
-	let currentOrgId = $state<string | null>(null);
-	let orgContext = $derived($organizationStore);
-
-	// Update currentOrgId when organization changes
-	$effect(() => {
-		currentOrgId = orgContext.currentOrganization?._id || null;
-	});
+	// Using hardcoded organization ID
+	const currentOrgId = DEFAULT_ORG_ID;
 
 	// ==========================================
 	// CONVEX QUERIES
@@ -33,7 +27,7 @@
 	// Query organization approvals to get approved services
 	const organizationApprovals = useQuery(
 		(api as any).serviceVersions.getOrganizationApprovals,
-		() => (currentOrgId ? { organizationId: currentOrgId } : { organizationId: '' })
+		() => ({ organizationId: currentOrgId })
 	);
 
 	// Available services derived from organization's approved services only

@@ -1,37 +1,25 @@
 <script lang="ts">
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../convex/_generated/api';
-	import { organizationStore } from '$lib/stores/organization.svelte';
+	import { DEFAULT_ORG_ID } from '$lib/config';
 	import { checkoutStore, type CheckoutExpert } from '$lib/stores/checkout.svelte';
 	import ExpertCheckoutCard from '$lib/components/ExpertCheckoutCard.svelte';
 	import PaymentMethodSelector from '$lib/components/PaymentMethodSelector.svelte';
 	import PaymentSummary from '$lib/components/PaymentSummary.svelte';
 
-	// Organization context
-	let currentOrgId = $state<string | null>(null);
-	let orgContext = $derived($organizationStore);
-
-	// Update currentOrgId when organization changes
-	$effect(() => {
-		currentOrgId = orgContext.currentOrganization?._id || null;
-	});
+	// Using hardcoded organization ID
+	const currentOrgId = DEFAULT_ORG_ID;
 
 	// Get draft CVs for current organization with full details (new schema)
 	const draftCVs = useQuery(
 		api.expertCVs.getExpertCVs,
-		() =>
-			currentOrgId
-				? { organizationId: currentOrgId as any, status: 'draft' as const }
-				: { organizationId: '' as any, status: 'draft' as const }
+		() => ({ organizationId: currentOrgId as any, status: 'draft' as const })
 	);
 
 	// Get service assignments for draft CVs
 	const draftServiceAssignments = useQuery(
 		api.expertServiceAssignments.getExpertServiceAssignmentsByOrg,
-		() =>
-			currentOrgId
-				? { organizationId: currentOrgId as any }
-				: { organizationId: '' as any }
+		() => ({ organizationId: currentOrgId as any })
 	);
 
 	// Store state
@@ -172,29 +160,7 @@
 			</div>
 		</div>
 
-		{#if !currentOrgId}
-			<!-- No Organization Selected -->
-			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-				<svg
-					class="w-12 h-12 mx-auto mb-4 text-gray-300"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-					/>
-				</svg>
-				<h2 class="text-xl font-semibold text-gray-800 mb-2">No Organization Selected</h2>
-				<p class="text-gray-600 mb-4">Please select an organization to view and pay for experts</p>
-				<a href="/user-management" class="text-blue-600 hover:text-blue-800 font-medium">
-					Go to User Management →
-				</a>
-			</div>
-		{:else if draftExperts?.isLoading}
+		{#if draftCVs?.isLoading}
 			<!-- Loading State -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
 				<div
@@ -202,7 +168,7 @@
 				></div>
 				<p class="text-gray-600">Loading draft experts...</p>
 			</div>
-		{:else if draftExperts?.error}
+		{:else if draftCVs?.error}
 			<!-- Error State -->
 			<div class="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center">
 				<svg
@@ -219,7 +185,7 @@
 					/>
 				</svg>
 				<h2 class="text-xl font-semibold text-red-800 mb-2">Error Loading Experts</h2>
-				<p class="text-red-600 mb-4">{draftExperts.error.message}</p>
+				<p class="text-red-600 mb-4">{draftCVs.error.message}</p>
 				<button
 					type="button"
 					onclick={() => window.location.reload()}
@@ -228,7 +194,7 @@
 					Try Again
 				</button>
 			</div>
-		{:else if !draftExperts?.data || draftExperts.data.length === 0}
+		{:else if !draftCVs?.data || draftCVs.data.length === 0}
 			<!-- No Draft Experts -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
 				<svg

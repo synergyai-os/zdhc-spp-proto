@@ -225,3 +225,31 @@ export const updateServiceRole = mutation({
 		return { success: true };
 	}
 });
+
+/**
+ * Update CV status
+ * 
+ * Usage: Used to transition CV status (e.g., draft → completed)
+ */
+export const updateCVStatus = mutation({
+	args: {
+		cvId: v.id('expertCVs'),
+		newStatus: v.union(
+			v.literal('draft'),
+			v.literal('completed'),
+			v.literal('payment_pending'),
+			v.literal('paid'),
+			v.literal('locked_for_review'),
+			v.literal('unlocked_for_edits'),
+			v.literal('locked_final')
+		)
+	},
+	handler: async (ctx, args) => {
+		// Update the CV status
+		await ctx.db.patch(args.cvId, { 
+			status: args.newStatus
+		});
+
+		return { success: true };
+	}
+});
