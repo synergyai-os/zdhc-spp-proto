@@ -350,7 +350,6 @@ expertCVs: defineTable({
     v.literal('completed'),
     v.literal('payment_pending'),
     v.literal('paid'),
-    v.literal('submitted'),
     v.literal('locked_for_review'),
     v.literal('unlocked_for_edits'),
     v.literal('locked_final')
@@ -383,26 +382,65 @@ expertCVs: defineTable({
 
 ---
 
+## 🚀 **CURRENT IMPLEMENTATION STATUS**
+
+### **✅ What's Working**
+- **Schema**: 7-status flow implemented in `expertCVs` table
+- **Validation**: `validateCVCompletion()` checks experience, education, and service assignments
+- **Mutations**: `updateCVStatus()` and `updateCV()` with organization-level security
+- **Edit Page**: Full experience/education UI with add/remove/edit functionality
+- **Status Logic**: `canEditServices()` and `canEditCVContent()` functions
+- **Local State**: `$state()` + `$effect()` pattern for reactive UI updates
+
+### **🔧 Current Implementation Details**
+```typescript
+// Key mutations implemented:
+export const updateCVStatus = mutation({...}); // Status transitions
+export const updateCV = mutation({...}); // Experience/education updates
+
+// Key validation functions:
+export function validateCVCompletion(cv: any): ValidationResult
+export function canEditServices(status: string): boolean
+export function canEditCVContent(status: string): boolean
+
+// Security: Organization-level checks (no user ownership for prototype)
+```
+
+### **⚠️ Known Issues to Fix**
+- **Save Function Logic**: Need to handle status transitions when CV becomes incomplete
+- **Education Removal**: When all education removed, `completed` CV should revert to `draft`
+- **Service Removal**: Similar logic needed for service assignments
+
+### **🚨 Critical Business Rules Discovered**
+- **NO `unlocked_for_edits → draft` transition**: Once paid, CV cannot revert to draft (prevents money loss)
+- **Paid CVs stay in review cycle**: Even if incomplete, manager keeps paid status and can fix issues
+- **Validation warnings needed**: Users should be warned before making changes that affect status
+- **Status transitions implemented**: `draft ↔ completed` only (safe transitions)
+
+---
+
 ## 🔧 **IMPLEMENTATION PHASES**
 
-### **Phase 1: Schema Update**
-- [ ] Update `expertCVs` table schema
-- [ ] Add new status values
-- [ ] Add timestamp fields
-- [ ] Add payment tracking fields
-- [ ] Add review tracking fields
+### **Phase 1: Schema Update** ✅ **COMPLETED**
+- [x] Update `expertCVs` table schema
+- [x] Add new status values (7 statuses: draft, completed, payment_pending, paid, locked_for_review, unlocked_for_edits, locked_final)
+- [x] Add timestamp fields
+- [x] Add payment tracking fields
+- [x] Add review tracking fields
 
-### **Phase 2: Business Logic**
-- [ ] Create validation functions
-- [ ] Create transition validation
-- [ ] Update CV creation logic
-- [ ] Update CV update logic
+### **Phase 2: Business Logic** ✅ **COMPLETED**
+- [x] Create validation functions (`validateCVCompletion`, `canTransitionStatus`, `canEditServices`, `canEditCVContent`)
+- [x] Create transition validation
+- [x] Update CV creation logic
+- [x] Update CV update logic (`updateCV` mutation for experience/education)
 
-### **Phase 3: Edit Page**
-- [ ] Update status display logic
-- [ ] Add conditional editing
-- [ ] Add status-specific buttons
-- [ ] Add validation warnings
+### **Phase 3: Edit Page** ✅ **COMPLETED**
+- [x] Update status display logic
+- [x] Add conditional editing (services locked after payment, CV content editable in specific statuses)
+- [x] Add status-specific buttons (Save, Resubmit for Review)
+- [x] Add validation warnings
+- [x] Add Experience and Education UI sections with add/remove/edit functionality
+- [x] Implement `$state()` + `$effect()` pattern for local mutable data
 
 ### **Phase 4: Checkout Flow**
 - [ ] Update payment initiation
@@ -421,6 +459,64 @@ expertCVs: defineTable({
 - [ ] Add status filtering
 - [ ] Update status colors
 - [ ] Add status actions
+
+### **Phase 7: Production Validation Notifications** 🚀 **FUTURE**
+- [ ] Add validation warning modals before status-changing actions
+- [ ] "Are you sure?" confirmation for `completed → draft` transitions
+- [ ] Clear messaging about impact of removing required fields
+- [ ] Prevent accidental data loss with user-friendly warnings
+
+---
+
+## 🔔 **VALIDATION NOTIFICATION REQUIREMENTS** (Production)
+
+### **Status Transition Warnings**
+
+**`completed → draft` Warning:**
+```typescript
+// When user removes required fields from completed CV
+const showDraftWarning = (currentStatus: string, validation: ValidationResult) => {
+  if (currentStatus === 'completed' && !validation.isValid) {
+    return {
+      title: "Profile Incomplete",
+      message: "Removing this field will make your profile incomplete and revert it to draft status. You'll need to complete it again before payment.",
+      confirmText: "Yes, revert to draft",
+      cancelText: "Keep profile complete",
+      action: "completed_to_draft"
+    };
+  }
+};
+```
+
+**`unlocked_for_edits` Validation Warning:**
+```typescript
+// When user makes CV incomplete after reviewer feedback
+const showIncompleteWarning = (validation: ValidationResult) => {
+  if (!validation.isValid) {
+    return {
+      title: "Profile Incomplete",
+      message: "Your profile is missing required information. You can still edit, but you'll need to complete it before resubmitting for review.",
+      showValidationErrors: true,
+      preventResubmit: true
+    };
+  }
+};
+```
+
+### **UI Behavior Rules**
+
+| Status | Validation State | Action | Warning Required |
+|--------|------------------|--------|------------------|
+| `completed` | Invalid | Save | ✅ "Revert to draft?" |
+| `unlocked_for_edits` | Invalid | Save | ⚠️ "Profile incomplete" |
+| `unlocked_for_edits` | Invalid | Resubmit | ❌ Disabled button |
+| `draft` | Invalid | Save | ℹ️ Show validation errors |
+
+### **Implementation Notes**
+- **Prototype**: Skip validation notifications for faster development
+- **Production**: Implement all warnings to prevent user confusion and data loss
+- **Accessibility**: Ensure warnings are screen-reader friendly
+- **Mobile**: Design warnings to work well on mobile devices
 
 ---
 

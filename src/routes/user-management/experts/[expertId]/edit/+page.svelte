@@ -229,28 +229,47 @@
 			console.log('🎯 CV Status:', expertCV?.data?.status);
 			console.log('🎯 Can edit services:', canEditServices(expertCV?.data?.status || 'draft'));
 			console.log('🎯 Can edit CV content:', canEditCVContent(expertCV?.data?.status || 'draft'));
-			if (expertCV?.data) {
-				// Create CV object with service assignments for validation
+			if (localCVData) {
+				// Create CV object with service assignments for validation using localCVData
 				const cvForValidation = {
-					...expertCV.data,
+					...localCVData,
 					serviceAssignments: assignedServices?.data || []
 				};
 				const validation = validateCVCompletion(cvForValidation);
 				console.log('🎯 CV Validation:', validation);
-				console.log('🎯 CV Data:', expertCV.data);
-				console.log('🎯 Experience length:', expertCV.data.experience?.length);
-				console.log('🎯 Education length:', expertCV.data.education?.length);
+				console.log('🎯 Local CV Data:', localCVData);
+				console.log('🎯 Experience length:', localCVData.experience?.length);
+				console.log('🎯 Education length:', localCVData.education?.length);
 				console.log('🎯 Service assignments length:', assignedServices?.data?.length || 0);
 				
-				// Step 1.7: Auto-transition from draft to completed (NEW)
-				if (expertCV.data.status === 'draft' && validation.isValid) {
-					console.log('🚀 Auto-transitioning: draft → completed');
-					await client.mutation(api.expert.updateCVStatus, {
-						cvId: expertCV.data._id,
-						newStatus: 'completed'
-					});
-					console.log('✅ Status updated to completed');
-				}
+			// Step 1.7: Handle status transitions based on validation
+			const currentStatus = expertCV?.data?.status;
+			
+			if (currentStatus === 'draft' && validation.isValid) {
+				// Draft → Completed: CV is now complete
+				console.log('🚀 Auto-transitioning: draft → completed');
+				await client.mutation(api.expert.updateCVStatus, {
+					cvId: localCVData._id,
+					newStatus: 'completed'
+				});
+				console.log('✅ Status updated to completed');
+			} else if (currentStatus === 'completed' && !validation.isValid) {
+				// Completed → Draft: CV is no longer complete (e.g., removed all education)
+				console.log('🚀 Auto-transitioning: completed → draft (CV no longer complete)');
+				await client.mutation(api.expert.updateCVStatus, {
+					cvId: localCVData._id,
+					newStatus: 'draft'
+				});
+				console.log('✅ Status reverted to draft');
+			} else if (currentStatus === 'unlocked_for_edits' && !validation.isValid) {
+				// Unlocked for edits → Draft: CV is no longer complete after edits
+				console.log('🚀 Auto-transitioning: unlocked_for_edits → draft (CV no longer complete)');
+				await client.mutation(api.expert.updateCVStatus, {
+					cvId: localCVData._id,
+					newStatus: 'draft'
+				});
+				console.log('✅ Status reverted to draft');
+			}
 			}
 			
 			// Step 1.6: Check if service editing is allowed (NEW)
