@@ -253,3 +253,52 @@ export const updateCVStatus = mutation({
 		return { success: true };
 	}
 });
+
+export const updateCV = mutation({
+	args: {
+		cvId: v.id('expertCVs'),
+		organizationId: v.id('organizations'),
+		experience: v.optional(v.array(v.object({
+			title: v.string(),
+			company: v.string(),
+			location: v.optional(v.string()),
+			startDate: v.string(),
+			endDate: v.optional(v.string()),
+			current: v.boolean(),
+			description: v.optional(v.string())
+		}))),
+		education: v.optional(v.array(v.object({
+			institution: v.string(),
+			degree: v.string(),
+			field: v.optional(v.string()),
+			startDate: v.string(),
+			endDate: v.optional(v.string()),
+			current: v.boolean(),
+			description: v.optional(v.string())
+		})))
+	},
+	handler: async (ctx, args) => {
+		// Get the CV to check organization
+		const cv = await ctx.db.get(args.cvId);
+		if (!cv) {
+			throw new Error('CV not found');
+		}
+
+		// Basic security: Check organization
+		if (cv.organizationId !== args.organizationId) {
+			throw new Error('Unauthorized: Wrong organization');
+		}
+
+		// Update CV data
+		const updateData: any = {};
+		if (args.experience !== undefined) {
+			updateData.experience = args.experience;
+		}
+		if (args.education !== undefined) {
+			updateData.education = args.education;
+		}
+
+		await ctx.db.patch(args.cvId, updateData);
+		return { success: true };
+	}
+});

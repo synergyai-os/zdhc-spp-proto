@@ -291,6 +291,18 @@
 				console.log('🚫 Service editing not allowed - skipping service changes');
 			}
 			
+			// Step 3: Save CV data changes (experience/education)
+			if (localCVData) {
+				console.log('💾 Saving CV data changes...');
+				await client.mutation(api.expert.updateCV, {
+					cvId: localCVData._id,
+					organizationId: orgId as Id<'organizations'>,
+					experience: localCVData.experience,
+					education: localCVData.education
+				});
+				console.log('✅ CV data saved');
+			}
+			
 			console.log('🎉 Save completed successfully!');
 			
 		} catch (error: any) {
