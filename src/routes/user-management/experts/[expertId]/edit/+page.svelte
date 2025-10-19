@@ -45,6 +45,9 @@
 	// Local mutable copy of CV data
 	let localCVData = $state<any>(null);
 	
+	// Toggle switcher state
+	let activeTab = $state<'services' | 'cv-details'>('services');
+	
 	// Sync with query data when it becomes available
 	$effect(() => {
 		if (expertCV?.data) {
@@ -444,9 +447,127 @@
 				<p><strong>Education entries:</strong> {expertCV.data.education?.length || 0}</p>
 			</div>
 
+			<!-- Toggle Switcher -->
+			<div class="mt-6 mb-6">
+				<div class="bg-white border border-gray-200 rounded-lg p-1 inline-flex">
+					<button 
+						onclick={() => activeTab = 'services'}
+						class="px-4 py-2 rounded-md text-sm font-medium transition-colors {activeTab === 'services' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-800'}"
+					>
+						Services
+					</button>
+					<button 
+						onclick={() => activeTab = 'cv-details'}
+						class="px-4 py-2 rounded-md text-sm font-medium transition-colors {activeTab === 'cv-details' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-800'}"
+					>
+						CV Details
+					</button>
+				</div>
+			</div>
+
+			<!-- Services Tab Content -->
+			{#if activeTab === 'services'}
+				<!-- Available Services Section -->
+				<div class="mt-6">
+					<h3 class="text-lg font-semibold text-gray-800 mb-3">Available Services</h3>
+					<p class="text-sm text-gray-600 mb-4">Selected: {selectedServices.length} services</p>
+					{#if availableServices?.isLoading}
+						<p class="text-gray-500">Loading available services...</p>
+					{:else if availableServices?.error}
+						<p class="text-red-500">Error loading services: {availableServices.error}</p>
+					{:else if availableServices?.data && availableServices.data.length > 0}
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									{#each availableServices.data as service}
+										<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+											<div class="flex items-start space-x-3">
+												<input 
+													type="checkbox" 
+													id="service-{service._id}"
+													bind:group={selectedServices}
+													value={service._id}
+													class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+												/>
+												<div class="flex-1">
+													<label for="service-{service._id}" class="block cursor-pointer">
+														<h4 class="text-sm font-semibold text-gray-800">{service.name}</h4>
+														<p class="text-xs text-gray-600 mt-1">{service.description}</p>
+														<div class="flex items-center space-x-2 mt-2">
+															<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+																{service.version}
+															</span>
+															{#if service.serviceParent}
+																<span class="text-xs text-gray-500">{service.serviceParent.name}</span>
+															{/if}
+							</div>
+													</label>
+						</div>
+												<!-- Role Dropdown - Only show when service is selected -->
+												{#if selectedServices.includes(service._id)}
+													<div class="ml-4 flex-shrink-0">
+														<select 
+															class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] shadow-sm"
+															onchange={(e) => handleRoleChange(service._id, (e.target as HTMLSelectElement).value)}
+															value={(roleChanges as any)[service._id] || (serviceRoles as any)[service._id] || 'regular'}
+														>
+															<!-- Debug: Log what's happening with this service -->
+															{console.log(`🔍 Service ${service._id}: serviceRoles[${service._id}] = ${(serviceRoles as any)[service._id] || 'undefined'}`)}
+															<option value="regular">Regular</option>
+															<option value="lead">Lead</option>
+														</select>
+					</div>
+												{:else}
+													<!-- Placeholder for consistent layout -->
+													<div class="ml-4 flex-shrink-0 w-[100px]"></div>
+				{/if}
+					</div>
+				</div>
+									{/each}
+					</div>
+					{:else}
+						<p class="text-gray-500">No available services found for this organization</p>
+				{/if}
+				</div>
+
+				<!-- Pricing Summary -->
+				{#if selectedServices.length > 0}
+					<div class="mt-8 p-6 bg-gray-50 rounded-lg border">
+						<h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Estimated Cost</h3>
+						
+						<div class="space-y-3">
+							{#each pricing.breakdown as item}
+								<div class="flex justify-between items-center">
+									<span class="text-sm text-gray-600">
+										Service {item.serviceNumber}
+										{#if item.discountPercentage > 0}
+											<span class="text-green-600 ml-2">({item.discountPercentage}% off)</span>
+										{/if}
+									</span>
+									<span class="font-medium">€{item.finalPrice.toFixed(2)}</span>
+								</div>
+							{/each}
+							
+							<hr class="my-3">
+							
+							<div class="flex justify-between items-center text-lg font-semibold">
+								<span>Total</span>
+								<span class="text-blue-600">€{pricing.total.toFixed(2)}</span>
+							</div>
+							
+							{#if pricing.savings > 0}
+								<div class="text-center text-green-600 font-medium">
+									🎉 You save €{pricing.savings.toFixed(2)}!
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
+			{/if}
+
+			<!-- CV Details Tab Content -->
+			{#if activeTab === 'cv-details'}
 			<!-- Experience Section -->
 			{#if canEditCVContent(expertCV.data.status)}
-				<div class="mt-6">
+			<div class="mt-6">
 					<div class="flex items-center justify-between mb-6">
 						<div>
 							<h3 class="text-lg font-semibold text-gray-800">Professional Experience</h3>
@@ -586,7 +707,7 @@
 						</div>
 					{/if}
 				</div>
-			{/if}
+								{/if}
 
 			<!-- Education Section -->
 			{#if canEditCVContent(expertCV.data.status)}
@@ -626,8 +747,8 @@
 								</svg>
 								Add First Education
 							</button>
-						</div>
-					{:else}
+					</div>
+				{:else}
 						<div class="space-y-6">
 							{#each localCVData.education as entry, index}
 								<div class="bg-gray-50 rounded-lg p-6 border border-gray-200">
@@ -713,128 +834,9 @@
 								</div>
 							{/each}
 						</div>
-					{/if}
-				</div>
-			{/if}
-
-			<!-- Assigned Services Section -->
-			<div class="mt-6">
-				<h3 class="text-lg font-semibold text-gray-800 mb-3">Assigned Services</h3>
-				{#if assignedServices?.isLoading}
-					<p class="text-gray-500">Loading assigned services...</p>
-				{:else if assignedServices?.error}
-					<p class="text-red-500">Error loading assigned services: {assignedServices.error}</p>
-				{:else if assignedServices?.data && assignedServices.data.length > 0 && expertCV?.data}
-					<div class="space-y-2">
-						{#each assignedServices.data as assignment}
-							<div class="bg-gray-50 p-3 rounded border">
-								<p><strong>Service:</strong> {assignment.serviceName}</p>
-								<p><strong>Role:</strong> {assignment.role}</p>
-								<p><strong>Status:</strong> {assignment.status}</p>
-								{#if assignment.serviceDescription}
-									<p class="text-sm text-gray-600">{assignment.serviceDescription}</p>
-								{/if}
-						</div>
-						{/each}
-					</div>
-				{:else}
-					<p class="text-gray-500">No assigned services found</p>
 				{/if}
 			</div>
-
-			<!-- Available Services Section -->
-			<div class="mt-6">
-				<h3 class="text-lg font-semibold text-gray-800 mb-3">Available Services</h3>
-				<p class="text-sm text-gray-600 mb-4">Selected: {selectedServices.length} services</p>
-				{#if availableServices?.isLoading}
-					<p class="text-gray-500">Loading available services...</p>
-				{:else if availableServices?.error}
-					<p class="text-red-500">Error loading services: {availableServices.error}</p>
-				{:else if availableServices?.data && availableServices.data.length > 0}
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-								{#each availableServices.data as service}
-									<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-										<div class="flex items-start space-x-3">
-											<input 
-												type="checkbox" 
-												id="service-{service._id}"
-												bind:group={selectedServices}
-												value={service._id}
-												class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-											/>
-											<div class="flex-1">
-												<label for="service-{service._id}" class="block cursor-pointer">
-													<h4 class="text-sm font-semibold text-gray-800">{service.name}</h4>
-													<p class="text-xs text-gray-600 mt-1">{service.description}</p>
-													<div class="flex items-center space-x-2 mt-2">
-														<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-															{service.version}
-														</span>
-														{#if service.serviceParent}
-															<span class="text-xs text-gray-500">{service.serviceParent.name}</span>
-														{/if}
-						</div>
-												</label>
-					</div>
-											<!-- Role Dropdown - Only show when service is selected -->
-											{#if selectedServices.includes(service._id)}
-												<div class="ml-4 flex-shrink-0">
-													<select 
-														class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] shadow-sm"
-														onchange={(e) => handleRoleChange(service._id, (e.target as HTMLSelectElement).value)}
-														value={(roleChanges as any)[service._id] || (serviceRoles as any)[service._id] || 'regular'}
-													>
-														<!-- Debug: Log what's happening with this service -->
-														{console.log(`🔍 Service ${service._id}: serviceRoles[${service._id}] = ${(serviceRoles as any)[service._id] || 'undefined'}`)}
-														<option value="regular">Regular</option>
-														<option value="lead">Lead</option>
-													</select>
-				</div>
-											{:else}
-												<!-- Placeholder for consistent layout -->
-												<div class="ml-4 flex-shrink-0 w-[100px]"></div>
 			{/if}
-				</div>
-			</div>
-								{/each}
-				</div>
-				{:else}
-					<p class="text-gray-500">No available services found for this organization</p>
-			{/if}
-			</div>
-
-			<!-- Pricing Summary -->
-			{#if selectedServices.length > 0}
-				<div class="mt-8 p-6 bg-gray-50 rounded-lg border">
-					<h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Estimated Cost</h3>
-					
-					<div class="space-y-3">
-						{#each pricing.breakdown as item}
-							<div class="flex justify-between items-center">
-								<span class="text-sm text-gray-600">
-									Service {item.serviceNumber}
-									{#if item.discountPercentage > 0}
-										<span class="text-green-600 ml-2">({item.discountPercentage}% off)</span>
-									{/if}
-								</span>
-								<span class="font-medium">€{item.finalPrice.toFixed(2)}</span>
-							</div>
-						{/each}
-						
-						<hr class="my-3">
-						
-						<div class="flex justify-between items-center text-lg font-semibold">
-							<span>Total</span>
-							<span class="text-blue-600">€{pricing.total.toFixed(2)}</span>
-						</div>
-						
-						{#if pricing.savings > 0}
-							<div class="text-center text-green-600 font-medium">
-								🎉 You save €{pricing.savings.toFixed(2)}!
-							</div>
-						{/if}
-					</div>
-				</div>
 			{/if}
 
 			<div class="mt-6 flex gap-3">
