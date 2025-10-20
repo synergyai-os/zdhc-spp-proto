@@ -1,6 +1,7 @@
 <script lang="ts">
   import CVStatusTracker from '$lib/components/CVStatusTracker.svelte';
   import ServiceTrainingTracker from '$lib/components/ServiceTrainingTracker.svelte';
+  
   type CVStatus =
     | 'draft'
     | 'completed'
@@ -9,8 +10,10 @@
     | 'locked_for_review'
     | 'unlocked_for_edits'
     | 'locked_final';
-  let status: CVStatus = $state('draft' as CVStatus);
-  type TrainingStatus =
+  
+    let status: CVStatus = $state('draft' as CVStatus);
+  
+    type TrainingStatus =
     | 'proposed'
     | 'training_required'
     | 'training_in_progress'
@@ -20,6 +23,7 @@
     | 'active_for_delivery'
     | 'suspended'
     | 'revoked';
+
   let trainingStatus: TrainingStatus = $state('training_required');
   const trainingStatuses: TrainingStatus[] = [
     'training_required',
@@ -28,6 +32,7 @@
     'certification_issued',
     'active_for_delivery'
   ];
+
   const statuses: CVStatus[] = [
     'draft',
     'completed',
@@ -81,6 +86,7 @@
         trainingStatus = trainingStatuses[Math.min(i + 1, trainingStatuses.length - 1)];
       }}>Next</button>
     </div>
+    
     <ServiceTrainingTracker status={trainingStatus} title="Service Readiness" />
   </div>
 </div>

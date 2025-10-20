@@ -10,10 +10,10 @@
 	// Using hardcoded organization ID
 	const currentOrgId = DEFAULT_ORG_ID;
 
-	// Get draft CVs for current organization with full details (new schema)
-	const draftCVs = useQuery(
-		api.expertCVs.getExpertCVs,
-		() => ({ organizationId: currentOrgId as any, status: 'draft' as const })
+	// Get completed CVs for current organization with full details (new schema)
+	const completedCVs = useQuery(
+		api.expert.getLatestCV,
+		() => ({ organizationId: currentOrgId as Id<'organizations'>, status: 'completed' })
 	);
 
 	// Get service assignments for draft CVs
@@ -29,12 +29,12 @@
 
 	// Group experts by user for display (updated for new CV schema)
 	let groupedExperts = $derived.by(() => {
-		if (!draftCVs?.data || !draftServiceAssignments?.data) return [];
+		if (!completedCVs?.data || !draftServiceAssignments?.data) return [];
 
 		// Group CVs by user ID
 		const userGroups = new Map();
 
-		draftCVs.data.forEach((cv: any) => {
+		completedCVs.data.forEach((cv: any) => {
 			if (!cv.user) return;
 
 			const userId = cv.user._id;
@@ -88,9 +88,9 @@
 
 	// Initialize checkout store with flattened experts data for selection logic (only complete profiles)
 	$effect(() => {
-		if (draftCVs?.data && draftServiceAssignments?.data && currentOrgId) {
+		if (completedCVs?.data && draftServiceAssignments?.data && currentOrgId) {
 			// Only include CVs with complete profiles (not draft)
-			const completeCVs = draftCVs.data.filter((cv: any) => cv.status !== 'draft');
+			const completeCVs = completedCVs.data.filter((cv: any) => cv.status !== 'draft');
 
 			const checkoutExperts: CheckoutExpert[] = [];
 
@@ -160,7 +160,7 @@
 			</div>
 		</div>
 
-		{#if draftCVs?.isLoading}
+		{#if completedCVs?.isLoading}
 			<!-- Loading State -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
 				<div
@@ -168,7 +168,7 @@
 				></div>
 				<p class="text-gray-600">Loading draft experts...</p>
 			</div>
-		{:else if draftCVs?.error}
+		{:else if completedCVs?.error}
 			<!-- Error State -->
 			<div class="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center">
 				<svg
@@ -185,7 +185,7 @@
 					/>
 				</svg>
 				<h2 class="text-xl font-semibold text-red-800 mb-2">Error Loading Experts</h2>
-				<p class="text-red-600 mb-4">{draftCVs.error.message}</p>
+				<p class="text-red-600 mb-4">{completedCVs.error.message}</p>
 				<button
 					type="button"
 					onclick={() => window.location.reload()}
@@ -194,7 +194,7 @@
 					Try Again
 				</button>
 			</div>
-		{:else if !draftCVs?.data || draftCVs.data.length === 0}
+		{:else if !completedCVs?.data || completedCVs.data.length === 0}
 			<!-- No Draft Experts -->
 			<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
 				<svg

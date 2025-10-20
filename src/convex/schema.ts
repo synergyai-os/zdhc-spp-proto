@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
+import { CV_STATUS_VALIDATOR, SERVICE_STATUS_VALIDATOR } from './model/status';
 
 export default defineSchema({
 	// Users table (simulating PDC)
@@ -114,15 +115,7 @@ export default defineSchema({
 		),
 
 		// Status Lifecycle: draft → completed → payment_pending → paid → locked_for_review → unlocked_for_edits → locked_final
-		status: v.union(
-			v.literal('draft'), // Incomplete, can edit freely
-			v.literal('completed'), // Complete, ready for payment
-			v.literal('payment_pending'), // Payment initiated, awaiting confirmation
-			v.literal('paid'), // Payment confirmed, triggers automation
-			v.literal('locked_for_review'), // Automation complete, reviewer working
-			v.literal('unlocked_for_edits'), // Reviewer returned it for edits
-			v.literal('locked_final') // Review complete, immutable
-		),
+		status: CV_STATUS_VALIDATOR,
 
 		// Timestamps
 		createdAt: v.number(),
@@ -144,12 +137,7 @@ export default defineSchema({
 		role: v.union(v.literal('lead'), v.literal('regular')),
 
 		// Review Status
-		status: v.union(
-			v.literal('pending_review'), // Submitted, awaiting ZDHC review
-			v.literal('approved'), // ZDHC approved this service
-			v.literal('rejected'), // ZDHC rejected this service
-			v.literal('inactive') // Deactivated/superseded
-		),
+		status: SERVICE_STATUS_VALIDATOR,
 
 		// Review Metadata
 		reviewedAt: v.optional(v.number()),

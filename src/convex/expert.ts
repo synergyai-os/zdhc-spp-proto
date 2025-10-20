@@ -1,39 +1,124 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
+import { CV_STATUS_VALIDATOR } from './model/status';
+
+
 
 /**
- * Get the latest CV for a specific expert and organization
+ * Get expert CVs with optional filters
  * 
  * What it does:
- * 1. Finds all CVs for this user + organization
- * 2. Orders them by newest first
- * 3. Returns the most recent one (or null if none exist)
+ * 1. Queries expertCVs table with optional filters
+ * 2. Enriches each CV with user and organization data
+ * 3. Adds assignment counts and status summaries
  * 
- * Usage: Used by the edit CV page to load current CV data
+ * Usage: Used by checkout page to get completed CVs for payment
+ */
+export const getCVs = query({
+	args: {
+		userId: v.optional(v.id('users')),
+		organizationId: v.optional(v.id('organizations')),
+		status: v.optional(CV_STATUS_VALIDATOR)
+	},
+	handler: async (ctx, args) => {
+		let query = ctx.db.query('expertCVs');
+
+		// Apply filters
+		if (args.userId) {
+			query = query.filter((q) => q.eq(q.field('userId'), args.userId));
+		}
+
+		if (args.organizationId) {
+			query = query.filter((q) => q.eq(q.field('organizationId'), args.organizationId));
+		}
+
+		if (args.status) {
+			query = query.filter((q) => q.eq(q.field('status'), args.status));
+		}
+
+		// Get CVs ordered by newest first
+		const cvs = await query.order('desc').collect();
+
+		// Enrich with user details and assignment counts
+		const enrichedCVs = await Promise.all(
+			cvs.map(async (cv) => {
+				const user = await ctx.db.get(cv.userId);
+				const organization = await ctx.db.get(cv.organizationId);
+
+				// Get assignment count for this CV
+				const assignments = await ctx.db
+					.query('expertServiceAssignments')
+					.filter((q) => q.eq(q.field('expertCVId'), cv._id))
+					.collect();
+
+				return {
+					...cv,
+					user,
+					organization,
+					assignmentCount: assignments.length,
+					approvedCount: assignments.filter((a) => a.status === 'approved').length,
+					pendingCount: assignments.filter((a) => a.status === 'pending_review').length,
+					rejectedCount: assignments.filter((a) => a.status === 'rejected').length
+				};
+			})
+		);
+
+		return enrichedCVs;
+	}
+});
+
+/**
+ * Get the latest CV(s) with optional filters
+ * 
+ * What it does:
+ * 1. Finds CVs with optional filters (userId, organizationId, status)
+ * 2. Groups by user and gets the latest CV for each user
+ * 3. Returns single CV if userId provided, or array of latest CVs if not
+ * 
+ * Usage: 
+ * - Edit CV page: getLatestCV({ userId, organizationId }) -> single CV
+ * - Admin dashboard: getLatestCV({ organizationId }) -> array of latest CVs per user
+ * - Checkout: getLatestCV({ organizationId, status: 'completed' }) -> latest completed CVs
  */
 export const getLatestCV = query({
 	args: {
-		userId: v.id('users'),
-		organizationId: v.id('organizations')
+		userId: v.optional(v.id('users')),
+		organizationId: v.optional(v.id('organizations')),
+		status: v.optional(CV_STATUS_VALIDATOR)
 	},
 	handler: async (ctx, args) => {
-		// 1. Query the 'expertCVs' table
-		const cvs = await ctx.db
-			.query('expertCVs')
-			// 2. Filter by userId AND organizationId
-			.filter((q) =>
-				q.and(
-					q.eq(q.field('userId'), args.userId),
-					q.eq(q.field('organizationId'), args.organizationId)
-				)
-			)
-			// 3. Order by newest first (descending)
-			.order('desc')
-			// 4. Get all results
-			.collect();
+		let query = ctx.db.query('expertCVs');
 
-		// 5. Return first result or null if no CVs exist
-		return cvs.length > 0 ? cvs[0] : null;
+		// Apply filters
+		if (args.userId) {
+			query = query.filter((q) => q.eq(q.field('userId'), args.userId));
+		}
+
+		if (args.organizationId) {
+			query = query.filter((q) => q.eq(q.field('organizationId'), args.organizationId));
+		}
+
+		if (args.status) {
+			query = query.filter((q) => q.eq(q.field('status'), args.status));
+		}
+
+		// Get all matching CVs ordered by newest first
+		const cvs = await query.order('desc').collect();
+
+		// If userId provided, return single latest CV for that user
+		if (args.userId) {
+			return cvs.length > 0 ? cvs[0] : null;
+		}
+
+		// If no userId, group by user and return latest CV for each user
+		const userLatestCVs = new Map();
+		cvs.forEach(cv => {
+			if (!userLatestCVs.has(cv.userId)) {
+				userLatestCVs.set(cv.userId, cv);
+			}
+		});
+
+		return Array.from(userLatestCVs.values());
 	}
 });
 
@@ -234,15 +319,7 @@ export const updateServiceRole = mutation({
 export const updateCVStatus = mutation({
 	args: {
 		cvId: v.id('expertCVs'),
-		newStatus: v.union(
-			v.literal('draft'),
-			v.literal('completed'),
-			v.literal('payment_pending'),
-			v.literal('paid'),
-			v.literal('locked_for_review'),
-			v.literal('unlocked_for_edits'),
-			v.literal('locked_final')
-		)
+		newStatus: CV_STATUS_VALIDATOR
 	},
 	handler: async (ctx, args) => {
 		// Update the CV status
