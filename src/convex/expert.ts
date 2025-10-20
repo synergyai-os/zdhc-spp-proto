@@ -301,3 +301,30 @@ export const updateCV = mutation({
 		return { success: true };
 	}
 });
+
+/**
+ * Get user details by ID
+ * 
+ * What it returns:
+ * - _id, firstName, lastName, email, isActive
+ * 
+ * Usage: Used by edit CV page to show user info in header
+ */
+export const getUser = query({
+	args: {
+		userId: v.id('users')
+	},
+	handler: async (ctx, args) => {
+		const user = await ctx.db.get(args.userId);
+		if (!user) {
+			return null;
+		}
+		return {
+			_id: user._id,
+			firstName: user.firstName,
+			lastName: user.lastName,
+			email: user.email,
+			isActive: user.isActive
+		};
+	}
+});

@@ -26,6 +26,7 @@ export const getApprovedServices = query({
 		const organizationApprovals = await ctx.db
 			.query('organizationServiceApprovals')
 			.filter((q) => q.eq(q.field('organizationId'), args.organizationId))
+			.filter((q) => q.eq(q.field('status'), 'approved'))
 			.collect();
 
 		// 3. Create a set of approved service version IDs for quick lookup
