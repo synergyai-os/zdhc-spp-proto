@@ -1,12 +1,24 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { useConvexClient } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
+	import type { Id } from '../../../convex/_generated/dataModel';
 	import { checkoutStore } from '$lib/stores/checkout.svelte';
 	import PaymentSummary from '$lib/components/PaymentSummary.svelte';
 	import PaymentMethodSelector from '$lib/components/PaymentMethodSelector.svelte';
 
 	// Get Convex client
 	const client = useConvexClient();
+
+	// Reset any stuck loading state when page loads
+	onMount(() => {
+		if (storeState.isLoading) {
+			checkoutStore.resetLoadingState();
+		}
+	});
+
+	// Force reset loading state immediately on page load (more aggressive)
+	checkoutStore.resetLoadingState();
 
 	// Store state
 	let storeState = $derived($checkoutStore);
@@ -18,6 +30,7 @@
 	let paymentMethod = $derived(storeState.paymentMethod);
 	let isLoading = $derived(storeState.isLoading);
 	let error = $derived(storeState.error);
+
 
 	// Form state
 	let cardNumber = $state('');
@@ -72,12 +85,14 @@
 			// Determine status based on payment method
 			const newStatus = paymentMethod === 'credit_card' ? 'approved' : 'pending_review';
 
-			// Update CV status to submitted (since payment was processed)
+			// Update CV status based on payment method
 			const cvIds = [...new Set(selectedExperts.map(expert => expert.expertCVId))];
+			const cvStatus = paymentMethod === 'credit_card' ? 'paid' : 'payment_pending';
 			
 			for (const cvId of cvIds) {
-				await client.mutation(api.expertCVs.submitExpertCV, {
-					id: cvId as any
+				await client.mutation(api.expert.updateCVStatus, {
+					cvId: cvId as Id<'expertCVs'>,
+					newStatus: cvStatus
 				});
 			}
 

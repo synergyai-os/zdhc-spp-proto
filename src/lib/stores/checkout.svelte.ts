@@ -206,24 +206,45 @@ function createCheckoutStore() {
 
 		// Set loading state
 		setLoading: (isLoading: boolean) => {
-			update((state) => ({
-				...state,
-				isLoading
-			}));
+			update((state) => {
+				const newState = {
+					...state,
+					isLoading
+				};
+				saveToStorage(newState);
+				return newState;
+			});
 		},
 
 		// Set error state
 		setError: (error: string | null) => {
-			update((state) => ({
-				...state,
-				error
-			}));
+			update((state) => {
+				const newState = {
+					...state,
+					error
+				};
+				saveToStorage(newState);
+				return newState;
+			});
 		},
 
 		// Clear all checkout data
 		clearCheckout: () => {
 			set(initialState);
 			clearStorage();
+		},
+
+		// Reset loading state (useful for fixing stuck states)
+		resetLoadingState: () => {
+			update((state) => {
+				const newState = {
+					...state,
+					isLoading: false,
+					error: null
+				};
+				saveToStorage(newState);
+				return newState;
+			});
 		},
 
 		// Load persisted state (useful for debugging)
