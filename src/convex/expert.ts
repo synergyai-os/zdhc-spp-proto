@@ -105,14 +105,22 @@ export const getLatestCV = query({
 		// Get all matching CVs ordered by newest first
 		const cvs = await query.order('desc').collect();
 
+		// Enrich CVs with user data
+		const enrichedCVs = await Promise.all(
+			cvs.map(async (cv) => {
+				const user = await ctx.db.get(cv.userId);
+				return { ...cv, user };
+			})
+		);
+
 		// If userId provided, return single latest CV for that user
 		if (args.userId) {
-			return cvs.length > 0 ? cvs[0] : null;
+			return enrichedCVs.length > 0 ? enrichedCVs[0] : null;
 		}
 
 		// If no userId, group by user and return latest CV for each user
 		const userLatestCVs = new Map();
-		cvs.forEach(cv => {
+		enrichedCVs.forEach(cv => {
 			if (!userLatestCVs.has(cv.userId)) {
 				userLatestCVs.set(cv.userId, cv);
 			}
