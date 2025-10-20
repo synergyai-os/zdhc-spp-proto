@@ -21,6 +21,18 @@
 	// Calculate counts correctly
 	let selectedCount = $derived(selectedExperts.length); // Individual service assignments
 	let uniqueExpertCount = $derived(new Set(selectedExperts.map((expert) => expert.userId)).size); // Unique experts
+	
+	// Calculate pricing breakdown
+	let totalWithoutDiscount = $derived(
+		selectedExperts.reduce((sum, expert) => sum + (expert.basePrice || expert.price), 0)
+	);
+	let totalDiscount = $derived(
+		selectedExperts.reduce((sum, expert) => {
+			const basePrice = expert.basePrice || expert.price;
+			return sum + (basePrice - expert.price);
+		}, 0)
+	);
+	let finalTotal = $derived(totalAmount);
 </script>
 
 <div
@@ -33,50 +45,26 @@
 	{/if}
 
 	<div class="space-y-3">
-		<!-- Selected Experts Count -->
+		<!-- Total Price (without discount) -->
 		<div class="flex items-center justify-between">
-			<span class="text-sm font-medium text-gray-700">Selected Experts</span>
-			<span class="text-sm font-semibold text-gray-900">{uniqueExpertCount}</span>
+			<span class="text-sm font-medium text-gray-700">Total Price</span>
+			<span class="text-sm font-semibold text-gray-900">€{totalWithoutDiscount.toFixed(2)}</span>
 		</div>
 
-		<!-- Service Count -->
-		<div class="flex items-center justify-between">
-			<span class="text-sm font-medium text-gray-700">Service Assignments</span>
-			<span class="text-sm font-semibold text-gray-900">{selectedCount}</span>
-		</div>
+		<!-- Discount -->
+		{#if totalDiscount > 0}
+			<div class="flex items-center justify-between">
+				<span class="text-sm font-medium text-green-700">Discount</span>
+				<span class="text-sm font-semibold text-green-700">-€{totalDiscount.toFixed(2)}</span>
+			</div>
+		{/if}
 
-		<!-- Total Amount -->
+		<!-- Final Total -->
 		<div class="flex items-center justify-between pt-3 border-t border-gray-200">
 			<span class="text-base font-semibold text-gray-900">Total Amount</span>
-			<span class="text-xl font-bold text-gray-900">€{totalAmount.toFixed(2)}</span>
+			<span class="text-xl font-bold text-gray-900">€{finalTotal.toFixed(2)}</span>
 		</div>
 	</div>
-
-	{#if showDetails && selectedExperts.length > 0}
-		<div class="mt-4 pt-4 border-t border-gray-200">
-			<h4 class="text-sm font-medium text-gray-700 mb-3">Selected Experts</h4>
-			<div class="space-y-2">
-				{#each selectedExperts as expert}
-					<div class="flex items-center justify-between text-sm">
-						<div class="flex items-center space-x-2">
-							<span class="text-gray-900 font-medium">{expert.userName}</span>
-							<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-								{expert.serviceVersionName}
-							</span>
-							{#if expert.role === 'lead'}
-								<span
-									class="px-1.5 py-0.5 bg-yellow-200 text-yellow-800 text-xs rounded-full font-semibold"
-								>
-									LEAD
-								</span>
-							{/if}
-						</div>
-						<span class="text-gray-600 font-medium">€{expert.price.toFixed(2)}</span>
-					</div>
-				{/each}
-			</div>
-		</div>
-	{/if}
 
 	{#if uniqueExpertCount === 0}
 		<div class="mt-4 pt-4 border-t border-gray-200">
