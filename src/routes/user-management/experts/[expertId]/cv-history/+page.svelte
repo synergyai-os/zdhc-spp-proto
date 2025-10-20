@@ -3,6 +3,8 @@
 	import { useQuery } from 'convex-svelte';
 	import { api } from '../../../../../convex/_generated/api';
 	import { goto } from '$app/navigation';
+	import type { CVStatus } from '../../../../../convex/model/status';
+	import { getCVStatusColor, getCVStatusDisplayName } from '../../../../../convex/model/status';
 
 	// Get expertId from route params
 	let expertId = $derived($page.params.expertId);
@@ -37,33 +39,6 @@
 		});
 	}
 
-	// Get status color
-	function getStatusColor(status: string): string {
-		switch (status) {
-			case 'draft':
-				return 'bg-gray-100 text-gray-800';
-			case 'submitted':
-				return 'bg-blue-100 text-blue-800';
-			case 'locked':
-				return 'bg-green-100 text-green-800';
-			default:
-				return 'bg-gray-100 text-gray-800';
-		}
-	}
-
-	// Get status display name
-	function getStatusDisplayName(status: string): string {
-		switch (status) {
-			case 'draft':
-				return 'Draft';
-			case 'submitted':
-				return 'Under Review';
-			case 'locked':
-				return 'Completed';
-			default:
-				return status;
-		}
-	}
 
 	// Navigation
 	function goBack() {
@@ -179,8 +154,8 @@
 								<div class="flex items-center space-x-4 mb-4">
 									<div class="flex items-center space-x-2">
 										<span class="text-2xl font-bold text-gray-800">v{cv.version}</span>
-										<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getStatusColor(cv.status)}">
-											{getStatusDisplayName(cv.status)}
+										<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getCVStatusColor(cv.status as CVStatus)}">
+											{getCVStatusDisplayName(cv.status as CVStatus)}
 										</span>
 									</div>
 									
@@ -309,13 +284,13 @@
 					</div>
 					<div class="text-center">
 						<div class="text-2xl font-bold text-green-600">
-							{cvHistory.data.filter(cv => cv.status === 'locked').length}
+							{cvHistory.data.filter(cv => cv.status === 'locked_final').length}
 						</div>
 						<div class="text-sm text-gray-600">Completed</div>
 					</div>
 					<div class="text-center">
 						<div class="text-2xl font-bold text-yellow-600">
-							{cvHistory.data.filter(cv => cv.status === 'submitted').length}
+							{cvHistory.data.filter(cv => cv.status === 'completed').length}
 						</div>
 						<div class="text-sm text-gray-600">Under Review</div>
 					</div>

@@ -97,3 +97,32 @@ export function getCVStatusColor(status: CVStatus): string {
 		default: return 'bg-gray-100 text-gray-800';
 	}
 }
+
+/**
+ * Get human-readable display name for CV status
+ */
+export function getCVStatusDisplayName(status: CVStatus): string {
+	switch (status) {
+		case 'draft': return 'Draft';
+		case 'completed': return 'Completed';
+		case 'payment_pending': return 'Payment Pending';
+		case 'paid': return 'Paid';
+		case 'locked_for_review': return 'Locked for Review';
+		case 'unlocked_for_edits': return 'Unlocked for Edits';
+		case 'locked_final': return 'Locked Final';
+		default: return status;
+	}
+}
+
+/**
+ * Get human-readable display name for service assignment status
+ */
+export function getServiceStatusDisplayName(status: ServiceStatus): string {
+	switch (status) {
+		case 'pending_review': return 'Pending Review';
+		case 'approved': return 'Approved';
+		case 'rejected': return 'Rejected';
+		case 'inactive': return 'Inactive';
+		default: return status;
+	}
+}

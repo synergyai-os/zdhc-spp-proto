@@ -7,6 +7,15 @@
 	import PaymentMethodSelector from '$lib/components/PaymentMethodSelector.svelte';
 	import PaymentSummary from '$lib/components/PaymentSummary.svelte';
 	import { calculateServicePricing } from '$lib/pricing';
+	import { onMount } from 'svelte';
+
+
+	// Reset any stuck loading state when page loads
+	onMount(() => {
+		if (storeState.isLoading) {
+			checkoutStore.resetLoadingState();
+		}
+	});
 
 	// Using hardcoded organization ID
 	const currentOrgId = DEFAULT_ORG_ID;

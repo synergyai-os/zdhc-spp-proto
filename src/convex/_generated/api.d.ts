@@ -16,7 +16,6 @@ import type * as model_expertCVs from "../model/expertCVs.js";
 import type * as model_status from "../model/status.js";
 import type * as model_types from "../model/types.js";
 import type * as model_validators from "../model/validators.js";
-import type * as old_expertCVs from "../old_expertCVs.js";
 import type * as serviceVersions from "../serviceVersions.js";
 import type * as services from "../services.js";
 import type * as utilities from "../utilities.js";
@@ -44,7 +43,6 @@ declare const fullApi: ApiFromModules<{
   "model/status": typeof model_status;
   "model/types": typeof model_types;
   "model/validators": typeof model_validators;
-  old_expertCVs: typeof old_expertCVs;
   serviceVersions: typeof serviceVersions;
   services: typeof services;
   utilities: typeof utilities;

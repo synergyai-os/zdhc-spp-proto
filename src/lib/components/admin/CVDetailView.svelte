@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { useConvexClient } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
+	import type { ServiceStatus } from '../../../convex/model/status';
+	import { getServiceStatusDisplayName } from '../../../convex/model/status';
 
 	interface User {
 		_id: string;
@@ -47,7 +49,7 @@
 
 	interface ServiceAssignment {
 		_id: string;
-		status: 'pending_review' | 'approved' | 'rejected' | 'inactive';
+		status: ServiceStatus;
 		role: 'lead' | 'regular';
 		serviceVersion: {
 			_id: string;
@@ -126,22 +128,6 @@
 		}
 	};
 
-	const getStatusDisplayName = (status: string): string => {
-		switch (status) {
-			case 'paid':
-				return 'Paid - Pending Review';
-			case 'training_completed':
-				return 'Training Completed - Ready for Approval';
-			case 'approved':
-				return 'Approved';
-			case 'rejected':
-				return 'Rejected';
-			case 'inactive':
-				return 'Inactive';
-			default:
-				return status;
-		}
-	};
 
 	const formatDate = (timestamp: number): string => {
 		return new Date(timestamp).toLocaleDateString('en-US', {
@@ -355,13 +341,13 @@
 
 	<!-- Experience Section -->
 	{#if cvData.organizationGroups.length > 0}
-		{@const allAssignments = cvData.organizationGroups.flatMap(org => org.assignments)}
-		{@const assignmentWithExperience = allAssignments.find(a => a.experience && a.experience.length > 0)}
-		{#if assignmentWithExperience?.experience?.length > 0}
+		{@const allCVs = cvData.organizationGroups.flatMap(org => org.cvs)}
+		{@const cvWithExperience = allCVs.find(cv => cv.experience && cv.experience.length > 0)}
+		{#if cvWithExperience?.experience && cvWithExperience.experience.length > 0}
 			<div class="bg-white border border-gray-200 rounded-lg p-6">
 				<h2 class="text-xl font-bold text-gray-900 mb-4">Professional Experience</h2>
 				<div class="space-y-4">
-					{#each assignmentWithExperience.experience as exp}
+					{#each cvWithExperience.experience as exp}
 						<div class="border-l-4 border-blue-500 pl-4 py-2">
 							<div class="flex justify-between items-start">
 								<div>
@@ -391,13 +377,13 @@
 
 	<!-- Education Section -->
 	{#if cvData.organizationGroups.length > 0}
-		{@const allAssignments = cvData.organizationGroups.flatMap(org => org.assignments)}
-		{@const assignmentWithEducation = allAssignments.find(a => a.education && a.education.length > 0)}
-		{#if assignmentWithEducation?.education?.length > 0}
+		{@const allCVs = cvData.organizationGroups.flatMap(org => org.cvs)}
+		{@const cvWithEducation = allCVs.find(cv => cv.education && cv.education.length > 0)}
+		{#if cvWithEducation?.education && cvWithEducation.education.length > 0}
 			<div class="bg-white border border-gray-200 rounded-lg p-6">
 				<h2 class="text-xl font-bold text-gray-900 mb-4">Education</h2>
 				<div class="space-y-4">
-					{#each assignmentWithEducation.education as edu}
+					{#each cvWithEducation.education as edu}
 						<div class="border-l-4 border-green-500 pl-4 py-2">
 							<h3 class="font-semibold text-gray-900">{edu.degree} in {edu.field}</h3>
 							<p class="text-gray-600">{edu.school}</p>
@@ -420,13 +406,13 @@
 					Service Applications for {orgGroup.organization.name}
 				</h2>
 				<p class="text-sm text-gray-600 mb-4">
-					This user has applied for {orgGroup.assignments.length} service{orgGroup.assignments.length === 1 ? '' : 's'} with this organization
+					This user has applied for {orgGroup.cvs.reduce((total, cv) => total + cv.assignments.length, 0)} service{orgGroup.cvs.reduce((total, cv) => total + cv.assignments.length, 0) === 1 ? '' : 's'} with this organization
 				</p>
 				<div class="grid gap-4">
-					{#each orgGroup.assignments as assignment}
+					{#each orgGroup.cvs as cv}
+						{#each cv.assignments as assignment}
 						<div
-							class="border border-gray-200 rounded-lg p-4 {assignment.status === 'paid' ||
-							assignment.status === 'training_completed'
+							class="border border-gray-200 rounded-lg p-4 {assignment.status === 'pending_review'
 								? 'bg-yellow-50'
 								: ''}"
 						>
@@ -445,7 +431,7 @@
 											</span>
 										{/if}
 										<span class="text-xs text-gray-500">
-											Applied: {formatDate(assignment.assignedAt)}
+											Applied: {formatDate(assignment.createdAt)}
 										</span>
 									</div>
 								</div>
@@ -455,7 +441,7 @@
 											assignment.status
 										)}"
 									>
-										{getStatusDisplayName(assignment.status)}
+										{getServiceStatusDisplayName(assignment.status)}
 									</span>
 									{#if assignment.reviewedAt}
 										<p class="text-xs text-gray-500 mt-1">
@@ -523,6 +509,7 @@
 								</div>
 							{/if}
 						</div>
+						{/each}
 					{/each}
 				</div>
 			</div>

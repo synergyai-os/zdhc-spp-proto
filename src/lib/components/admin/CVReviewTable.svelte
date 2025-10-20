@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
+	import type { CVStatus } from '../../../convex/model/status';
+	import { CV_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName } from '../../../convex/model/status';
 
 	interface ExpertForReview {
 		userId: string;
@@ -14,7 +16,7 @@
 		cvs: Array<{
 			_id: string;
 			version: number;
-			status: 'draft' | 'submitted' | 'locked';
+			status: CVStatus;
 			createdAt: number;
 			submittedAt?: number;
 			lockedAt?: number;
@@ -49,7 +51,7 @@
 	const client = useConvexClient();
 
 	// Filter state
-	let statusFilter = $state<'submitted' | 'pending_review' | 'approved' | 'rejected' | 'locked' | ''>('submitted'); // Default to submitted status
+	let statusFilter = $state<CVStatus | ''>('completed'); // Default to completed status
 	let organizationFilter = $state<string>('');
 	let searchTerm = $state<string>('');
 
@@ -65,48 +67,11 @@
 	let organizations = $derived(organizationsData?.data || []);
 	let stats = $derived(adminStats?.data || { pendingReview: 0, total: 0 });
 
-	// Status color mapping (updated for new CV schema)
+	// Status color mapping using centralized function
 	const getStatusColor = (status: string): string => {
-		switch (status) {
-			case 'draft':
-				return 'bg-gray-100 text-gray-800';
-			case 'submitted':
-				return 'bg-blue-100 text-blue-800';
-			case 'pending_review':
-				return 'bg-yellow-100 text-yellow-800';
-			case 'approved':
-				return 'bg-green-100 text-green-800';
-			case 'rejected':
-				return 'bg-red-100 text-red-800';
-			case 'locked':
-				return 'bg-purple-100 text-purple-800';
-			case 'inactive':
-				return 'bg-gray-100 text-gray-800';
-			default:
-				return 'bg-gray-100 text-gray-800';
-		}
+		return getCVStatusColor(status as CVStatus);
 	};
 
-	const getStatusDisplayName = (status: string): string => {
-		switch (status) {
-			case 'draft':
-				return 'Draft';
-			case 'submitted':
-				return 'Submitted';
-			case 'pending_review':
-				return 'Pending Review';
-			case 'approved':
-				return 'Approved';
-			case 'rejected':
-				return 'Rejected';
-			case 'locked':
-				return 'Locked';
-			case 'inactive':
-				return 'Inactive';
-			default:
-				return status;
-		}
-	};
 
 	const formatDate = (timestamp: number): string => {
 		return new Date(timestamp).toLocaleDateString();
@@ -141,7 +106,7 @@
 					<div class="text-sm text-gray-600">Rejected</div>
 				</div>
 				<div class="text-center">
-					<div class="text-2xl font-bold text-gray-600">{stats.total}</div>
+					<div class="text-2xl font-bold text-gray-600">{(stats as any).totalAssignments || 0}</div>
 					<div class="text-sm text-gray-600">Total Assignments</div>
 				</div>
 			</div>
@@ -162,11 +127,9 @@
 					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 				>
 					<option value="">All Statuses</option>
-					<option value="paid">Paid (Pending Review)</option>
-					<option value="training_completed">Training Completed</option>
-					<option value="approved">Approved</option>
-					<option value="rejected">Rejected</option>
-					<option value="inactive">Inactive</option>
+					{#each CV_STATUS_VALUES as status}
+						<option value={status}>{getCVStatusDisplayName(status)}</option>
+					{/each}
 				</select>
 			</div>
 
@@ -332,13 +295,13 @@
 								<!-- Services -->
 								<td class="px-6 py-4">
 									<div class="flex flex-wrap gap-1">
-										{#each expert.assignments as assignment}
+										{#each expert.latestCV?.assignments || [] as assignment}
 											<span
 												class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getStatusColor(
 													assignment.status
 												)}"
 											>
-												{assignment.serviceVersion.name}
+												{assignment.serviceVersion?.name || 'Unknown Service'}
 											</span>
 										{/each}
 									</div>
