@@ -6,6 +6,7 @@
 	import ExpertCheckoutCard from '$lib/components/ExpertCheckoutCard.svelte';
 	import PaymentMethodSelector from '$lib/components/PaymentMethodSelector.svelte';
 	import PaymentSummary from '$lib/components/PaymentSummary.svelte';
+	import { calculateServicePricing } from '$lib/pricing';
 
 	// Using hardcoded organization ID
 	const currentOrgId = DEFAULT_ORG_ID;
@@ -61,7 +62,13 @@
 				(assignment: any) => assignment.expertCVId === cv._id
 			);
 
-			cvAssignments.forEach((assignment: any) => {
+			// Calculate pricing for this CV's service assignments
+			const pricing = calculateServicePricing(cvAssignments.length);
+			
+			cvAssignments.forEach((assignment: any, index: number) => {
+				const servicePrice = pricing.breakdown[index].finalPrice;
+				const discountPercentage = pricing.breakdown[index].discountPercentage;
+				
 				const serviceAssignment = {
 					expertCVId: cv._id,
 					expertServiceAssignmentId: assignment._id,
@@ -71,7 +78,10 @@
 					serviceVersionName: assignment.serviceVersion?.name || 'Unknown Service',
 					serviceParentName: assignment.serviceParent?.name || 'Unknown Category',
 					role: assignment.role || 'regular',
-					price: 100 // Hardcoded €100 per service version
+					price: servicePrice, // Real calculated price
+					serviceNumber: index + 1, // Track service order for discounts
+					discountPercentage: discountPercentage,
+					basePrice: pricing.breakdown[index].basePrice
 				};
 
 				userGroups.get(userId).assignments.push(serviceAssignment);
@@ -100,7 +110,13 @@
 					(assignment: any) => assignment.expertCVId === cv._id
 				);
 
-				cvAssignments.forEach((assignment: any) => {
+				// Calculate pricing for this CV's service assignments
+				const pricing = calculateServicePricing(cvAssignments.length);
+
+				cvAssignments.forEach((assignment: any, index: number) => {
+					const servicePrice = pricing.breakdown[index].finalPrice;
+					const discountPercentage = pricing.breakdown[index].discountPercentage;
+					
 					checkoutExperts.push({
 						expertCVId: cv._id,
 						expertServiceAssignmentId: assignment._id,
@@ -116,7 +132,10 @@
 						serviceVersionName: assignment.serviceVersion?.name || 'Unknown Service',
 						serviceParentName: assignment.serviceParent?.name || 'Unknown Category',
 						role: assignment.role || 'regular',
-						price: 100, // Hardcoded €100 per service version
+						price: servicePrice, // Real calculated price
+						serviceNumber: index + 1,
+						discountPercentage: discountPercentage,
+						basePrice: pricing.breakdown[index].basePrice,
 						isUserVerified: cv.user?.isActive || false
 					});
 				});
@@ -455,6 +474,15 @@
 																			LEAD
 																		</span>
 																	{/if}
+																	{#if assignment.discountPercentage > 0}
+																		<span
+																			class="px-1.5 py-0.5 text-xs rounded-full bg-green-200 text-green-800 font-semibold {!expertGroup.isUserVerified
+																				? 'opacity-50'
+																				: ''}"
+																		>
+																			{assignment.discountPercentage}% OFF
+																		</span>
+																	{/if}
 																</div>
 																<span
 																	class="text-sm font-medium text-gray-900 {!expertGroup.isUserVerified
@@ -561,8 +589,8 @@
 							<div>
 								<h3 class="text-sm font-medium text-blue-800">Pricing Information</h3>
 								<p class="text-sm text-blue-700 mt-1">
-									€100 per service version per expert. This covers training, certification, and
-									ongoing support.
+									Progressive pricing per CV: 1st service €250, 2nd service €200 (20% off), 
+									3rd service €175 (30% off), 4th service €150 (40% off), 5th+ services €125 (50% off).
 								</p>
 							</div>
 						</div>
