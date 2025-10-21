@@ -223,10 +223,7 @@
 		saveError = null;
 		
 		try {
-			// Step 1: Save CV data changes FIRST (experience/education)
-			// NOTE: We save before validation for better UX in prototype, but this means
-			// we might temporarily save invalid data to the database before correcting the status.
-			// For production, consider validating first to maintain data integrity.
+			// Step 1: Save CV data changes (experience/education)
 			if (localCVData) {
 				await client.mutation(api.expert.updateCV, {
 					cvId: localCVData._id,
@@ -236,7 +233,7 @@
 				});
 			}
 			
-			// Step 2: Analyze what changes need to be made
+			// Step 2: Analyze and execute service changes FIRST
 			const changes = analyzeServiceChanges();
 			console.log('📊 Changes to make:', changes);
 			console.log('Current assigned services:', assignedServices?.data);
@@ -244,24 +241,89 @@
 			console.log('Current service roles:', serviceRoles);
 			console.log('Role changes:', roleChanges);
 			
-			// Step 3: Log CV status and validation (NEW)
+			// Check if service editing is allowed
+			const canEditServicesNow = canEditServices(expertCV?.data?.status || 'draft');
+			console.log('🎯 Can edit services:', canEditServicesNow);
+			
+			// Execute service changes (only if service editing is allowed)
+			if (canEditServicesNow) {
+				if (changes.toAdd.length > 0) {
+					console.log('➕ Adding services:', changes.toAdd);
+					for (const serviceId of changes.toAdd) {
+						await addServiceAssignment(serviceId);
+						console.log(`✅ Added service: ${serviceId}`);
+					}
+				}
+				
+				if (changes.toRemove.length > 0) {
+					console.log('➖ Removing services:', changes.toRemove);
+					for (const serviceId of changes.toRemove) {
+						await removeServiceAssignment(serviceId);
+						console.log(`✅ Removed service: ${serviceId}`);
+					}
+				}
+				
+				if (changes.toUpdate.length > 0) {
+					console.log('🔄 Updating roles:', changes.toUpdate);
+					for (const update of changes.toUpdate) {
+						await updateServiceRole(update.assignmentId, update.newRole);
+						console.log(`✅ Updated role: ${update.assignmentId} → ${update.newRole}`);
+					}
+				}
+				
+				if (changes.toAdd.length === 0 && changes.toRemove.length === 0 && changes.toUpdate.length === 0) {
+					console.log('✅ No service changes needed');
+				}
+			} else {
+				console.log('🚫 Service editing not allowed - skipping service changes');
+			}
+			
+			// Step 3: NOW validate and handle status transitions AFTER all data is saved
 			console.log('🎯 CV Status:', expertCV?.data?.status);
-			console.log('🎯 Can edit services:', canEditServices(expertCV?.data?.status || 'draft'));
 			console.log('🎯 Can edit CV content:', canEditCVContent(expertCV?.data?.status || 'draft'));
+			
 			if (localCVData) {
-				// Create CV object with service assignments for validation using localCVData
+				// Create CV object with UPDATED service assignments for validation
+				// We need to simulate what the service assignments will look like after our changes
+				const updatedServiceAssignments = [...(assignedServices?.data || [])];
+				
+				// Add new service assignments
+				for (const serviceId of changes.toAdd) {
+					const role = (roleChanges as any)[serviceId] || 'regular';
+					updatedServiceAssignments.push({
+						_id: `temp-${serviceId}`, // Temporary ID for validation
+						serviceVersionId: serviceId,
+						role: role
+					});
+				}
+				
+				// Remove service assignments
+				const filteredAssignments = updatedServiceAssignments.filter(
+					(assignment: any) => !changes.toRemove.includes(assignment.serviceVersionId)
+				);
+				
+				// Update roles for existing assignments
+				const finalAssignments = filteredAssignments.map((assignment: any) => {
+					if (changes.toUpdate.some((update: any) => update.assignmentId === assignment._id)) {
+						const update = changes.toUpdate.find((update: any) => update.assignmentId === assignment._id);
+						return { ...assignment, role: update?.newRole || assignment.role };
+					}
+					return assignment;
+				});
+				
 				const cvForValidation = {
 					...localCVData,
-					serviceAssignments: assignedServices?.data || []
+					serviceAssignments: finalAssignments
 				};
+				
 				const validation = validateCVCompletion(cvForValidation);
 				console.log('🎯 CV Validation:', validation);
 				console.log('🎯 Local CV Data:', localCVData);
 				console.log('🎯 Experience length:', localCVData.experience?.length);
 				console.log('🎯 Education length:', localCVData.education?.length);
-				console.log('🎯 Service assignments length:', assignedServices?.data?.length || 0);
+				console.log('🎯 Final service assignments length:', finalAssignments.length);
 				
-				// Step 4: Handle status transitions based on validation
+				// Handle status transitions based on validation
 				const currentStatus = expertCV?.data?.status;
 				
 				if (currentStatus === 'draft' && validation.isValid) {
@@ -281,43 +343,6 @@
 					});
 					console.log('✅ Status reverted to draft');
 				}
-			}
-			
-			// Step 1.6: Check if service editing is allowed (NEW)
-			const canEditServicesNow = canEditServices(expertCV?.data?.status || 'draft');
-			console.log('🎯 Can edit services:', canEditServicesNow);
-			
-			// Step 2: Execute the changes (only if service editing is allowed)
-			if (canEditServicesNow) {
-			if (changes.toAdd.length > 0) {
-				console.log('➕ Adding services:', changes.toAdd);
-				for (const serviceId of changes.toAdd) {
-					await addServiceAssignment(serviceId);
-					console.log(`✅ Added service: ${serviceId}`);
-				}
-			}
-			
-			if (changes.toRemove.length > 0) {
-				console.log('➖ Removing services:', changes.toRemove);
-				for (const serviceId of changes.toRemove) {
-					await removeServiceAssignment(serviceId);
-					console.log(`✅ Removed service: ${serviceId}`);
-				}
-			}
-			
-			if (changes.toUpdate.length > 0) {
-				console.log('🔄 Updating roles:', changes.toUpdate);
-				for (const update of changes.toUpdate) {
-					await updateServiceRole(update.assignmentId, update.newRole);
-					console.log(`✅ Updated role: ${update.assignmentId} → ${update.newRole}`);
-				}
-			}
-			
-			if (changes.toAdd.length === 0 && changes.toRemove.length === 0 && changes.toUpdate.length === 0) {
-				console.log('✅ No service changes needed');
-			}
-			} else {
-				console.log('🚫 Service editing not allowed - skipping service changes');
 			}
 			
 			console.log('🎉 Save completed successfully!');
