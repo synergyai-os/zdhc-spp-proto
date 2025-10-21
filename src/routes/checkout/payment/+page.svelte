@@ -82,9 +82,6 @@
 				bankReference: paymentMethod === 'bank_transfer' ? bankReference : undefined
 			});
 
-			// Determine status based on payment method
-			const newStatus = paymentMethod === 'credit_card' ? 'approved' : 'pending_review';
-
 			// Update CV status based on payment method
 			const cvIds = [...new Set(selectedExperts.map(expert => expert.expertCVId))];
 			const cvStatus = paymentMethod === 'credit_card' ? 'paid' : 'payment_pending';
@@ -96,15 +93,10 @@
 				});
 			}
 
-			// Update service assignment statuses in database
-			const result = await client.mutation(api.expertServiceAssignments.updateMultipleAssignmentStatuses, {
-				assignmentIds: storeState.selectedExpertIds,
-				status: newStatus,
-				updatedBy: 'current-user-id', // TODO: Get actual user ID
-				notes: `Payment processed via ${paymentMethod === 'credit_card' ? 'Credit Card' : 'Bank Transfer'} on ${new Date().toLocaleDateString()}`
-			});
+			// Service assignment statuses remain 'pending_review' until admin review
+			// No need to update service assignment statuses here - they stay pending_review
 
-			console.log('Payment processed successfully:', result);
+			console.log('Payment processed successfully - CV status updated to:', cvStatus);
 
 			// Redirect to confirmation page
 			window.location.href = '/checkout/confirmation';

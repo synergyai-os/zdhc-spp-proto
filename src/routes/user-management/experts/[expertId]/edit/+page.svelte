@@ -4,7 +4,8 @@
 	import { api, type Id } from '$lib';
 	import { DEFAULT_ORG_ID } from '$lib/config';
 	import { calculateServicePricing } from '$lib/pricing';
-	import { validateCVCompletion, canEditServices, canEditCVContent } from '$lib/cvValidation';
+	import { validateCVCompletion } from '$lib/cvValidation';
+	import { canEditServices, canEditCVContent, getCVStatusColor } from '../../../../../convex/model/status';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -116,19 +117,6 @@
 		localCVData.education[index] = { ...localCVData.education[index], [field]: value };
 	}
 	
-	// Status color coding function
-	function getStatusColor(status: string): string {
-		switch (status) {
-			case 'draft': return 'bg-gray-100 text-gray-800';
-			case 'completed': return 'bg-blue-100 text-blue-800';
-			case 'payment_pending': return 'bg-yellow-100 text-yellow-800';
-			case 'paid': return 'bg-green-100 text-green-800';
-			case 'locked_for_review': return 'bg-orange-100 text-orange-800';
-			case 'unlocked_for_edits': return 'bg-red-100 text-red-800';
-			case 'locked_final': return 'bg-green-100 text-green-800';
-			default: return 'bg-gray-100 text-gray-800';
-		}
-	}
 	
 	// Helper functions for cleaner code
 	function getDummyServiceQueryArgs() {
@@ -490,7 +478,7 @@
 			<div class="space-y-2 text-sm">
 				<p><strong>CV ID:</strong> {expertCV.data._id}</p>
 				<p><strong>Status:</strong> 
-					<span class="px-2 py-1 rounded text-xs font-medium {getStatusColor(expertCV.data.status)}">
+					<span class="px-2 py-1 rounded text-xs font-medium {getCVStatusColor(expertCV.data.status)}">
 						{expertCV.data.status}
 					</span>
 				</p>

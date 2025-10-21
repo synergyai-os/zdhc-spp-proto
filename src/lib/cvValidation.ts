@@ -43,11 +43,3 @@ export function canTransitionStatus(from: string, to: string): boolean {
   return allowedTransitions.includes(to);
 }
 
-export function canEditServices(status: string): boolean {
-  return ['draft', 'completed'].includes(status);
-  // Services locked after payment - no adding/removing
-}
-
-export function canEditCVContent(status: string): boolean {
-  return ['draft', 'completed', 'unlocked_for_edits'].includes(status);
-}
