@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { useConvexClient } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
-	import type { ServiceStatus } from '../../../convex/model/status';
-	import { getServiceStatusDisplayName } from '../../../convex/model/status';
+	import type { ServiceStatus, CVStatus } from '../../../convex/model/status';
+	import { getServiceStatusDisplayName, getServiceStatusColor, SERVICE_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName } from '../../../convex/model/status';
 
 	interface User {
 		_id: string;
@@ -35,7 +35,7 @@
 	interface ExpertCV {
 		_id: string;
 		version: number;
-		status: 'draft' | 'submitted' | 'locked';
+		status: CVStatus;
 		experience: Experience[];
 		education: Education[];
 		createdAt: number;
@@ -95,6 +95,47 @@
 
 	const client = useConvexClient();
 
+	// Hardcoded example data for layout demonstration
+	const exampleCVStatus = 'locked_for_review'; // Current CV status
+	
+	// Hardcoded CV switching data - all CVs for this user
+	const allUserCVs = [
+		{
+			id: 'k570rpgsnm7c9j8wtnxb574mh57stw33',
+			version: 1,
+			status: 'locked_for_review',
+			organization: 'ZDHC Foundation',
+			createdAt: Date.now() - 259200000,
+			isCurrent: true
+		},
+		{
+			id: 'k5785zczcqja5bx4spzmfeec9d7sxmsb',
+			version: 2,
+			status: 'locked_final',
+			organization: 'ZDHC Foundation',
+			createdAt: Date.now() - 518400000,
+			isCurrent: false
+		},
+		{
+			id: 'k57etq9271vkp3cwss2bn62se57sw0cn',
+			version: 3,
+			status: 'paid',
+			organization: 'ZDHC Foundation',
+			createdAt: Date.now() - 777600000,
+			isCurrent: false
+		}
+	];
+	
+	const exampleAuditTrail = [
+		{ action: 'CV Status Changed', from: 'paid', to: 'locked_for_review', by: 'System', timestamp: Date.now() - 86400000 },
+		{ action: 'Payment Completed', from: 'payment_pending', to: 'paid', by: 'Payment Gateway', timestamp: Date.now() - 172800000 },
+		{ action: 'CV Submitted', from: 'completed', to: 'payment_pending', by: 'John Doe', timestamp: Date.now() - 259200000 }
+	];
+	const exampleInternalNotes = [
+		{ author: 'Sarah Johnson', note: 'CV looks good overall, but need to verify experience in chemical engineering.', timestamp: Date.now() - 3600000 },
+		{ author: 'Mike Chen', note: 'Waiting for additional documentation from the expert.', timestamp: Date.now() - 7200000 }
+	];
+
 	// State for approval/rejection actions
 	let activeAssignment = $state<ServiceAssignment | null>(null);
 	let showApprovalModal = $state(false);
@@ -106,28 +147,9 @@
 	let errorMessage = $state('');
 	let successMessage = $state('');
 
-	// Status color mapping (updated for new CV schema)
-	const getStatusColor = (status: string): string => {
-		switch (status) {
-			case 'draft':
-				return 'bg-gray-100 text-gray-800';
-			case 'submitted':
-				return 'bg-blue-100 text-blue-800';
-			case 'pending_review':
-				return 'bg-yellow-100 text-yellow-800';
-			case 'approved':
-				return 'bg-green-100 text-green-800';
-			case 'rejected':
-				return 'bg-red-100 text-red-800';
-			case 'locked':
-				return 'bg-purple-100 text-purple-800';
-			case 'inactive':
-				return 'bg-gray-100 text-gray-800';
-			default:
-				return 'bg-gray-100 text-gray-800';
-		}
-	};
-
+	// State for CV switching
+	let selectedCVId = $state('k570rpgsnm7c9j8wtnxb574mh57stw33'); // Current CV by default
+	let showCVComparison = $state(false);
 
 	const formatDate = (timestamp: number): string => {
 		return new Date(timestamp).toLocaleDateString('en-US', {
@@ -140,11 +162,26 @@
 	};
 
 	const canApprove = (assignment: ServiceAssignment): boolean => {
-		return assignment.status === 'pending_review';
+		return assignment.status === SERVICE_STATUS_VALUES[0]; // 'pending_review'
 	};
 
 	const canReject = (assignment: ServiceAssignment): boolean => {
-		return assignment.status === 'pending_review';
+		return assignment.status === SERVICE_STATUS_VALUES[0]; // 'pending_review'
+	};
+
+	// CV switching functions
+	const switchToCV = (cvId: string) => {
+		selectedCVId = cvId;
+		// In real implementation, this would trigger a new query for the selected CV
+		console.log('Switching to CV:', cvId);
+	};
+
+	const toggleCVComparison = () => {
+		showCVComparison = !showCVComparison;
+	};
+
+	const getCurrentCV = () => {
+		return allUserCVs.find(cv => cv.id === selectedCVId) || allUserCVs[0];
 	};
 
 	const handleApprove = (assignment: ServiceAssignment) => {
@@ -234,286 +271,414 @@
 	});
 </script>
 
-<div class="space-y-8">
-	<!-- Messages -->
-	{#if successMessage}
-		<div class="bg-green-50 border border-green-200 rounded-lg p-4">
-			<div class="flex items-center space-x-3">
-				<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M5 13l4 4L19 7"
-					/>
-				</svg>
-				<p class="text-green-700 font-medium">{successMessage}</p>
-			</div>
-		</div>
-	{/if}
-
-	{#if errorMessage}
-		<div class="bg-red-50 border border-red-200 rounded-lg p-4">
-			<div class="flex items-center space-x-3">
-				<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M6 18L18 6M6 6l12 12"
-					/>
-				</svg>
-				<p class="text-red-700 font-medium">{errorMessage}</p>
-			</div>
-		</div>
-	{/if}
-
-	<!-- User Information -->
-	<div class="bg-white border border-gray-200 rounded-lg p-6">
-		<div class="flex items-start space-x-4">
-			<div class="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center">
-				<span class="text-xl font-medium text-gray-700">
-					{cvData.user.firstName[0]}{cvData.user.lastName[0]}
-				</span>
-			</div>
-			<div class="flex-1">
-				<h1 class="text-2xl font-bold text-gray-900">
-					{cvData.user.firstName}
-					{cvData.user.lastName}
-				</h1>
-				<div class="mt-2 space-y-1">
-					<p class="text-gray-600">
-						<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-							/>
-						</svg>
-						{cvData.user.email}
-					</p>
-					<p class="text-gray-600">
-						<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-							/>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-							/>
-						</svg>
-						{cvData.user.country}
-					</p>
-					{#if cvData.user.phone}
-						<p class="text-gray-600">
-							<svg
-								class="w-4 h-4 inline mr-2"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-								/>
-							</svg>
-							{cvData.user.phone}
-						</p>
-					{/if}
+<div class="flex gap-6">
+	<!-- LEFT SIDEBAR: User Details & CV History -->
+	<div class="w-80 flex-shrink-0 space-y-4">
+		<!-- User Details Box -->
+		<div class="bg-white border border-gray-200 rounded-lg p-4">
+			<div class="flex items-center space-x-3 mb-3">
+				<div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
+					<span class="text-lg font-medium text-gray-700">
+						{cvData.user.firstName[0]}{cvData.user.lastName[0]}
+					</span>
+				</div>
+				<div>
+					<h1 class="text-lg font-bold text-gray-900">
+						{cvData.user.firstName} {cvData.user.lastName}
+					</h1>
+					<p class="text-sm text-gray-600">{cvData.user.email}</p>
 				</div>
 			</div>
-			<div class="text-right">
-				<div class="text-sm text-gray-500">Total Services</div>
-				<div class="text-2xl font-bold text-gray-900">{cvData.totalAssignments}</div>
-				<div class="text-sm text-gray-500 mt-1">Pending Review</div>
-				<div class="text-lg font-semibold text-yellow-600">{cvData.pendingAssignments}</div>
+			<div class="space-y-1 text-sm text-gray-600">
+				<p>{cvData.user.country}</p>
+				{#if cvData.user.phone}<p>{cvData.user.phone}</p>{/if}
+			</div>
+			
+			<!-- Quick Stats -->
+			<div class="mt-4 pt-4 border-t border-gray-200">
+				<div class="grid grid-cols-3 gap-2 text-center">
+					<div>
+						<div class="text-lg font-bold text-yellow-600">{cvData.pendingAssignments}</div>
+						<div class="text-xs text-gray-500">Pending</div>
+					</div>
+					<div>
+						<div class="text-lg font-bold text-green-600">{cvData.totalAssignments - cvData.pendingAssignments}</div>
+						<div class="text-xs text-gray-500">Decided</div>
+					</div>
+					<div>
+						<div class="text-lg font-bold text-gray-600">{cvData.totalAssignments}</div>
+						<div class="text-xs text-gray-500">Total</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- CV History Box -->
+		<div class="bg-white border border-gray-200 rounded-lg p-4">
+			<div class="flex items-center justify-between mb-3">
+				<h3 class="text-sm font-semibold text-gray-900">CV History</h3>
+				<button 
+					type="button"
+					onclick={toggleCVComparison}
+					class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+				>
+					{showCVComparison ? 'Hide' : 'Compare'}
+				</button>
+			</div>
+			<div class="space-y-2">
+				{#each allUserCVs as cv}
+					<div class="p-2 rounded-lg cursor-pointer transition-colors {cv.id === selectedCVId ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'}" onclick={() => switchToCV(cv.id)}>
+						<div class="flex items-center justify-between">
+							<div class="flex items-center space-x-2">
+								<span class="text-xs font-medium text-gray-900">v{cv.version}</span>
+								{#if cv.isCurrent}
+									<span class="text-xs bg-green-100 text-green-800 px-1 py-0.5 rounded">Current</span>
+								{/if}
+							</div>
+							<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium {getCVStatusColor(cv.status)}">
+								{getCVStatusDisplayName(cv.status)}
+							</span>
+						</div>
+						<div class="text-xs text-gray-500 mt-1">
+							{cv.organization} • {formatDate(cv.createdAt)}
+						</div>
+					</div>
+				{/each}
 			</div>
 		</div>
 	</div>
 
-	<!-- Experience Section -->
-	{#if cvData.organizationGroups.length > 0}
-		{@const allCVs = cvData.organizationGroups.flatMap(org => org.cvs)}
-		{@const cvWithExperience = allCVs.find(cv => cv.experience && cv.experience.length > 0)}
-		{#if cvWithExperience?.experience && cvWithExperience.experience.length > 0}
+	<!-- MAIN CONTENT AREA -->
+	<div class="flex-1 space-y-6">
+		<!-- Messages -->
+		{#if successMessage}
+			<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+				<div class="flex items-center space-x-3">
+					<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+					</svg>
+					<p class="text-green-700 font-medium">{successMessage}</p>
+				</div>
+			</div>
+		{/if}
+
+		{#if errorMessage}
+			<div class="bg-red-50 border border-red-200 rounded-lg p-4">
+				<div class="flex items-center space-x-3">
+					<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+					</svg>
+					<p class="text-red-700 font-medium">{errorMessage}</p>
+				</div>
+			</div>
+		{/if}
+
+		<!-- CV COMPARISON SECTION: Side-by-side CV comparison -->
+		{#if showCVComparison}
 			<div class="bg-white border border-gray-200 rounded-lg p-6">
-				<h2 class="text-xl font-bold text-gray-900 mb-4">Professional Experience</h2>
-				<div class="space-y-4">
-					{#each cvWithExperience.experience as exp}
-						<div class="border-l-4 border-blue-500 pl-4 py-2">
-							<div class="flex justify-between items-start">
-								<div>
-									<h3 class="font-semibold text-gray-900">{exp.title}</h3>
-									<p class="text-gray-600">{exp.company} • {exp.location}</p>
-									<p class="text-sm text-gray-500">
-										{exp.startDate} - {exp.current ? 'Present' : exp.endDate}
-									</p>
-								</div>
-								{#if exp.current}
-									<span
-										class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+				<h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+					<svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+					</svg>
+					CV Comparison
+				</h2>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+					{#each allUserCVs as cv}
+						<div class="border border-gray-200 rounded-lg p-4 {cv.id === selectedCVId ? 'ring-2 ring-blue-500' : ''}">
+							<div class="flex items-center justify-between mb-3">
+								<h3 class="font-semibold text-gray-900">
+									v{cv.version}
+									{#if cv.isCurrent}
+										<span class="text-xs bg-green-100 text-green-800 px-1 py-0.5 rounded ml-2">Current</span>
+									{/if}
+								</h3>
+								<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getCVStatusColor(cv.status)}">
+									{getCVStatusDisplayName(cv.status)}
+								</span>
+							</div>
+							<div class="space-y-2 text-sm">
+								<p><strong>Created:</strong> {formatDate(cv.createdAt)}</p>
+								<p><strong>Organization:</strong> {cv.organization}</p>
+							</div>
+							<div class="mt-3">
+								{#if cv.id !== selectedCVId}
+									<button 
+										type="button"
+										onclick={() => switchToCV(cv.id)}
+										class="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
 									>
-										Current
-									</span>
+										Switch to this CV
+									</button>
+								{:else}
+									<div class="w-full px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md text-center">
+										Currently Viewing
+									</div>
 								{/if}
 							</div>
-							{#if exp.description}
-								<p class="text-gray-700 mt-2">{exp.description}</p>
-							{/if}
 						</div>
 					{/each}
 				</div>
 			</div>
 		{/if}
-	{/if}
 
-	<!-- Education Section -->
-	{#if cvData.organizationGroups.length > 0}
-		{@const allCVs = cvData.organizationGroups.flatMap(org => org.cvs)}
-		{@const cvWithEducation = allCVs.find(cv => cv.education && cv.education.length > 0)}
-		{#if cvWithEducation?.education && cvWithEducation.education.length > 0}
-			<div class="bg-white border border-gray-200 rounded-lg p-6">
-				<h2 class="text-xl font-bold text-gray-900 mb-4">Education</h2>
-				<div class="space-y-4">
-					{#each cvWithEducation.education as edu}
-						<div class="border-l-4 border-green-500 pl-4 py-2">
-							<h3 class="font-semibold text-gray-900">{edu.degree} in {edu.field}</h3>
-							<p class="text-gray-600">{edu.school}</p>
-							<p class="text-sm text-gray-500">{edu.startDate} - {edu.endDate}</p>
-							{#if edu.description}
-								<p class="text-gray-700 mt-2">{edu.description}</p>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			</div>
-		{/if}
-	{/if}
+		<!-- SERVICE ASSIGNMENTS SECTION: Prioritized by Status -->
+		<div class="space-y-6">
+			{#each cvData.organizationGroups as orgGroup}
+				<div class="bg-white border border-gray-200 rounded-lg p-6">
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-xl font-bold text-gray-900">
+							Service Applications for {orgGroup.organization.name}
+						</h2>
+						<!-- Unlock CV Button (when all services decided) -->
+						{#if cvData.pendingAssignments === 0}
+							<button 
+								type="button"
+								class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+							>
+								Unlock CV for Edits
+							</button>
+						{/if}
+					</div>
 
-	<!-- Service Assignments -->
-	<div class="space-y-6">
-		{#each cvData.organizationGroups as orgGroup}
-			<div class="bg-white border border-gray-200 rounded-lg p-6">
-				<h2 class="text-xl font-bold text-gray-900 mb-2">
-					Service Applications for {orgGroup.organization.name}
-				</h2>
-				<p class="text-sm text-gray-600 mb-4">
-					This user has applied for {orgGroup.cvs.reduce((total, cv) => total + cv.assignments.length, 0)} service{orgGroup.cvs.reduce((total, cv) => total + cv.assignments.length, 0) === 1 ? '' : 's'} with this organization
-				</p>
-				<div class="grid gap-4">
-					{#each orgGroup.cvs as cv}
-						{#each cv.assignments as assignment}
-						<div
-							class="border border-gray-200 rounded-lg p-4 {assignment.status === 'pending_review'
-								? 'bg-yellow-50'
-								: ''}"
-						>
-							<div class="flex justify-between items-start mb-3">
-								<div>
-									<h3 class="font-semibold text-gray-900">{assignment.serviceVersion.name}</h3>
-									<p class="text-sm text-gray-600">
-										{assignment.serviceParent.name} • {assignment.serviceVersion.version}
-									</p>
-									<div class="flex items-center space-x-2 mt-1">
-										{#if assignment.role}
-											<span
-												class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-											>
-												{assignment.role === 'lead' ? 'Lead Expert' : 'Regular Expert'}
-											</span>
-										{/if}
-										<span class="text-xs text-gray-500">
-											Applied: {formatDate(assignment.createdAt)}
-										</span>
-									</div>
-								</div>
-								<div class="text-right">
-									<span
-										class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getStatusColor(
-											assignment.status
-										)}"
-									>
-										{getServiceStatusDisplayName(assignment.status)}
-									</span>
-									{#if assignment.reviewedAt}
-										<p class="text-xs text-gray-500 mt-1">
-											Reviewed: {formatDate(assignment.reviewedAt)}
-										</p>
-									{/if}
-								</div>
+					<!-- PENDING REVIEW SERVICES (Priority) -->
+					{#if orgGroup.cvs.some(cv => cv.pendingAssignments.length > 0)}
+						<div class="mb-6">
+							<h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+								<svg class="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+								</svg>
+								Pending Review ({orgGroup.cvs.reduce((total, cv) => total + cv.pendingAssignments.length, 0)})
+							</h3>
+							<div class="space-y-3">
+								{#each orgGroup.cvs as cv}
+									{#each cv.pendingAssignments as assignment}
+										<div class="border border-yellow-200 rounded-lg p-4 bg-yellow-50">
+											<div class="flex justify-between items-start">
+												<div class="flex-1">
+													<h4 class="font-semibold text-gray-900">{assignment.serviceVersion.name}</h4>
+													<p class="text-sm text-gray-600">{assignment.serviceParent.name} • {assignment.serviceVersion.version}</p>
+													<div class="flex items-center space-x-2 mt-2">
+														<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+															{assignment.role === 'lead' ? 'Lead Expert' : 'Regular Expert'}
+														</span>
+														<span class="text-xs text-gray-500">Applied: {formatDate(assignment.createdAt)}</span>
+													</div>
+												</div>
+												<div class="flex items-center space-x-2">
+													<!-- Communication Icon -->
+													<button class="p-2 text-gray-400 hover:text-gray-600" title="Communication">
+														<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+														</svg>
+													</button>
+													<!-- Action Buttons -->
+													<button
+														type="button"
+														onclick={() => handleApprove(assignment)}
+														class="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+													>
+														Approve
+													</button>
+													<button
+														type="button"
+														onclick={() => handleReject(assignment)}
+														class="px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+													>
+														Reject
+													</button>
+												</div>
+											</div>
+										</div>
+									{/each}
+								{/each}
 							</div>
-
-							<!-- Review History -->
-							{#if assignment.approvedAt || assignment.rejectedAt}
-								<div class="bg-gray-50 rounded-lg p-3 mb-3">
-									<div class="text-sm">
-										{#if assignment.approvedAt}
-											<p class="text-green-700">
-												<strong>Approved</strong> on {formatDate(assignment.approvedAt)}
-												{#if assignment.approvedBy}
-													by {assignment.approvedBy}{/if}
-											</p>
-										{/if}
-										{#if assignment.rejectedAt}
-											<p class="text-red-700">
-												<strong>Rejected</strong> on {formatDate(assignment.rejectedAt)}
-												{#if assignment.rejectedBy}
-													by {assignment.rejectedBy}{/if}
-											</p>
-											{#if assignment.rejectionReason}
-												<p class="text-red-600 mt-1">
-													<strong>Reason:</strong>
-													{assignment.rejectionReason}
-												</p>
-											{/if}
-										{/if}
-										{#if assignment.reviewNotes}
-											<p class="text-gray-700 mt-2">
-												<strong>Notes:</strong>
-												{assignment.reviewNotes}
-											</p>
-										{/if}
-									</div>
-								</div>
-							{/if}
-
-							<!-- Action Buttons -->
-							{#if canApprove(assignment) || canReject(assignment)}
-								<div class="flex space-x-2">
-									{#if canApprove(assignment)}
-										<button
-											type="button"
-											onclick={() => handleApprove(assignment)}
-											class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-										>
-											Approve
-										</button>
-									{/if}
-									{#if canReject(assignment)}
-										<button
-											type="button"
-											onclick={() => handleReject(assignment)}
-											class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-										>
-											Reject
-										</button>
-									{/if}
-								</div>
-							{/if}
 						</div>
-						{/each}
-					{/each}
+					{/if}
+
+					<!-- DECIDED SERVICES (Approved/Rejected) -->
+					{#if orgGroup.cvs.some(cv => cv.approvedAssignments.length > 0 || cv.rejectedAssignments.length > 0)}
+						<div>
+							<h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+								<svg class="w-5 h-5 text-gray-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+								</svg>
+								Decided Services
+							</h3>
+							<div class="space-y-3">
+								{#each orgGroup.cvs as cv}
+									{#each [...cv.approvedAssignments, ...cv.rejectedAssignments] as assignment}
+										<div class="border border-gray-200 rounded-lg p-4">
+											<div class="flex justify-between items-start">
+												<div class="flex-1">
+													<h4 class="font-semibold text-gray-900">{assignment.serviceVersion.name}</h4>
+													<p class="text-sm text-gray-600">{assignment.serviceParent.name} • {assignment.serviceVersion.version}</p>
+													<div class="flex items-center space-x-2 mt-2">
+														<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getServiceStatusColor(assignment.status)}">
+															{getServiceStatusDisplayName(assignment.status)}
+														</span>
+														<span class="text-xs text-gray-500">Applied: {formatDate(assignment.createdAt)}</span>
+														{#if assignment.reviewedAt}
+															<span class="text-xs text-gray-500">Reviewed: {formatDate(assignment.reviewedAt)}</span>
+														{/if}
+													</div>
+												</div>
+												<div class="flex items-center space-x-2">
+													<!-- Communication Icon -->
+													<button class="p-2 text-gray-400 hover:text-gray-600" title="Communication">
+														<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+														</svg>
+													</button>
+												</div>
+											</div>
+											
+											<!-- Review History -->
+											{#if assignment.approvedAt || assignment.rejectedAt}
+												<div class="bg-gray-50 rounded-lg p-3 mt-3">
+													<div class="text-sm">
+														{#if assignment.approvedAt}
+															<p class="text-green-700">
+																<strong>Approved</strong> on {formatDate(assignment.approvedAt)}
+																{#if assignment.approvedBy} by {assignment.approvedBy}{/if}
+															</p>
+														{/if}
+														{#if assignment.rejectedAt}
+															<p class="text-red-700">
+																<strong>Rejected</strong> on {formatDate(assignment.rejectedAt)}
+																{#if assignment.rejectedBy} by {assignment.rejectedBy}{/if}
+															</p>
+															{#if assignment.rejectionReason}
+																<p class="text-red-600 mt-1">
+																	<strong>Reason:</strong> {assignment.rejectionReason}
+																</p>
+															{/if}
+														{/if}
+														{#if assignment.reviewNotes}
+															<p class="text-gray-700 mt-2">
+																<strong>Notes:</strong> {assignment.reviewNotes}
+															</p>
+														{/if}
+													</div>
+												</div>
+											{/if}
+										</div>
+									{/each}
+								{/each}
+							</div>
+						</div>
+					{/if}
 				</div>
+			{/each}
+		</div>
+
+		<!-- CV CONTENT SECTION: Experience & Education -->
+		{#if cvData.organizationGroups.length > 0}
+			{@const allCVs = cvData.organizationGroups.flatMap(org => org.cvs)}
+			{@const cvWithExperience = allCVs.find(cv => cv.experience && cv.experience.length > 0)}
+			{@const cvWithEducation = allCVs.find(cv => cv.education && cv.education.length > 0)}
+			
+			{#if cvWithExperience?.experience && cvWithExperience.experience.length > 0}
+				<div class="bg-white border border-gray-200 rounded-lg p-6">
+					<h2 class="text-xl font-bold text-gray-900 mb-4">Professional Experience</h2>
+					<div class="space-y-4">
+						{#each cvWithExperience.experience as exp}
+							<div class="border-l-4 border-blue-500 pl-4 py-2">
+								<div class="flex justify-between items-start">
+									<div>
+										<h3 class="font-semibold text-gray-900">{exp.title}</h3>
+										<p class="text-gray-600">{exp.company} • {exp.location}</p>
+										<p class="text-sm text-gray-500">
+											{exp.startDate} - {exp.current ? 'Present' : exp.endDate}
+										</p>
+									</div>
+									{#if exp.current}
+										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+											Current
+										</span>
+									{/if}
+								</div>
+								{#if exp.description}
+									<p class="text-gray-700 mt-2">{exp.description}</p>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			{#if cvWithEducation?.education && cvWithEducation.education.length > 0}
+				<div class="bg-white border border-gray-200 rounded-lg p-6">
+					<h2 class="text-xl font-bold text-gray-900 mb-4">Education</h2>
+					<div class="space-y-4">
+						{#each cvWithEducation.education as edu}
+							<div class="border-l-4 border-green-500 pl-4 py-2">
+								<h3 class="font-semibold text-gray-900">{edu.degree} in {edu.field}</h3>
+								<p class="text-gray-600">{edu.school}</p>
+								<p class="text-sm text-gray-500">{edu.startDate} - {edu.endDate}</p>
+								{#if edu.description}
+									<p class="text-gray-700 mt-2">{edu.description}</p>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+		{/if}
+
+		<!-- AUDIT TRAIL SECTION: History of Changes -->
+		<div class="bg-white border border-gray-200 rounded-lg p-6">
+			<h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+				<svg class="w-5 h-5 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				</svg>
+				Audit Trail
+			</h2>
+			<div class="space-y-3">
+				{#each exampleAuditTrail as entry}
+					<div class="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+						<div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+						<div class="flex-1">
+							<p class="text-sm font-medium text-gray-900">{entry.action}</p>
+							<p class="text-xs text-gray-600">
+								{#if entry.from && entry.to}
+									{entry.from} → {entry.to}
+								{/if}
+								by {entry.by} • {formatDate(entry.timestamp)}
+							</p>
+						</div>
+					</div>
+				{/each}
 			</div>
-		{/each}
+		</div>
+
+		<!-- INTERNAL NOTES SECTION: Team Communication -->
+		<div class="bg-white border border-gray-200 rounded-lg p-6">
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="text-xl font-bold text-gray-900 flex items-center">
+					<svg class="w-5 h-5 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+					</svg>
+					Internal Notes
+				</h2>
+				<button class="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">
+					Add Note
+				</button>
+			</div>
+			<div class="space-y-3">
+				{#each exampleInternalNotes as note}
+					<div class="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+						<div class="flex justify-between items-start">
+							<div class="flex-1">
+								<p class="text-sm text-gray-900">{note.note}</p>
+								<p class="text-xs text-gray-600 mt-1">
+									by {note.author} • {formatDate(note.timestamp)}
+								</p>
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
 	</div>
 </div>
 

@@ -84,17 +84,18 @@ export function canEditServices(status: CVStatus): boolean {
 }
 
 /**
- * Get status color classes for UI
+ * Get status color classes for UI - Semantic color strategy
+ * Follows universal UX patterns for clear visual hierarchy
  */
 export function getCVStatusColor(status: CVStatus): string {
 	switch (status) {
-		case 'draft': return 'bg-gray-100 text-gray-800';
-		case 'completed': return 'bg-blue-100 text-blue-800';
-		case 'payment_pending': return 'bg-yellow-100 text-yellow-800';
-		case 'paid': return 'bg-green-100 text-green-800';
-		case 'locked_for_review': return 'bg-orange-100 text-orange-800';
-		case 'unlocked_for_edits': return 'bg-red-100 text-red-800';
-		case 'locked_final': return 'bg-green-100 text-green-800';
+		case 'draft': return 'bg-gray-100 text-gray-800';        // Neutral - not ready
+		case 'completed': return 'bg-blue-100 text-blue-800';    // Info - ready for next step
+		case 'payment_pending': return 'bg-yellow-100 text-yellow-800';  // Wait - processing
+		case 'paid': return 'bg-green-100 text-green-800';      // Success - payment done
+		case 'locked_for_review': return 'bg-orange-100 text-orange-800'; // Action - needs review
+		case 'unlocked_for_edits': return 'bg-red-100 text-red-800';     // Problem - needs fixes
+		case 'locked_final': return 'bg-green-100 text-green-800';       // Success - final state
 		default: return 'bg-gray-100 text-gray-800';
 	}
 }
@@ -125,5 +126,19 @@ export function getServiceStatusDisplayName(status: ServiceStatus): string {
 		case 'rejected': return 'Rejected';
 		case 'inactive': return 'Inactive';
 		default: return status;
+	}
+}
+
+/**
+ * Get status color classes for service assignment status - Semantic color strategy
+ * Follows universal UX patterns for clear visual hierarchy
+ */
+export function getServiceStatusColor(status: ServiceStatus): string {
+	switch (status) {
+		case 'pending_review': return 'bg-yellow-100 text-yellow-800';   // Wait - needs decision
+		case 'approved': return 'bg-green-100 text-green-800';           // Success - approved
+		case 'rejected': return 'bg-red-100 text-red-800';              // Problem - rejected
+		case 'inactive': return 'bg-gray-100 text-gray-800';             // Neutral - disabled
+		default: return 'bg-gray-100 text-gray-800';
 	}
 }
