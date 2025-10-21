@@ -1,7 +1,12 @@
 <script lang="ts">
+	import { getCVStatusColor, getCVStatusDisplayName, type CVStatus } from '../../../convex/model/status';
+
 	interface Props {
 		userDataResult: any;
-		currentCVData: any;
+		currentCVData: {
+			status: CVStatus;
+			version: number;
+		};
 	}
 
 	let { userDataResult, currentCVData }: Props = $props();
@@ -29,17 +34,9 @@
 			<p class="text-gray-600">{userDataResult?.email}</p>
 			<div class="mt-2 flex items-center space-x-4">
 				<span
-					class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {currentCVData.status === 'locked'
-						? 'bg-green-100 text-green-800'
-						: currentCVData.status === 'submitted'
-						? 'bg-yellow-100 text-yellow-800'
-						: 'bg-blue-100 text-blue-800'}"
+					class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getCVStatusColor(currentCVData.status)}"
 				>
-					{currentCVData.status === 'locked'
-						? 'Complete'
-						: currentCVData.status === 'submitted'
-						? 'Under Review'
-						: `Draft - CV v${currentCVData.version}`}
+					{getCVStatusDisplayName(currentCVData.status)} - CV v{currentCVData.version}
 				</span>
 				<span
 					class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {userDataResult

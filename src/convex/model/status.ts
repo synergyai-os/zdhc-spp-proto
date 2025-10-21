@@ -45,16 +45,18 @@ export type CVStatus = typeof CV_STATUS_VALUES[number];
 // SERVICE ASSIGNMENT STATUS MANAGEMENT
 // ==========================================
 
-
-
-   // ⚠️ WARNING: Array order matters! adminCVReview.ts uses indices [0], [1], [2]
-   // Never reorder this array without updating all index references
-   export const SERVICE_STATUS_VALUES = [
+/**
+ * Service Assignment Status Values - Single source of truth
+ * 
+ * ⚠️ WARNING: Array order matters! adminCVReview.ts uses indices [0], [1], [2]
+ * Never reorder this array without updating all index references
+ */
+export const SERVICE_STATUS_VALUES = [
 	'pending_review',    // [0] - Used in adminCVReview.ts
 	'approved',          // [1] - Used in adminCVReview.ts  
 	'rejected',          // [2] - Used in adminCVReview.ts
 	'inactive'           // [3] - Safe to add new statuses here
-  ] as const;
+] as const;
 
 export const SERVICE_STATUS_VALIDATOR = v.union(
 	v.literal('pending_review'),
@@ -64,6 +66,50 @@ export const SERVICE_STATUS_VALIDATOR = v.union(
 );
 
 export type ServiceStatus = typeof SERVICE_STATUS_VALUES[number];
+
+// ==========================================
+// EXPERT ROLE MANAGEMENT
+// ==========================================
+
+/**
+ * Expert Role Values - Single source of truth
+ * 
+ * Defines the role types for service assignments
+ */
+export const EXPERT_ROLE_VALUES = [
+	'regular',  // Regular expert role
+	'lead'      // Lead expert role (higher responsibility/qualifications)
+] as const;
+
+export const EXPERT_ROLE_VALIDATOR = v.union(
+	v.literal('regular'),
+	v.literal('lead')
+);
+
+export type ExpertRole = typeof EXPERT_ROLE_VALUES[number];
+
+/**
+ * Get human-readable display name for expert role
+ */
+export function getExpertRoleDisplayName(role: ExpertRole): string {
+	switch (role) {
+		case 'regular': return 'Regular Expert';
+		case 'lead': return 'Lead Expert';
+		default: return role;
+	}
+}
+
+/**
+ * Get role color classes for UI - Semantic color strategy
+ * Lead roles get more prominent colors to indicate higher responsibility
+ */
+export function getExpertRoleColor(role: ExpertRole): string {
+	switch (role) {
+		case 'regular': return 'bg-blue-100 text-blue-800';     // Info - standard role
+		case 'lead': return 'bg-purple-100 text-purple-800';   // Premium - leadership role
+		default: return 'bg-gray-100 text-gray-800';
+	}
+}
 
 // ==========================================
 // UTILITY FUNCTIONS
