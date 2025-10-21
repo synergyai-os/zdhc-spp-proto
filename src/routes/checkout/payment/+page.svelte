@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { useConvexClient } from 'convex-svelte';
-	import { api } from '../../../convex/_generated/api';
-	import type { Id } from '../../../convex/_generated/dataModel';
+	import { api, type Id, CV_STATUS_VALUES, type CVStatus } from '$lib';
 	import { checkoutStore } from '$lib/stores/checkout.svelte';
 	import PaymentSummary from '$lib/components/PaymentSummary.svelte';
 	import PaymentMethodSelector from '$lib/components/PaymentMethodSelector.svelte';
@@ -84,7 +83,9 @@
 
 			// Update CV status based on payment method
 			const cvIds = [...new Set(selectedExperts.map(expert => expert.expertCVId))];
-			const cvStatus = paymentMethod === 'credit_card' ? 'paid' : 'payment_pending';
+			const cvStatus: CVStatus = paymentMethod === 'credit_card' 
+				? CV_STATUS_VALUES[3] // 'paid'
+				: CV_STATUS_VALUES[2]; // 'payment_pending'
 			
 			for (const cvId of cvIds) {
 				await client.mutation(api.expert.updateCVStatus, {
