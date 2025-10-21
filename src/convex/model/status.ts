@@ -155,7 +155,7 @@ export function getCVStatusDisplayName(status: CVStatus): string {
 		case 'completed': return 'Completed';
 		case 'payment_pending': return 'Payment Pending';
 		case 'paid': return 'Paid';
-		case 'locked_for_review': return 'Locked for Review';
+		case 'locked_for_review': return 'Ready for Review';
 		case 'unlocked_for_edits': return 'Unlocked for Edits';
 		case 'locked_final': return 'Locked Final';
 		default: return status;

@@ -99,7 +99,14 @@
 	const exampleCVStatus = 'locked_for_review'; // Current CV status
 	
 	// Real CV switching data - extracted from cvData.organizationGroups
-	const allUserCVs = $derived.by(() => {
+	const allUserCVs = $derived.by((): Array<{
+		id: string;
+		version: number;
+		status: CVStatus;
+		organization: string;
+		createdAt: number;
+		isCurrent: boolean;
+	}> => {
 		console.log('🔍 cvData:', cvData);
 		console.log('🔍 organizationGroups:', cvData.organizationGroups);
 		
@@ -162,7 +169,6 @@
 
 	// State for CV switching
 	let selectedCVId = $state('');
-	let showCVComparison = $state(false);
 
 	// Initialize selectedCVId with first CV when data loads
 	$effect(() => {
@@ -181,6 +187,13 @@
 		});
 	};
 
+	const formatDateShort = (timestamp: number): string => {
+		return new Date(timestamp).toLocaleDateString('en-US', {
+			year: 'numeric',
+			month: 'short'
+		});
+	};
+
 	const canApprove = (assignment: ServiceAssignment): boolean => {
 		return assignment.status === SERVICE_STATUS_VALUES[0]; // 'pending_review'
 	};
@@ -194,10 +207,6 @@
 		selectedCVId = cvId;
 		console.log('Switching to CV:', cvId);
 		// TODO: In real implementation, this would trigger a new query for the selected CV
-	};
-
-	const toggleCVComparison = () => {
-		showCVComparison = !showCVComparison;
 	};
 
 	// Get the currently selected CV data
@@ -292,6 +301,28 @@
 		successMessage = '';
 	};
 
+	const unlockCV = async () => {
+		if (!currentCVData) return;
+
+		isProcessing = true;
+		errorMessage = '';
+		successMessage = '';
+
+		try {
+			await client.mutation((api as any).expert.updateCVStatus, {
+				cvId: currentCVData._id,
+				newStatus: 'unlocked_for_edits' as CVStatus
+			});
+
+			successMessage = `CV unlocked for edits - The SPP Manager and the Expert ${cvData.user.firstName} ${cvData.user.lastName} can now make changes`;
+			onApprovalChange(); // Refresh data
+		} catch (error) {
+			errorMessage = `Failed to unlock CV: ${error}`;
+		} finally {
+			isProcessing = false;
+		}
+	};
+
 	// Clear messages after 5 seconds
 	$effect(() => {
 		if (successMessage || errorMessage) {
@@ -348,15 +379,8 @@
 
 		<!-- CV History Box -->
 		<div class="bg-white border border-gray-200 rounded-lg p-4">
-			<div class="flex items-center justify-between mb-3">
+			<div class="mb-3">
 				<h3 class="text-sm font-semibold text-gray-900">CV History</h3>
-				<button 
-					type="button"
-					onclick={toggleCVComparison}
-					class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-				>
-					{showCVComparison ? 'Hide' : 'Compare'}
-				</button>
 			</div>
 			<div class="space-y-2">
 				{#each allUserCVs as cv}
@@ -373,7 +397,7 @@
 							</span>
 						</div>
 						<div class="text-xs text-gray-500 mt-1">
-							{cv.organization} • {formatDate(cv.createdAt)}
+							{cv.organization} • {formatDateShort(cv.createdAt)}
 						</div>
 					</div>
 				{/each}
@@ -406,54 +430,6 @@
 			</div>
 		{/if}
 
-		<!-- CV COMPARISON SECTION: Side-by-side CV comparison -->
-		{#if showCVComparison}
-			<div class="bg-white border border-gray-200 rounded-lg p-6">
-				<h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-					<svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-					</svg>
-					CV Comparison
-				</h2>
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-					{#each allUserCVs as cv}
-						<div class="border border-gray-200 rounded-lg p-4 {cv.id === selectedCVId ? 'ring-2 ring-blue-500' : ''}">
-							<div class="flex items-center justify-between mb-3">
-								<h3 class="font-semibold text-gray-900">
-									v{cv.version}
-									{#if cv.isCurrent}
-										<span class="text-xs bg-green-100 text-green-800 px-1 py-0.5 rounded ml-2">Current</span>
-									{/if}
-								</h3>
-								<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getCVStatusColor(cv.status)}">
-									{getCVStatusDisplayName(cv.status)}
-								</span>
-							</div>
-							<div class="space-y-2 text-sm">
-								<p><strong>Created:</strong> {formatDate(cv.createdAt)}</p>
-								<p><strong>Organization:</strong> {cv.organization}</p>
-							</div>
-							<div class="mt-3">
-								{#if cv.id !== selectedCVId}
-									<button 
-										type="button"
-										onclick={() => switchToCV(cv.id)}
-										class="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-									>
-										Switch to this CV
-									</button>
-								{:else}
-									<div class="w-full px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md text-center">
-										Currently Viewing
-									</div>
-								{/if}
-							</div>
-						</div>
-					{/each}
-				</div>
-			</div>
-		{/if}
-
 		<!-- SERVICE ASSIGNMENTS SECTION: Prioritized by Status -->
 		<div class="space-y-6">
 			{#if currentCVData}
@@ -462,11 +438,13 @@
 						<h2 class="text-xl font-bold text-gray-900">
 							Service Applications for {currentCVData.organization.name}
 						</h2>
-						<!-- Unlock CV Button (when all services decided) -->
-						{#if currentCVData.pendingAssignments.length === 0}
+						<!-- Unlock CV Button (when CV is locked for review) -->
+						{#if currentCVData.status === 'locked_for_review'}
 							<button 
 								type="button"
 								class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+								onclick={unlockCV}
+								disabled={isProcessing}
 							>
 								Unlock CV for Edits
 							</button>
