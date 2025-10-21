@@ -8,6 +8,7 @@
 	import { canEditServices, canEditCVContent, getCVStatusColor } from '../../../../../convex/model/status';
 	import ServiceSelection from '$lib/components/expert-edit/ServiceSelection.svelte';
 	import ExpertHeader from '$lib/components/expert-edit/ExpertHeader.svelte';
+	import TabSwitcher from '$lib/components/expert-edit/TabSwitcher.svelte';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -480,23 +481,7 @@
 	
 	{#if expertCV?.data}
 		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-			<!-- Toggle Switcher -->
-			<div class="mt-6 mb-6">
-				<div class="bg-white border border-gray-200 rounded-lg p-1 inline-flex">
-					<button 
-						onclick={() => activeTab = 'services'}
-						class="px-4 py-2 rounded-md text-sm font-medium transition-colors {activeTab === 'services' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-800'}"
-					>
-						Services
-					</button>
-					<button 
-						onclick={() => activeTab = 'cv-details'}
-						class="px-4 py-2 rounded-md text-sm font-medium transition-colors {activeTab === 'cv-details' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-800'}"
-					>
-						CV Details
-					</button>
-				</div>
-			</div>
+			<TabSwitcher {activeTab} onTabChange={(tab: 'services' | 'cv-details') => activeTab = tab} />
 
 			<!-- Services Tab Content -->
 			{#if activeTab === 'services'}
