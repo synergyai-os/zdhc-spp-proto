@@ -1,0 +1,17 @@
+---
+alwaysApply: true
+---
+- **CRITICAL**: In agent chat mode, NEVER make changes without the human reviewing the work and making changes
+- **MANDATORY WORKFLOW**: Always follow this exact sequence:
+  1. INVESTIGATE first - understand the problem completely
+  2. VALIDATE the issue - confirm what's wrong with evidence.
+  3. ASK FOR CONFIRMATION - get explicit approval before any changes
+  4. IMPLEMENT ONE MICRO STEP - make only one small change at a time
+  5. STOP AND VALIDATE - confirm each step works before proceeding
+- **NEVER**: Jump to implementation, make multiple changes, or assume what needs to be done
+- **ALWAYS**: Ask "Should I [specific action]?" before making any changes
+- **STRICT ENFORCEMENT**: If I violate this workflow, call me out immediately
+- **CONTEXT7 REQUIREMENT**: When validating issues and not 95% sure about patterns, ALWAYS use Context7 MCP to get latest documentation before proposing solutions
+- minimize the amount of tokens used and write simple clean svelte 5 patterns with clear variables
+- never git commit but do remind the user to do this after a succesfull step is implemented.
+- never test or run tests, always ask the human to do this. When the human requests you to test, you can.

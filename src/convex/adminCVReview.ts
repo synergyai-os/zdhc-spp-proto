@@ -1,5 +1,6 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
+import { CV_STATUS_VALIDATOR, SERVICE_STATUS_VALUES } from './model/status';
 
 // ==========================================
 // ADMIN CV REVIEW QUERIES (UPDATED FOR NEW SCHEMA)
@@ -7,22 +8,15 @@ import { v } from 'convex/values';
 
 export const getExpertsForCVReview = query({
 	args: {
-		status: v.optional(
-			v.union(
-				v.literal('submitted'),
-				v.literal('pending_review'),
-				v.literal('approved'),
-				v.literal('rejected'),
-				v.literal('locked')
-			)
-		),
+		status: v.optional(CV_STATUS_VALIDATOR),
 		organizationId: v.optional(v.id('organizations')),
 		searchTerm: v.optional(v.string())
 	},
 	handler: async (ctx, args) => {
-		// Get CVs that are submitted (under review) - exclude draft CVs
-		let cvsQuery = ctx.db.query('expertCVs')
-			.filter((q) => q.neq(q.field('status'), 'draft'));
+		console.log('🔍 getExpertsForCVReview called with args:', args);
+		
+		// Get all CVs - admin needs to see everything including drafts for support
+		let cvsQuery = ctx.db.query('expertCVs');
 
 		// Apply organization filter if provided
 		if (args.organizationId) {
@@ -37,6 +31,8 @@ export const getExpertsForCVReview = query({
 		}
 
 		const cvs = await cvsQuery.collect();
+		console.log('📊 Raw CVs from database:', cvs.length, 'CVs');
+		console.log('📊 CV statuses:', cvs.map(cv => ({ id: cv._id, status: cv.status, userId: cv.userId })));
 
 		// Enrich CVs with user, organization, and assignment details
 		const enrichedCVs = await Promise.all(
@@ -69,9 +65,9 @@ export const getExpertsForCVReview = query({
 					user,
 					organization,
 					assignments: enrichedAssignments,
-					pendingAssignments: enrichedAssignments.filter((a) => a.status === 'pending_review'),
-					approvedAssignments: enrichedAssignments.filter((a) => a.status === 'approved'),
-					rejectedAssignments: enrichedAssignments.filter((a) => a.status === 'rejected')
+					pendingAssignments: enrichedAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[0]),
+					approvedAssignments: enrichedAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[1]),
+					rejectedAssignments: enrichedAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[2])
 				};
 			})
 		);
@@ -111,16 +107,22 @@ export const getExpertsForCVReview = query({
 			userGroup.cvs.push(cv);
 			userGroup.organizations.add(cv.organization?.name || 'Unknown');
 
-			// Count pending reviews (submitted CVs with pending assignments)
-			if (cv.status === 'submitted') {
+			// Count pending reviews (CVs that need admin attention)
+			// This includes: payment_pending, paid, locked_for_review, unlocked_for_edits
+			if (['payment_pending', 'paid', 'locked_for_review', 'unlocked_for_edits'].includes(cv.status)) {
 				userGroup.pendingCount += cv.pendingAssignments.length;
 			}
 
 			// Track most recent update
 			const updateTime = Math.max(
 				cv.createdAt,
+				cv.completedAt || 0,
+				cv.paymentInitiatedAt || 0,
+				cv.paidAt || 0,
 				cv.submittedAt || 0,
-				cv.lockedAt || 0
+				cv.lockedForReviewAt || 0,
+				cv.unlockedForEditsAt || 0,
+				cv.lockedFinalAt || 0
 			);
 			userGroup.lastUpdated = Math.max(userGroup.lastUpdated, updateTime);
 		}
@@ -138,7 +140,15 @@ export const getExpertsForCVReview = query({
 		}));
 
 		// Sort by last updated (most recent first)
-		return result.sort((a, b) => b.lastUpdated - a.lastUpdated);
+		const finalResult = result.sort((a, b) => b.lastUpdated - a.lastUpdated);
+		console.log('🎯 Final result:', finalResult.length, 'users');
+		console.log('🎯 User CV statuses:', finalResult.map(user => ({ 
+			userId: user.userId, 
+			userName: user.user.firstName + ' ' + user.user.lastName,
+			cvStatuses: user.cvs.map(cv => cv.status)
+		})));
+		
+		return finalResult;
 	}
 });
 
@@ -187,9 +197,9 @@ export const getExpertCVDetail = query({
 					...cv,
 					organization,
 					assignments: enrichedAssignments,
-					pendingAssignments: enrichedAssignments.filter((a) => a.status === 'pending_review'),
-					approvedAssignments: enrichedAssignments.filter((a) => a.status === 'approved'),
-					rejectedAssignments: enrichedAssignments.filter((a) => a.status === 'rejected')
+					pendingAssignments: enrichedAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[0]),
+					approvedAssignments: enrichedAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[1]),
+					rejectedAssignments: enrichedAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[2])
 				};
 			})
 		);
@@ -221,8 +231,8 @@ export const getExpertCVDetail = query({
 			totalCVs: cvs.length,
 			totalAssignments: enrichedCVs.reduce((sum, cv) => sum + cv.assignments.length, 0),
 			pendingAssignments: enrichedCVs.reduce((sum, cv) => sum + cv.pendingAssignments.length, 0),
-			submittedCVs: cvs.filter((cv) => cv.status === 'submitted').length,
-			lockedCVs: cvs.filter((cv) => cv.status === 'locked').length
+			lockedForReviewCVs: cvs.filter((cv) => cv.status === 'locked_for_review').length,
+			lockedFinalCVs: cvs.filter((cv) => cv.status === 'locked_final').length
 		};
 	}
 });
@@ -246,13 +256,13 @@ export const approveServiceAssignment = mutation({
 			throw new Error('Assignment not found');
 		}
 
-		if (assignment.status !== 'pending_review') {
+		if (assignment.status !== SERVICE_STATUS_VALUES[0]) { // 'pending_review'
 			throw new Error('Can only approve assignments that are pending review');
 		}
 
 		// Update assignment status
 		const result = await ctx.db.patch(args.assignmentId, {
-			status: 'approved',
+			status: SERVICE_STATUS_VALUES[1], // 'approved'
 			reviewedAt: now,
 			reviewedBy: args.reviewedBy,
 			approvedAt: now,
@@ -283,13 +293,13 @@ export const rejectServiceAssignment = mutation({
 			throw new Error('Assignment not found');
 		}
 
-		if (assignment.status !== 'pending_review') {
+		if (assignment.status !== SERVICE_STATUS_VALUES[0]) { // 'pending_review'
 			throw new Error('Can only reject assignments that are pending review');
 		}
 
 		// Update assignment status
 		const result = await ctx.db.patch(args.assignmentId, {
-			status: 'rejected',
+			status: SERVICE_STATUS_VALUES[2], // 'rejected'
 			reviewedAt: now,
 			reviewedBy: args.reviewedBy,
 			rejectedAt: now,
@@ -322,8 +332,8 @@ export const lockExpertCV = mutation({
 async function checkAndLockCV(ctx: any, expertCVId: any) {
 	// Get the CV
 	const cv = await ctx.db.get(expertCVId);
-	if (!cv || cv.status !== 'submitted') {
-		return { locked: false, reason: 'CV not in submitted status' };
+	if (!cv || cv.status !== 'locked_for_review') {
+		return { locked: false, reason: 'CV not in locked_for_review status' };
 	}
 
 	// Get all assignments for this CV
@@ -334,7 +344,7 @@ async function checkAndLockCV(ctx: any, expertCVId: any) {
 
 	// Check if all assignments are decided (approved or rejected)
 	const undecidedAssignments = assignments.filter(
-		(a: any) => a.status === 'pending_review'
+		(a: any) => a.status === SERVICE_STATUS_VALUES[0]
 	);
 
 	if (undecidedAssignments.length > 0) {
@@ -345,18 +355,18 @@ async function checkAndLockCV(ctx: any, expertCVId: any) {
 		};
 	}
 
-	// All assignments are decided, lock the CV
+	// All assignments are decided, lock the CV to final status
 	const now = Date.now();
 	await ctx.db.patch(expertCVId, {
-		status: 'locked',
-		lockedAt: now
+		status: 'locked_final',
+		lockedFinalAt: now
 	});
 
 	return {
 		locked: true,
 		reason: 'All assignments decided',
-		approvedCount: assignments.filter((a: any) => a.status === 'approved').length,
-		rejectedCount: assignments.filter((a: any) => a.status === 'rejected').length
+		approvedCount: assignments.filter((a: any) => a.status === SERVICE_STATUS_VALUES[1]).length,
+		rejectedCount: assignments.filter((a: any) => a.status === SERVICE_STATUS_VALUES[2]).length
 	};
 }
 
@@ -373,13 +383,17 @@ export const getAdminStats = query({
 		const stats = {
 			totalCVs: allCVs.length,
 			draftCVs: allCVs.filter((cv) => cv.status === 'draft').length,
-			submittedCVs: allCVs.filter((cv) => cv.status === 'submitted').length,
-			lockedCVs: allCVs.filter((cv) => cv.status === 'locked').length,
+			completedCVs: allCVs.filter((cv) => cv.status === 'completed').length,
+			paymentPendingCVs: allCVs.filter((cv) => cv.status === 'payment_pending').length,
+			paidCVs: allCVs.filter((cv) => cv.status === 'paid').length,
+			lockedForReviewCVs: allCVs.filter((cv) => cv.status === 'locked_for_review').length,
+			unlockedForEditsCVs: allCVs.filter((cv) => cv.status === 'unlocked_for_edits').length,
+			lockedFinalCVs: allCVs.filter((cv) => cv.status === 'locked_final').length,
 			totalAssignments: allAssignments.length,
-			pendingAssignments: allAssignments.filter((a) => a.status === 'pending_review').length,
-			approvedAssignments: allAssignments.filter((a) => a.status === 'approved').length,
-			rejectedAssignments: allAssignments.filter((a) => a.status === 'rejected').length,
-			pendingReview: allAssignments.filter((a) => a.status === 'pending_review').length
+			pendingAssignments: allAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[0]).length,
+			approvedAssignments: allAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[1]).length,
+			rejectedAssignments: allAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[2]).length,
+			pendingReview: allAssignments.filter((a) => a.status === SERVICE_STATUS_VALUES[0]).length
 		};
 
 		return stats;

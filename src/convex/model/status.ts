@@ -45,15 +45,16 @@ export type CVStatus = typeof CV_STATUS_VALUES[number];
 // SERVICE ASSIGNMENT STATUS MANAGEMENT
 // ==========================================
 
-/**
- * Service Assignment Status Values
- */
-export const SERVICE_STATUS_VALUES = [
-	'pending_review',    // Awaiting review
-	'approved',          // Approved for this service
-	'rejected',          // Rejected for this service
-	'inactive'           // Deactivated/superseded
-] as const;
+
+
+   // ⚠️ WARNING: Array order matters! adminCVReview.ts uses indices [0], [1], [2]
+   // Never reorder this array without updating all index references
+   export const SERVICE_STATUS_VALUES = [
+	'pending_review',    // [0] - Used in adminCVReview.ts
+	'approved',          // [1] - Used in adminCVReview.ts  
+	'rejected',          // [2] - Used in adminCVReview.ts
+	'inactive'           // [3] - Safe to add new statuses here
+  ] as const;
 
 export const SERVICE_STATUS_VALIDATOR = v.union(
 	v.literal('pending_review'),

@@ -55,8 +55,14 @@
 	let organizationFilter = $state<string>('');
 	let searchTerm = $state<string>('');
 
-	// Query data - temporarily simplified for debugging
-	const expertsData = useQuery(api.adminCVReview.getExpertsForCVReview, {});
+	// Query data - pass filter parameters to backend
+	const expertsData = useQuery(api.adminCVReview.getExpertsForCVReview, () => ({
+		status: statusFilter || undefined,
+		organizationId: organizationFilter ? (organizationFilter as any) : undefined,
+		searchTerm: searchTerm || undefined
+	}));
+
+	console.log('🔍 Experts data:', expertsData?.data);
 
 	const organizationsData = useQuery(api.adminCVReview.getOrganizationsForFilter, {});
 
@@ -98,12 +104,12 @@
 					<div class="text-sm text-gray-600">Pending Review</div>
 				</div>
 				<div class="text-center">
-					<div class="text-2xl font-bold text-green-600">{(stats as any).approved || 0}</div>
-					<div class="text-sm text-gray-600">Approved</div>
+					<div class="text-2xl font-bold text-green-600">{(stats as any).paidCVs || 0}</div>
+					<div class="text-sm text-gray-600">Paid CVs</div>
 				</div>
 				<div class="text-center">
-					<div class="text-2xl font-bold text-red-600">{(stats as any).rejected || 0}</div>
-					<div class="text-sm text-gray-600">Rejected</div>
+					<div class="text-2xl font-bold text-orange-600">{(stats as any).lockedForReviewCVs || 0}</div>
+					<div class="text-sm text-gray-600">Under Review</div>
 				</div>
 				<div class="text-center">
 					<div class="text-2xl font-bold text-gray-600">{(stats as any).totalAssignments || 0}</div>
