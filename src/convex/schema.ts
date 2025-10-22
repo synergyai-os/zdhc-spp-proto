@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
-import { CV_STATUS_VALIDATOR, SERVICE_STATUS_VALIDATOR } from './model/status';
+import { CV_STATUS_VALIDATOR, SERVICE_STATUS_VALIDATOR, TRAINING_STATUS_VALIDATOR } from './model/status';
 
 export default defineSchema({
 	// Users table (simulating PDC)
@@ -139,6 +139,9 @@ export default defineSchema({
 		// Review Status
 		status: SERVICE_STATUS_VALIDATOR,
 
+		// Training Status (separate from approval status)
+		trainingStatus: v.optional(TRAINING_STATUS_VALIDATOR),
+
 		// Review Metadata
 		reviewedAt: v.optional(v.number()),
 		reviewedBy: v.optional(v.string()), // ZDHC Admin ID
@@ -149,11 +152,47 @@ export default defineSchema({
 		rejectionReason: v.optional(v.string()),
 		reviewNotes: v.optional(v.string()),
 
+		// Training lifecycle tracking
+		trainingInvitedAt: v.optional(v.number()),
+		trainingStartedAt: v.optional(v.number()),
+		trainingCompletedAt: v.optional(v.number()),
+		trainingFailedAt: v.optional(v.number()),
+
+		// Qualification tracking (global check)
+		qualificationId: v.optional(v.string()), // Reference to global qualification record
+		qualifiedAt: v.optional(v.number()),
+
+		// Training metadata
+		trainingNotes: v.optional(v.string()),
+		academyTrainingId: v.optional(v.string()), // External Academy reference
+
 		// Metadata
 		createdAt: v.number(),
 		assignedBy: v.string() // SPP Manager ID who created assignment
 	}),
 
+	// Expert Qualifications table - Global tracking of training completions
+	// Links USER + SERVICE VERSION for qualification sharing across organizations
+	expertQualifications: defineTable({
+		userId: v.id('users'),
+		serviceVersionId: v.id('serviceVersions'),
+
+		// Training completion
+		trainingPassedAt: v.number(),
+		trainingCompletedBy: v.optional(v.string()), // Academy system or admin override
+
+		// Original assignment that earned qualification
+		originalAssignmentId: v.id('expertServiceAssignments'),
+		originalOrganizationId: v.id('organizations'),
+
+		// Metadata
+		academyTrainingId: v.optional(v.string()),
+		certificateUrl: v.optional(v.string()),
+		notes: v.optional(v.string()),
+
+		createdAt: v.number(),
+	})
+		.index('by_user_service', ['userId', 'serviceVersionId']),
 
 	// User Sessions table (for organization context switching)
 	userSessions: defineTable({
