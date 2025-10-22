@@ -4,6 +4,7 @@
 	import type { CVStatus } from '../../../convex/model/status';
 	import { CV_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName } from '../../../convex/model/status';
 	import PaymentConfirmationButton from './PaymentConfirmationButton.svelte';
+	import CVStageAdvancer from './CVStageAdvancer.svelte';
 
 	interface ExpertForReview {
 		userId: string;
@@ -52,7 +53,7 @@
 	const client = useConvexClient();
 
 	// Filter state
-	let statusFilter = $state<CVStatus | ''>('completed'); // Default to completed status
+	let statusFilter = $state<CVStatus | ''>(''); // Default to no filter to show all
 	let organizationFilter = $state<string>('');
 	let searchTerm = $state<string>('');
 
@@ -99,30 +100,121 @@
 		// The useQuery will automatically refetch when needed
 		console.log('Payment confirmed, data will refresh automatically');
 	};
+
+	const handleStageAdvanced = () => {
+		// Refresh the data after stage advancement
+		// The useQuery will automatically refetch when needed
+		console.log('Stage advanced, data will refresh automatically');
+	};
+
+	// Map CV status values to backend property names
+	const getStatusPropertyName = (status: CVStatus): string => {
+		const statusMap: Record<CVStatus, string> = {
+			'draft': 'draftCVs',
+			'completed': 'completedCVs',
+			'payment_pending': 'paymentPendingCVs',
+			'paid': 'paidCVs',
+			'locked_for_review': 'lockedForReviewCVs',
+			'unlocked_for_edits': 'unlockedForEditsCVs',
+			'locked_final': 'lockedFinalCVs'
+		};
+		return statusMap[status];
+	};
+
+	// Handle stat click to filter table
+	const handleStatClick = (filterType: 'status' | 'assignment', value: string) => {
+		if (filterType === 'status') {
+			statusFilter = value as CVStatus;
+		} else if (filterType === 'assignment') {
+			// For assignment stats, we'll need to implement assignment filtering
+			// For now, we'll focus on CV status filtering
+			console.log('Assignment filtering not yet implemented:', value);
+		}
+	};
 </script>
 
 <div class="space-y-6">
-	<!-- Stats Overview -->
+	<!-- Enhanced Stats Overview -->
 	{#if stats}
 		<div class="bg-white border border-gray-200 rounded-lg p-6">
-			<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-				<div class="text-center">
-					<div class="text-2xl font-bold text-blue-600">{stats.pendingReview}</div>
-					<div class="text-sm text-gray-600">Pending Review</div>
-				</div>
-				<div class="text-center">
-					<div class="text-2xl font-bold text-green-600">{(stats as any).paidCVs || 0}</div>
-					<div class="text-sm text-gray-600">Paid CVs</div>
-				</div>
-				<div class="text-center">
-					<div class="text-2xl font-bold text-orange-600">{(stats as any).lockedForReviewCVs || 0}</div>
-					<div class="text-sm text-gray-600">Under Review</div>
-				</div>
-				<div class="text-center">
-					<div class="text-2xl font-bold text-gray-600">{(stats as any).totalAssignments || 0}</div>
-					<div class="text-sm text-gray-600">Total Assignments</div>
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="text-lg font-semibold text-gray-900">Dashboard Overview</h3>
+				<button
+					type="button"
+					onclick={clearFilters}
+					class="text-sm text-gray-500 hover:text-gray-700 underline"
+				>
+					Clear All Filters
+				</button>
+			</div>
+			
+			<!-- CV Status Stats -->
+			<div class="mb-6">
+				<h4 class="text-sm font-medium text-gray-700 mb-3">CV Status</h4>
+				<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+					{#each CV_STATUS_VALUES as status}
+						{@const count = (stats as any)[getStatusPropertyName(status)] || 0}
+						{@const isActive = statusFilter === status}
+						<button
+							type="button"
+							onclick={() => handleStatClick('status', status)}
+							class="text-center p-3 rounded-lg border transition-all duration-150 {isActive ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-500 ring-opacity-50' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'}"
+						>
+							<div class="text-lg font-bold {isActive ? 'text-blue-600' : 'text-gray-600'}">{count}</div>
+							<div class="text-xs text-gray-600 mt-1">{getCVStatusDisplayName(status)}</div>
+						</button>
+					{/each}
 				</div>
 			</div>
+
+			<!-- Assignment Status Stats -->
+			<div class="mb-4">
+				<h4 class="text-sm font-medium text-gray-700 mb-3">Service Assignments</h4>
+				<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+					<button
+						type="button"
+						onclick={() => handleStatClick('assignment', 'pending_review')}
+						class="text-center p-3 rounded-lg border bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300 transition-all duration-150"
+					>
+						<div class="text-lg font-bold text-orange-600">{(stats as any).pendingAssignments || 0}</div>
+						<div class="text-xs text-gray-600 mt-1">Pending Review</div>
+					</button>
+					<button
+						type="button"
+						onclick={() => handleStatClick('assignment', 'approved')}
+						class="text-center p-3 rounded-lg border bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300 transition-all duration-150"
+					>
+						<div class="text-lg font-bold text-green-600">{(stats as any).approvedAssignments || 0}</div>
+						<div class="text-xs text-gray-600 mt-1">Approved</div>
+					</button>
+					<button
+						type="button"
+						onclick={() => handleStatClick('assignment', 'rejected')}
+						class="text-center p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300 transition-all duration-150"
+					>
+						<div class="text-lg font-bold text-red-600">{(stats as any).rejectedAssignments || 0}</div>
+						<div class="text-xs text-gray-600 mt-1">Rejected</div>
+					</button>
+					<button
+						type="button"
+						onclick={() => handleStatClick('assignment', 'total')}
+						class="text-center p-3 rounded-lg border bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all duration-150"
+					>
+						<div class="text-lg font-bold text-gray-600">{(stats as any).totalAssignments || 0}</div>
+						<div class="text-xs text-gray-600 mt-1">Total Assignments</div>
+					</button>
+				</div>
+			</div>
+
+			<!-- Active Filter Indicator -->
+			{#if statusFilter}
+				<div class="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+					</svg>
+					<span>Filtered by: <strong>{getCVStatusDisplayName(statusFilter)}</strong></span>
+				</div>
+			{/if}
 		</div>
 	{/if}
 
@@ -355,6 +447,11 @@
 											cvStatus={expert.latestCV?.status}
 											cvId={expert.latestCV?._id}
 											onPaymentConfirmed={handlePaymentConfirmed}
+										/>
+										<CVStageAdvancer 
+											cvStatus={expert.latestCV?.status}
+											cvId={expert.latestCV?._id}
+											onStageAdvanced={handleStageAdvanced}
 										/>
 									</div>
 								</td>

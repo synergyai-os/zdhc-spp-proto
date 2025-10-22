@@ -1,27 +1,18 @@
 <script lang="ts">
-  type TrainingStatus =
-    | 'proposed'
-    | 'training_required'
-    | 'training_in_progress'
-    | 'training_failed'
-    | 'training_passed'
-    | 'certification_issued'
-    | 'active_for_delivery'
-    | 'suspended'
-    | 'revoked';
+  import { getTrainingStatusDisplayName, getTrainingStatusColor, type TrainingStatus } from '../../convex/model/status';
 
   interface Props {
     status?: TrainingStatus;
     title?: string;
   }
-  let { status = 'training_required', title = 'Service Readiness' }: Props = $props();
+  let { status = 'required', title = 'Service Readiness' }: Props = $props();
 
   const steps: { key: TrainingStatus; label: string; help: string }[] = [
-    { key: 'training_required', label: 'Training Required', help: 'Start the mandatory training' },
-    { key: 'training_in_progress', label: 'In Progress', help: 'Complete all modules' },
-    { key: 'training_passed', label: 'Passed', help: 'You passed the exam' },
-    { key: 'certification_issued', label: 'Certified', help: 'Certificate available' },
-    { key: 'active_for_delivery', label: 'Active', help: 'Eligible to deliver service' }
+    { key: 'required', label: 'Training Required', help: 'Start the mandatory training' },
+    { key: 'invited', label: 'Training Invited', help: 'Invitation sent to Academy' },
+    { key: 'in_progress', label: 'In Progress', help: 'Complete all modules' },
+    { key: 'passed', label: 'Qualified', help: 'You passed the training' },
+    { key: 'not_required', label: 'Already Qualified', help: 'Training completed previously' }
   ];
 
   const idxOf = (s: TrainingStatus) => steps.findIndex((st) => st.key === s);
@@ -29,17 +20,21 @@
   const totalSteps: number = steps.length - 1;
   const percent: number = $derived(Math.max(0, Math.min(100, (currentIndex / totalSteps) * 100)));
 
+  // Get display name using our helper function
+  const displayName = $derived(getTrainingStatusDisplayName(status));
+  const statusColor = $derived(getTrainingStatusColor(status));
+
   function isCompleted(i: number): boolean {
     if (i < currentIndex) return true;
-    // Terminal active state renders last as completed
-    if (status === 'active_for_delivery' && i === currentIndex) return true;
-    if (status === 'certification_issued' && i === currentIndex) return true;
-    if (status === 'training_passed' && i === currentIndex) return true;
+    // Terminal states render as completed
+    if (status === 'passed' && i === currentIndex) return true;
+    if (status === 'not_required' && i === currentIndex) return true;
     return false;
   }
 
   function isActive(i: number): boolean {
-    if ((status === 'active_for_delivery' || status === 'certification_issued' || status === 'training_passed') && i === currentIndex) return false;
+    // Terminal states don't show as active
+    if ((status === 'passed' || status === 'not_required') && i === currentIndex) return false;
     return i === currentIndex;
   }
 
@@ -54,7 +49,12 @@
 </script>
 
 <div class="w-full">
-  <h3 class="text-xl font-semibold text-gray-900 mb-4">{title}</h3>
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-xl font-semibold text-gray-900">{title}</h3>
+    <span class="px-3 py-1 rounded-full text-sm font-medium {statusColor}">
+      {displayName}
+    </span>
+  </div>
   <div class="relative flex items-center">
     <div class="absolute left-0 right-0 h-[3px] bg-gray-200 top-1/2 -translate-y-1/2"></div>
     <div class="absolute left-0 h-[6px] bg-blue-500/80 top-1/2 -translate-y-1/2 rounded transition-[width] duration-200" style={`width: ${percent}%`}></div>

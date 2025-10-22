@@ -68,6 +68,92 @@ export const SERVICE_STATUS_VALIDATOR = v.union(
 export type ServiceStatus = typeof SERVICE_STATUS_VALUES[number];
 
 // ==========================================
+// TRAINING STATUS MANAGEMENT
+// ==========================================
+
+/**
+ * Training Status Values - Single source of truth
+ * 
+ * Tracks the training lifecycle for service assignments
+ * Separate from service assignment status for better separation of concerns
+ */
+export const TRAINING_STATUS_VALUES = [
+	'not_required',    // Expert already qualified globally (skip training)
+	'required',        // Training needed, not yet invited
+	'invited',         // Invitation sent to Academy
+	'in_progress',     // Expert is taking the training
+	'passed',          // Expert passed → NOW QUALIFIED
+	'failed',          // Expert failed training (can retry indefinitely)
+] as const;
+
+/**
+ * Convex validator for training status
+ * Use this in schema.ts and query/mutation args
+ */
+export const TRAINING_STATUS_VALIDATOR = v.union(
+	v.literal('not_required'),
+	v.literal('required'),
+	v.literal('invited'),
+	v.literal('in_progress'),
+	v.literal('passed'),
+	v.literal('failed')
+);
+
+/**
+ * TypeScript type for training status
+ * Use this in TypeScript interfaces and functions
+ */
+export type TrainingStatus = typeof TRAINING_STATUS_VALUES[number];
+
+/**
+ * Get human-readable display name for training status
+ * Uses business terminology: "passed" → "Qualified"
+ */
+export function getTrainingStatusDisplayName(status: TrainingStatus): string {
+	switch (status) {
+		case 'not_required': return 'Already Qualified';
+		case 'required': return 'Training Required';
+		case 'invited': return 'Training Invited';
+		case 'in_progress': return 'Training In Progress';
+		case 'passed': return 'Qualified';  // ✅ User-facing term
+		case 'failed': return 'Training Failed';
+		default: return status;
+	}
+}
+
+/**
+ * Get training status color classes for UI - Semantic color strategy
+ * Follows universal UX patterns for clear visual hierarchy
+ */
+export function getTrainingStatusColor(status: TrainingStatus): string {
+	switch (status) {
+		case 'not_required': return 'bg-green-100 text-green-800';     // Success - already qualified
+		case 'required': return 'bg-blue-100 text-blue-800';           // Info - action needed
+		case 'invited': return 'bg-purple-100 text-purple-800';        // Info - invitation sent
+		case 'in_progress': return 'bg-yellow-100 text-yellow-800';   // Wait - in progress
+		case 'passed': return 'bg-green-100 text-green-800';          // Success - qualified
+		case 'failed': return 'bg-red-100 text-red-800';              // Problem - failed
+		default: return 'bg-gray-100 text-gray-800';
+	}
+}
+
+/**
+ * Check if training status indicates qualification
+ * Both 'passed' and 'not_required' mean the expert is qualified
+ */
+export function isQualified(trainingStatus: TrainingStatus): boolean {
+	return trainingStatus === 'passed' || trainingStatus === 'not_required';
+}
+
+/**
+ * Check if service assignment is active for service delivery
+ * Active = approved status AND qualified training status
+ */
+export function isActiveForService(assignment: { status: ServiceStatus; trainingStatus: TrainingStatus }): boolean {
+	return assignment.status === 'approved' && isQualified(assignment.trainingStatus);
+}
+
+// ==========================================
 // EXPERT ROLE MANAGEMENT
 // ==========================================
 

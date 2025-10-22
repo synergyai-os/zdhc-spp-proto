@@ -1,6 +1,6 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
-import { CV_STATUS_VALIDATOR } from './model/status';
+import { CV_STATUS_VALIDATOR, TRAINING_STATUS_VALIDATOR } from './model/status';
 
 
 
@@ -233,6 +233,7 @@ export const addService = mutation({
 			serviceVersionId: args.serviceVersionId,
 			role: args.role || 'regular', // Use provided role or default to 'regular'
 			status: 'pending_review', // Default status
+			trainingStatus: 'required', // Training needed after approval
 			createdAt: Date.now(),
 			assignedBy: 'user' // TODO: Get actual user ID
 		});
@@ -341,11 +342,11 @@ export const updateCVStatus = mutation({
 		if (args.newStatus === 'paid') {
 			updateData.paidAt = now;
 		} else if (args.newStatus === 'locked_for_review') {
-			updateData.lockedForReviewAt = now;
+			updateData.lockedAt = now;
 		} else if (args.newStatus === 'unlocked_for_edits') {
-			updateData.unlockedForEditsAt = now;
+			updateData.lockedAt = now;
 		} else if (args.newStatus === 'locked_final') {
-			updateData.lockedFinalAt = now;
+			updateData.lockedAt = now;
 		}
 
 		// Update the CV status and timestamp
@@ -429,3 +430,417 @@ export const getUser = query({
 		};
 	}
 });
+
+// ==========================================
+// TRAINING LIFECYCLE MUTATIONS
+// ==========================================
+
+export const sendTrainingInvitation = mutation({
+	args: {
+		assignmentId: v.id('expertServiceAssignments'),
+		invitedBy: v.string() // Manager ID
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now();
+
+		// Check if assignment exists and is approved
+		const assignment = await ctx.db.get(args.assignmentId);
+		if (!assignment) {
+			throw new Error('Assignment not found');
+		}
+
+		if (assignment.status !== 'approved') {
+			throw new Error('Can only send training invitations for approved assignments');
+		}
+
+		if (assignment.trainingStatus !== 'required') {
+			throw new Error('Training invitation already sent or not required');
+		}
+
+		// Update assignment with training invitation
+		const result = await ctx.db.patch(args.assignmentId, {
+			trainingStatus: 'invited',
+			trainingInvitedAt: now,
+			trainingNotes: `Training invitation sent by ${args.invitedBy} at ${new Date(now).toISOString()}`
+		});
+
+		return {
+			success: true,
+			assignmentId: args.assignmentId,
+			trainingStatus: 'invited',
+			invitedAt: now
+		};
+	}
+});
+
+export const startTraining = mutation({
+	args: {
+		assignmentId: v.id('expertServiceAssignments'),
+		academyTrainingId: v.optional(v.string())
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now();
+
+		// Check if assignment exists and is invited
+		const assignment = await ctx.db.get(args.assignmentId);
+		if (!assignment) {
+			throw new Error('Assignment not found');
+		}
+
+		if (assignment.trainingStatus !== 'invited') {
+			throw new Error('Can only start training for invited assignments');
+		}
+
+		// Update assignment with training start
+		const updateData: any = {
+			trainingStatus: 'in_progress',
+			trainingStartedAt: now
+		};
+
+		if (args.academyTrainingId) {
+			updateData.academyTrainingId = args.academyTrainingId;
+		}
+
+		const result = await ctx.db.patch(args.assignmentId, updateData);
+
+		return {
+			success: true,
+			assignmentId: args.assignmentId,
+			trainingStatus: 'in_progress',
+			startedAt: now
+		};
+	}
+});
+
+export const completeTraining = mutation({
+	args: {
+		assignmentId: v.id('expertServiceAssignments'),
+		passed: v.boolean(),
+		academyTrainingId: v.optional(v.string()),
+		completedBy: v.optional(v.string()) // Academy system or admin override
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now();
+
+		// Check if assignment exists and is in progress
+		const assignment = await ctx.db.get(args.assignmentId);
+		if (!assignment) {
+			throw new Error('Assignment not found');
+		}
+
+		if (assignment.trainingStatus !== 'in_progress') {
+			throw new Error('Can only complete training for assignments in progress');
+		}
+
+		const newStatus = args.passed ? 'passed' : 'failed';
+		const updateData: any = {
+			trainingStatus: newStatus,
+			trainingCompletedAt: now
+		};
+
+		if (args.academyTrainingId) {
+			updateData.academyTrainingId = args.academyTrainingId;
+		}
+
+		if (args.completedBy) {
+			updateData.trainingNotes = `Training ${newStatus} by ${args.completedBy} at ${new Date(now).toISOString()}`;
+		}
+
+		if (args.passed) {
+			updateData.qualifiedAt = now;
+		} else {
+			updateData.trainingFailedAt = now;
+		}
+
+		const result = await ctx.db.patch(args.assignmentId, updateData);
+
+		// If training passed, create global qualification record
+		if (args.passed) {
+			await createGlobalQualification(ctx, assignment, now, args.academyTrainingId, args.completedBy);
+		}
+
+		return {
+			success: true,
+			assignmentId: args.assignmentId,
+			trainingStatus: newStatus,
+			completedAt: now,
+			passed: args.passed
+		};
+	}
+});
+
+export const checkExistingQualification = query({
+	args: {
+		userId: v.id('users'),
+		serviceVersionId: v.id('serviceVersions')
+	},
+	handler: async (ctx, args) => {
+		// Check if user already has qualification for this service version
+		const qualification = await ctx.db
+			.query('expertQualifications')
+			.withIndex('by_user_service', (q) =>
+				q.eq('userId', args.userId).eq('serviceVersionId', args.serviceVersionId)
+			)
+			.first();
+
+		return qualification ? {
+			exists: true,
+			qualification,
+			trainingPassedAt: qualification.trainingPassedAt,
+			originalOrganizationId: qualification.originalOrganizationId
+		} : {
+			exists: false
+		};
+	}
+});
+
+// ==========================================
+// QUALIFICATION MANAGEMENT
+// ==========================================
+
+export const getExpertQualifications = query({
+	args: {
+		userId: v.optional(v.id('users')),
+		serviceVersionId: v.optional(v.id('serviceVersions')),
+		organizationId: v.optional(v.id('organizations'))
+	},
+	handler: async (ctx, args) => {
+		let query = ctx.db.query('expertQualifications');
+
+		if (args.userId) {
+			query = query.filter((q) => q.eq(q.field('userId'), args.userId));
+		}
+
+		if (args.serviceVersionId) {
+			query = query.filter((q) => q.eq(q.field('serviceVersionId'), args.serviceVersionId));
+		}
+
+		const qualifications = await query.order('desc').collect();
+
+		// Enrich with related data
+		const enrichedQualifications = await Promise.all(
+			qualifications.map(async (qualification) => {
+				const user = await ctx.db.get(qualification.userId);
+				const serviceVersion = await ctx.db.get(qualification.serviceVersionId);
+				const serviceParent = serviceVersion ? await ctx.db.get(serviceVersion.parentId) : null;
+				const originalAssignment = await ctx.db.get(qualification.originalAssignmentId);
+				const originalOrganization = await ctx.db.get(qualification.originalOrganizationId);
+
+				return {
+					...qualification,
+					user,
+					serviceVersion,
+					serviceParent,
+					originalAssignment,
+					originalOrganization
+				};
+			})
+		);
+
+		return enrichedQualifications;
+	}
+});
+
+export const getQualificationByUserAndService = query({
+	args: {
+		userId: v.id('users'),
+		serviceVersionId: v.id('serviceVersions')
+	},
+	handler: async (ctx, args) => {
+		const qualification = await ctx.db
+			.query('expertQualifications')
+			.withIndex('by_user_service', (q) =>
+				q.eq('userId', args.userId).eq('serviceVersionId', args.serviceVersionId)
+			)
+			.first();
+
+		if (!qualification) {
+			return null;
+		}
+
+		// Enrich with related data
+		const user = await ctx.db.get(qualification.userId);
+		const serviceVersion = await ctx.db.get(qualification.serviceVersionId);
+		const serviceParent = serviceVersion ? await ctx.db.get(serviceVersion.parentId) : null;
+		const originalAssignment = await ctx.db.get(qualification.originalAssignmentId);
+		const originalOrganization = await ctx.db.get(qualification.originalOrganizationId);
+
+		return {
+			...qualification,
+			user,
+			serviceVersion,
+			serviceParent,
+			originalAssignment,
+			originalOrganization
+		};
+	}
+});
+
+export const checkQualificationExists = query({
+	args: {
+		userId: v.id('users'),
+		serviceVersionId: v.id('serviceVersions')
+	},
+	handler: async (ctx, args) => {
+		const qualification = await ctx.db
+			.query('expertQualifications')
+			.withIndex('by_user_service', (q) =>
+				q.eq('userId', args.userId).eq('serviceVersionId', args.serviceVersionId)
+			)
+			.first();
+
+		return {
+			exists: !!qualification,
+			qualification: qualification || null
+		};
+	}
+});
+
+export const createQualification = mutation({
+	args: {
+		userId: v.id('users'),
+		serviceVersionId: v.id('serviceVersions'),
+		trainingPassedAt: v.number(),
+		originalAssignmentId: v.id('expertServiceAssignments'),
+		originalOrganizationId: v.id('organizations'),
+		trainingCompletedBy: v.optional(v.string()),
+		academyTrainingId: v.optional(v.string()),
+		certificateUrl: v.optional(v.string()),
+		notes: v.optional(v.string())
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now();
+
+		// Check if qualification already exists
+		const existingQualification = await ctx.db
+			.query('expertQualifications')
+			.withIndex('by_user_service', (q) =>
+				q.eq('userId', args.userId).eq('serviceVersionId', args.serviceVersionId)
+			)
+			.first();
+
+		if (existingQualification) {
+			throw new Error('Qualification already exists for this user and service');
+		}
+
+		// Verify the original assignment exists and belongs to the user
+		const originalAssignment = await ctx.db.get(args.originalAssignmentId);
+		if (!originalAssignment) {
+			throw new Error('Original assignment not found');
+		}
+
+		if (originalAssignment.userId !== args.userId || 
+			originalAssignment.serviceVersionId !== args.serviceVersionId) {
+			throw new Error('Original assignment does not match user and service');
+		}
+
+		// Create qualification record
+		const qualificationId = await ctx.db.insert('expertQualifications', {
+			userId: args.userId,
+			serviceVersionId: args.serviceVersionId,
+			trainingPassedAt: args.trainingPassedAt,
+			trainingCompletedBy: args.trainingCompletedBy,
+			originalAssignmentId: args.originalAssignmentId,
+			originalOrganizationId: args.originalOrganizationId,
+			academyTrainingId: args.academyTrainingId,
+			certificateUrl: args.certificateUrl,
+			notes: args.notes,
+			createdAt: now
+		});
+
+		return {
+			success: true,
+			qualificationId,
+			timestamp: now
+		};
+	}
+});
+
+export const updateQualification = mutation({
+	args: {
+		qualificationId: v.id('expertQualifications'),
+		certificateUrl: v.optional(v.string()),
+		notes: v.optional(v.string())
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now();
+
+		// Check if qualification exists
+		const qualification = await ctx.db.get(args.qualificationId);
+		if (!qualification) {
+			throw new Error('Qualification not found');
+		}
+
+		// Update qualification
+		const updateData: any = {};
+		if (args.certificateUrl !== undefined) {
+			updateData.certificateUrl = args.certificateUrl;
+		}
+		if (args.notes !== undefined) {
+			updateData.notes = args.notes;
+		}
+
+		await ctx.db.patch(args.qualificationId, updateData);
+
+		return {
+			success: true,
+			qualificationId: args.qualificationId,
+			timestamp: now
+		};
+	}
+});
+
+export const deleteQualification = mutation({
+	args: {
+		qualificationId: v.id('expertQualifications'),
+		deletedBy: v.string()
+	},
+	handler: async (ctx, args) => {
+		// Check if qualification exists
+		const qualification = await ctx.db.get(args.qualificationId);
+		if (!qualification) {
+			throw new Error('Qualification not found');
+		}
+
+		// Delete the qualification
+		await ctx.db.delete(args.qualificationId);
+
+		return {
+			success: true,
+			deletedId: args.qualificationId,
+			timestamp: Date.now(),
+			deletedBy: args.deletedBy
+		};
+	}
+});
+
+// ==========================================
+// UTILITY FUNCTIONS FOR TRAINING
+// ==========================================
+
+async function createGlobalQualification(
+	ctx: any,
+	assignment: any,
+	trainingPassedAt: number,
+	academyTrainingId?: string,
+	completedBy?: string
+) {
+	// Create global qualification record
+	const qualificationId = await ctx.db.insert('expertQualifications', {
+		userId: assignment.userId,
+		serviceVersionId: assignment.serviceVersionId,
+		trainingPassedAt,
+		trainingCompletedBy: completedBy,
+		originalAssignmentId: assignment._id,
+		originalOrganizationId: assignment.organizationId,
+		academyTrainingId,
+		createdAt: trainingPassedAt
+	});
+
+	// Update assignment to reference the qualification
+	await ctx.db.patch(assignment._id, {
+		qualificationId: qualificationId.toString()
+	});
+
+	return qualificationId;
+}

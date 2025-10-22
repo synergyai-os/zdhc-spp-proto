@@ -3,6 +3,7 @@
 	import { api } from '../../../convex/_generated/api';
 	import type { ServiceStatus, CVStatus, ExpertRole } from '../../../convex/model/status';
 	import { getServiceStatusDisplayName, getServiceStatusColor, SERVICE_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName, getExpertRoleDisplayName, getExpertRoleColor } from '../../../convex/model/status';
+	import DevelopmentToolBar from './DevelopmentToolBar.svelte';
 
 	interface User {
 		_id: string;
@@ -403,6 +404,15 @@
 				{/each}
 			</div>
 		</div>
+
+		<!-- Development Toolbar -->
+		{#if currentCVData}
+			<DevelopmentToolBar 
+				cvStatus={currentCVData.status}
+				cvId={currentCVData._id}
+				onActionCompleted={onApprovalChange}
+			/>
+		{/if}
 	</div>
 
 	<!-- MAIN CONTENT AREA -->
