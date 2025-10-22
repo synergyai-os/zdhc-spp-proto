@@ -330,10 +330,26 @@ export const updateCVStatus = mutation({
 		newStatus: CV_STATUS_VALIDATOR
 	},
 	handler: async (ctx, args) => {
-		// Update the CV status
-		await ctx.db.patch(args.cvId, { 
+		const now = Date.now();
+		
+		// Prepare update data
+		const updateData: any = { 
 			status: args.newStatus
-		});
+		};
+
+		// Set appropriate timestamp based on status
+		if (args.newStatus === 'paid') {
+			updateData.paidAt = now;
+		} else if (args.newStatus === 'locked_for_review') {
+			updateData.lockedForReviewAt = now;
+		} else if (args.newStatus === 'unlocked_for_edits') {
+			updateData.unlockedForEditsAt = now;
+		} else if (args.newStatus === 'locked_final') {
+			updateData.lockedFinalAt = now;
+		}
+
+		// Update the CV status and timestamp
+		await ctx.db.patch(args.cvId, updateData);
 
 		return { success: true };
 	}

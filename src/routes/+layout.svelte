@@ -6,8 +6,12 @@
 	import { setupConvex, useQuery } from 'convex-svelte';
 	import { PUBLIC_CONVEX_URL } from '$env/static/public';
 	import { DEFAULT_ORG_ID } from '$lib/config';
+	import { setContext } from 'svelte';
 
 	let { children }: LayoutProps = $props();
+
+	// Set organization ID in context for all child components
+	setContext('orgId', DEFAULT_ORG_ID);
 
 	// Initialize Convex client
 	try {

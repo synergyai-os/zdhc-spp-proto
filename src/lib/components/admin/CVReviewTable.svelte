@@ -3,6 +3,7 @@
 	import { api } from '../../../convex/_generated/api';
 	import type { CVStatus } from '../../../convex/model/status';
 	import { CV_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName } from '../../../convex/model/status';
+	import PaymentConfirmationButton from './PaymentConfirmationButton.svelte';
 
 	interface ExpertForReview {
 		userId: string;
@@ -91,6 +92,12 @@
 		statusFilter = '';
 		organizationFilter = '';
 		searchTerm = '';
+	};
+
+	const handlePaymentConfirmed = () => {
+		// Refresh the data after payment confirmation
+		// The useQuery will automatically refetch when needed
+		console.log('Payment confirmed, data will refresh automatically');
 	};
 </script>
 
@@ -333,16 +340,23 @@
 
 								<!-- Actions -->
 								<td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-									<button
-										type="button"
-										onclick={(e) => {
-											e.stopPropagation();
-											handleRowClick(expert.userId);
-										}}
-										class="text-blue-600 hover:text-blue-900 focus:outline-none focus:underline"
-									>
-										View CV
-									</button>
+									<div class="flex items-center gap-2">
+										<button
+											type="button"
+											onclick={(e) => {
+												e.stopPropagation();
+												handleRowClick(expert.userId);
+											}}
+											class="text-blue-600 hover:text-blue-900 focus:outline-none focus:underline"
+										>
+											View CV
+										</button>
+										<PaymentConfirmationButton 
+											cvStatus={expert.latestCV?.status}
+											cvId={expert.latestCV?._id}
+											onPaymentConfirmed={handlePaymentConfirmed}
+										/>
+									</div>
 								</td>
 							</tr>
 						{/each}

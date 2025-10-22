@@ -482,7 +482,11 @@
 	
 	{#if expertCV?.data}
 		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-			<TabSwitcher {activeTab} onTabChange={(tab: 'services' | 'cv-details') => activeTab = tab} />
+			<TabSwitcher 
+				tabs={['services', 'cv-details']} 
+				{activeTab} 
+				onTabChange={(tab: string) => activeTab = tab as 'services' | 'cv-details'} 
+			/>
 
 			<!-- Services Tab Content -->
 			{#if activeTab === 'services'}
