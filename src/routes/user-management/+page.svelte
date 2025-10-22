@@ -1,6 +1,7 @@
 <script lang="ts">
 	import TabSwitcher from '$lib/components/expert-edit/TabSwitcher.svelte';
 	import ExpertTableView from '$lib/components/ExpertTableView.svelte';
+	import ServicesView from '$lib/components/ServicesView.svelte';
 
 	let activeTab = $state('experts');
 
@@ -42,9 +43,7 @@
 		{:else if activeTab === 'experts'}
 			<ExpertTableView />
 		{:else if activeTab === 'services'}
-			<div class="text-center py-12">
-				<p class="text-gray-500 text-lg">Services</p>
-			</div>
+			<ServicesView />
 		{/if}
 	</div>
 
