@@ -78,6 +78,12 @@
 			const qualifiedLeadExperts = approvedLeadExperts.filter(a => 
 				a.trainingStatus && isQualified(a.trainingStatus)
 			);
+			
+			// Only show truly qualified regular experts (training passed or not required)
+			const qualifiedRegularExperts = approvedRegularExperts.filter(a => 
+				a.trainingStatus && isQualified(a.trainingStatus)
+			);
+			
 			const isActive = qualifiedLeadExperts.length > 0;
 
 			// Categorize experts by journey for inactive services
@@ -91,6 +97,7 @@
 				approvedLeadExperts,
 				approvedRegularExperts,
 				qualifiedLeadExperts,
+				qualifiedRegularExperts,
 				pendingExperts,
 				rejectedExperts,
 				journeyCategories,

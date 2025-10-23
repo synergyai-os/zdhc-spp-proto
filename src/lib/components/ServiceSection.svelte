@@ -15,7 +15,7 @@
 			approvedTrainingPassed: any[];
 		};
 		qualifiedLeadExperts?: any[];
-		approvedRegularExperts?: any[];
+		qualifiedRegularExperts?: any[];
 		pendingExperts?: any[];
 		rejectedExperts?: any[];
 	}
@@ -124,9 +124,9 @@
 							/>
 						{/if}
 
-						{#if version.approvedRegularExperts && version.approvedRegularExperts.length > 0}
+						{#if version.qualifiedRegularExperts && version.qualifiedRegularExperts.length > 0}
 							<ExpertSection 
-								assignments={version.approvedRegularExperts} 
+								assignments={version.qualifiedRegularExperts} 
 								type="regular" 
 								title="Regular Experts" 
 							/>
