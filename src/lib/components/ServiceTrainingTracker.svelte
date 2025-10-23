@@ -1,87 +1,157 @@
 <script lang="ts">
-  import { getTrainingStatusDisplayName, getTrainingStatusColor, type TrainingStatus } from '../../convex/model/status';
+  type TrainingStatus = 'invited' | 'in_progress' | 'qualified' | 'failed';
 
   interface Props {
     status?: TrainingStatus;
     title?: string;
   }
-  let { status = 'required', title = 'Service Readiness' }: Props = $props();
+  let { status = 'invited', title = 'Service Readiness' }: Props = $props();
 
-  const steps: { key: TrainingStatus; label: string; help: string }[] = [
-    { key: 'required', label: 'Training Required', help: 'Start the mandatory training' },
-    { key: 'invited', label: 'Training Invited', help: 'Invitation sent to Academy' },
-    { key: 'in_progress', label: 'In Progress', help: 'Complete all modules' },
-    { key: 'passed', label: 'Qualified', help: 'You passed the training' },
-    { key: 'not_required', label: 'Already Qualified', help: 'Training completed previously' }
+  // Define the 3 main steps with dynamic labels
+  const steps = [
+    { 
+      key: 'invited', 
+      label: 'Invited for Training',
+      getLabel: () => 'Invited for Training'
+    },
+    { 
+      key: 'in_progress', 
+      label: 'Training in Progress',
+      getLabel: () => status === 'failed' ? 'Training Failed' : 'Training in Progress'
+    },
+    { 
+      key: 'qualified', 
+      label: 'Qualified for Service',
+      getLabel: () => 'Qualified for Service'
+    }
   ];
 
-  const idxOf = (s: TrainingStatus) => steps.findIndex((st) => st.key === s);
-  const currentIndex: number = $derived(Math.max(0, idxOf(status)));
-  const totalSteps: number = steps.length - 1;
-  const percent: number = $derived(Math.max(0, Math.min(100, (currentIndex / totalSteps) * 100)));
+  const getCurrentStepIndex = () => {
+    if (status === 'invited') return 0;
+    if (status === 'in_progress' || status === 'failed') return 1;
+    if (status === 'qualified') return 2;
+    return 0;
+  };
 
-  // Get display name using our helper function
-  const displayName = $derived(getTrainingStatusDisplayName(status));
-  const statusColor = $derived(getTrainingStatusColor(status));
+  const currentStepIndex = $derived(getCurrentStepIndex());
 
-  function isCompleted(i: number): boolean {
-    if (i < currentIndex) return true;
-    // Terminal states render as completed
-    if (status === 'passed' && i === currentIndex) return true;
-    if (status === 'not_required' && i === currentIndex) return true;
+  // Calculate progress percentage - line extends to center of current step
+  const getProgressPercentage = () => {
+    if (status === 'invited') return 20; // Halfway to Training in Progress
+    if (status === 'in_progress' || status === 'failed') return 40; // Full to Training in Progress
+    if (status === 'qualified') return 90; // Full to Qualified
+    return 0;
+  };
+
+  const progressPercentage = $derived(getProgressPercentage());
+
+  // Calculate actual line width based on circle positions
+  const getLineWidth = () => {
+    // Calculate the exact pixel positions for each circle center
+    // Container width is max-w-md (28rem = 448px)
+    const containerWidth = 448; // max-w-md in pixels
+    const circleRadius = 16; // w-8 h-8 = 32px, radius = 16px
+    
+    // Circle centers as percentages of container width
+    const firstCircleCenter = (containerWidth * 0.1667) + circleRadius; // 16.67% + 16px
+    const secondCircleCenter = (containerWidth * 0.5) + circleRadius; // 50% + 16px  
+    const thirdCircleCenter = (containerWidth * 0.8333) + circleRadius; // 83.33% + 16px
+    
+    if (status === 'invited') {
+      // Halfway between first and second circle
+      const halfway = firstCircleCenter + (secondCircleCenter - firstCircleCenter) / 2;
+      return ((halfway - firstCircleCenter) / containerWidth) * 100;
+    }
+    if (status === 'in_progress' || status === 'failed') {
+      // Full to second circle
+      return ((secondCircleCenter - firstCircleCenter) / containerWidth) * 100;
+    }
+    if (status === 'qualified') {
+      // Full to third circle
+      return ((thirdCircleCenter - firstCircleCenter) / containerWidth) * 100;
+    }
+    return 0;
+  };
+
+  const lineWidth = $derived(getLineWidth());
+
+  // Check if step should show checkmark - completed steps keep their checkmarks
+  const shouldShowCheckmark = (stepIndex: number) => {
+    // Invited step: show checkmark if we're at invited or beyond (including failed)
+    if (stepIndex === 0 && (status === 'invited' || status === 'in_progress' || status === 'failed' || status === 'qualified')) {
+      return true;
+    }
+    
+    // Training in Progress step: show checkmark if we're at in_progress or qualified
+    if (stepIndex === 1 && (status === 'in_progress' || status === 'qualified')) {
+      return true;
+    }
+    
+    // Qualified step: show checkmark if we're at qualified
+    if (stepIndex === 2 && status === 'qualified') {
+      return true;
+    }
+    
     return false;
-  }
+  };
 
-  function isActive(i: number): boolean {
-    // Terminal states don't show as active
-    if ((status === 'passed' || status === 'not_required') && i === currentIndex) return false;
-    return i === currentIndex;
-  }
-
-  function circleClasses(i: number): string {
-    const base = 'z-10 flex items-center justify-center rounded-full border-2 transition-all duration-200';
-    const sizeActive = ' w-8 h-8';
-    const sizeDefault = ' w-7 h-7';
-    if (isActive(i)) return base + sizeActive + ' bg-white border-blue-600 ring-4 ring-blue-100 text-blue-600';
-    if (isCompleted(i)) return base + sizeDefault + ' bg-blue-600 border-blue-600 text-white';
-    return base + sizeDefault + ' bg-white border-gray-300 text-gray-400';
-  }
+  // Check if step should show X icon for failed status
+  const shouldShowX = (stepIndex: number) => {
+    // Training in Progress step: show X if training failed
+    if (stepIndex === 1 && status === 'failed') {
+      return true;
+    }
+    
+    return false;
+  };
 </script>
 
-<div class="w-full">
-  <div class="flex items-center justify-between mb-4">
-    <h3 class="text-xl font-semibold text-gray-900">{title}</h3>
-    <span class="px-3 py-1 rounded-full text-sm font-medium {statusColor}">
-      {displayName}
-    </span>
-  </div>
-  <div class="relative flex items-center">
-    <div class="absolute left-0 right-0 h-[3px] bg-gray-200 top-1/2 -translate-y-1/2"></div>
-    <div class="absolute left-0 h-[6px] bg-blue-500/80 top-1/2 -translate-y-1/2 rounded transition-[width] duration-200" style={`width: ${percent}%`}></div>
-    <div class="w-full grid" style={`grid-template-columns: repeat(${steps.length}, minmax(0, 1fr)); gap: 0;`}>
-      {#each steps as s, i}
-        <div class="flex flex-col items-center">
-          <div class={circleClasses(i)}>
-            {#if isCompleted(i)}
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+<div class="w-full max-w-md mx-auto">
+  <!-- Title at the top, centered -->
+  <h3 class="text-2xl font-bold text-black text-center mb-8">{title}</h3>
+  
+  <!-- Progress tracker -->
+  <div class="relative flex items-center justify-center">
+    <!-- Steps container with proper spacing -->
+    <div class="relative grid grid-cols-3 gap-0 w-full">
+      {#each steps as step, i}
+        <div class="flex flex-col items-center relative">
+          <!-- Circle node -->
+          <div class="relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300
+            {shouldShowCheckmark(i) || i <= currentStepIndex ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'}">
+            
+            {#if shouldShowCheckmark(i)}
+              <!-- White checkmark for completed steps -->
+              <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
               </svg>
-            {:else if isActive(i)}
-              <span class="w-3.5 h-3.5 rounded-full bg-blue-600"></span>
+            {:else if shouldShowX(i)}
+              <!-- White X for failed training -->
+              <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             {/if}
           </div>
-          <div class="mt-2 text-center">
-            <div class="text-sm font-semibold {isActive(i) ? 'text-gray-900' : isCompleted(i) ? 'text-gray-700' : 'text-gray-500'}">{s.label}</div>
-            <div class="text-xs text-gray-500 mt-1">{s.help}</div>
+          
+          <!-- Text label below with proper text handling -->
+          <div class="mt-3 text-center px-2">
+            <div class="text-sm font-medium {shouldShowCheckmark(i) || i <= currentStepIndex ? 'text-black font-bold' : 'text-gray-500'} break-words hyphens-auto">
+              {step.getLabel()}
+            </div>
           </div>
         </div>
       {/each}
     </div>
+    
+    <!-- Horizontal line - positioned exactly between circle centers -->
+    <div class="absolute h-0.5 bg-gray-300 top-4" style="left: calc(16.67% + 16px); right: calc(16.67% + 16px);"></div>
+    
+    <!-- Progress line (blue for completed steps) -->
+    <div 
+      class="absolute h-0.5 bg-blue-500 top-4 transition-all duration-300"
+      style={`left: calc(16.67% + 16px); width: ${lineWidth}%;`}
+    ></div>
   </div>
 </div>
-
-<style>
-  /* Tailwind driven */
-</style>
 
 
