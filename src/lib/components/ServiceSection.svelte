@@ -62,6 +62,40 @@
 		const unpaid = assignments.filter(a => !isCVPaid(a));
 		return { paid, unpaid };
 	};
+
+	// Get filtered experts by journey type and payment status
+	const getFilteredExperts = (journeyType: string, paymentStatus: 'paid' | 'unpaid', version: ServiceVersion) => {
+		const experts = version.journeyCategories[journeyType as keyof typeof version.journeyCategories] || [];
+		return experts.filter(a => paymentStatus === 'paid' ? isCVPaid(a) : !isCVPaid(a));
+	};
+
+	// Process version data to avoid long variable names in template
+	const processVersionData = (version: ServiceVersion) => {
+		// Get all other assignments (excluding qualified leads and regular experts)
+		const otherAssignments = [
+			...version.journeyCategories.underReview,
+			...version.journeyCategories.rejected,
+			...version.journeyCategories.approvedTrainingRequired,
+			...version.journeyCategories.approvedTrainingFailed,
+			...version.journeyCategories.approvedAlreadyQualified,
+			...version.journeyCategories.approvedTrainingPassed
+		];
+		
+		// Separate by payment status
+		const paymentGroups = separateByPaymentStatus(otherAssignments);
+		
+		// Get filtered experts for each journey type
+		const getFilteredExperts = (journeyType: string, paymentStatus: 'paid' | 'unpaid') => {
+			const experts = version.journeyCategories[journeyType as keyof typeof version.journeyCategories] || [];
+			return experts.filter(a => paymentStatus === 'paid' ? isCVPaid(a) : !isCVPaid(a));
+		};
+		
+		return {
+			otherAssignments,
+			paymentGroups,
+			getFilteredExperts
+		};
+	};
 </script>
 
 <div class="mb-12">
@@ -79,6 +113,8 @@
 				
 				<div class="p-4">
 					{#if version.assignments.length > 0}
+						{@const versionData = processVersionData(version)}
+						
 						<!-- For Active Services: Show qualified leads and regular experts first -->
 						{#if version.qualifiedLeadExperts && version.qualifiedLeadExperts.length > 0}
 							<ExpertSection 
@@ -97,74 +133,62 @@
 						{/if}
 
 						<!-- Separate all other assignments by payment status -->
-						{@const otherAssignments = [
-							...version.journeyCategories.underReview,
-							...version.journeyCategories.rejected,
-							...version.journeyCategories.approvedTrainingRequired,
-							...version.journeyCategories.approvedTrainingFailed,
-							...version.journeyCategories.approvedAlreadyQualified,
-							...version.journeyCategories.approvedTrainingPassed
-						]}
-						
-						{@const paymentGroups = separateByPaymentStatus(otherAssignments)}
-
 						<!-- Paid CVs - In Review Process -->
-						{#if paymentGroups.paid.length > 0}
-							<div class="mt-4 pt-3 border-t border-gray-200">
-								<h5 class="text-sm font-semibold text-gray-700 mb-2 flex items-center">
-									<span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+						{#if versionData.paymentGroups.paid.length > 0}
+							<div class="mt-4 pt-3 border-t border-gray-200 bg-green-50 rounded-lg p-4">
+								<h5 class="text-lg font-semibold text-green-800 mb-3 flex items-center">
 									💰 Paid CVs - In Review Process
 								</h5>
 								
 								<!-- Under Review -->
-								{#if version.journeyCategories.underReview.filter(a => isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('underReview', 'paid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.underReview.filter(a => isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('underReview', 'paid')} 
 										type="under-review" 
 										title="Under Review" 
 									/>
 								{/if}
 								
 								<!-- Rejected -->
-								{#if version.journeyCategories.rejected.filter(a => isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('rejected', 'paid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.rejected.filter(a => isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('rejected', 'paid')} 
 										type="rejected" 
 										title="Rejected" 
 									/>
 								{/if}
 								
 								<!-- Approved - Training Required -->
-								{#if version.journeyCategories.approvedTrainingRequired.filter(a => isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedTrainingRequired', 'paid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedTrainingRequired.filter(a => isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedTrainingRequired', 'paid')} 
 										type="approved-training-required" 
 										title="Approved - Training Required" 
 									/>
 								{/if}
 								
 								<!-- Approved - Training Failed -->
-								{#if version.journeyCategories.approvedTrainingFailed.filter(a => isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedTrainingFailed', 'paid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedTrainingFailed.filter(a => isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedTrainingFailed', 'paid')} 
 										type="approved-training-failed" 
 										title="Approved - Training Failed" 
 									/>
 								{/if}
 								
 								<!-- Approved - Already Qualified -->
-								{#if version.journeyCategories.approvedAlreadyQualified.filter(a => isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedAlreadyQualified', 'paid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedAlreadyQualified.filter(a => isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedAlreadyQualified', 'paid')} 
 										type="approved-already-qualified" 
 										title="Approved - Already Qualified" 
 									/>
 								{/if}
 								
 								<!-- Approved - Training Passed -->
-								{#if version.journeyCategories.approvedTrainingPassed.filter(a => isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedTrainingPassed', 'paid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedTrainingPassed.filter(a => isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedTrainingPassed', 'paid')} 
 										type="approved-training-passed" 
 										title="Approved - Training Passed" 
 									/>
@@ -173,62 +197,61 @@
 						{/if}
 
 						<!-- Unpaid CVs - Payment Required -->
-						{#if paymentGroups.unpaid.length > 0}
-							<div class="mt-4 pt-3 border-t border-gray-200">
-								<h5 class="text-sm font-semibold text-gray-700 mb-2 flex items-center">
-									<span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+						{#if versionData.paymentGroups.unpaid.length > 0}
+							<div class="mt-4 pt-3 border-t border-gray-200 bg-yellow-50 rounded-lg p-4">
+								<h5 class="text-lg font-semibold text-yellow-800 mb-3 flex items-center">
 									💳 Unpaid CVs - Payment Required
 								</h5>
 								
 								<!-- Under Review -->
-								{#if version.journeyCategories.underReview.filter(a => !isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('underReview', 'unpaid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.underReview.filter(a => !isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('underReview', 'unpaid')} 
 										type="under-review" 
 										title="Under Review" 
 									/>
 								{/if}
 								
 								<!-- Rejected -->
-								{#if version.journeyCategories.rejected.filter(a => !isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('rejected', 'unpaid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.rejected.filter(a => !isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('rejected', 'unpaid')} 
 										type="rejected" 
 										title="Rejected" 
 									/>
 								{/if}
 								
 								<!-- Approved - Training Required -->
-								{#if version.journeyCategories.approvedTrainingRequired.filter(a => !isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedTrainingRequired', 'unpaid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedTrainingRequired.filter(a => !isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedTrainingRequired', 'unpaid')} 
 										type="approved-training-required" 
 										title="Approved - Training Required" 
 									/>
 								{/if}
 								
 								<!-- Approved - Training Failed -->
-								{#if version.journeyCategories.approvedTrainingFailed.filter(a => !isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedTrainingFailed', 'unpaid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedTrainingFailed.filter(a => !isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedTrainingFailed', 'unpaid')} 
 										type="approved-training-failed" 
 										title="Approved - Training Failed" 
 									/>
 								{/if}
 								
 								<!-- Approved - Already Qualified -->
-								{#if version.journeyCategories.approvedAlreadyQualified.filter(a => !isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedAlreadyQualified', 'unpaid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedAlreadyQualified.filter(a => !isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedAlreadyQualified', 'unpaid')} 
 										type="approved-already-qualified" 
 										title="Approved - Already Qualified" 
 									/>
 								{/if}
 								
 								<!-- Approved - Training Passed -->
-								{#if version.journeyCategories.approvedTrainingPassed.filter(a => !isCVPaid(a)).length > 0}
+								{#if versionData.getFilteredExperts('approvedTrainingPassed', 'unpaid').length > 0}
 									<ExpertSection 
-										assignments={version.journeyCategories.approvedTrainingPassed.filter(a => !isCVPaid(a))} 
+										assignments={versionData.getFilteredExperts('approvedTrainingPassed', 'unpaid')} 
 										type="approved-training-passed" 
 										title="Approved - Training Passed" 
 									/>

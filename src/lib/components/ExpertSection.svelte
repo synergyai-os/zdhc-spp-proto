@@ -265,11 +265,6 @@
 								<div class="text-xs text-gray-500">
 									{assignment.role === 'lead' ? 'Lead Expert' : 'Regular Expert'}
 								</div>
-								{#if assignment.expertCV}
-									<div class="text-xs text-gray-500 mt-1">
-										CV v{assignment.expertCV.version}
-									</div>
-								{/if}
 							{/if}
 						</div>
 					</div>
@@ -278,15 +273,6 @@
 							<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {getIntegratedStatusColor(assignment, type)}">
 								{getIntegratedStatusMessage(assignment, type)}
 							</span>
-							{#if assignment.expertCV && isCVPaid(assignment)}
-								<span class="text-xs text-gray-500 flex items-center">
-									💰 Paid CV
-								</span>
-							{:else if assignment.expertCV}
-								<span class="text-xs text-gray-500 flex items-center">
-									💳 Unpaid CV
-								</span>
-							{/if}
 						</div>
 						<!-- Accordion arrow -->
 						<div class="flex-shrink-0 ml-2">
