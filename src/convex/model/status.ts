@@ -174,6 +174,94 @@ export const EXPERT_ROLE_VALIDATOR = v.union(
 
 export type ExpertRole = typeof EXPERT_ROLE_VALUES[number];
 
+// ==========================================
+// EXPERT JOURNEY MANAGEMENT
+// ==========================================
+
+/**
+ * Expert Journey Type Values - Single source of truth
+ * 
+ * Defines the different journey states for expert service assignments
+ * Used for UI segmentation and status display
+ */
+export const EXPERT_JOURNEY_VALUES = [
+	'qualified-lead',              // Qualified lead expert (approved + trained)
+	'regular',                     // Regular expert (approved + trained)
+	'pending',                     // Pending/rejected experts (compact display)
+	'inactive',                    // Inactive service experts
+	'under-review',                // Waiting for ZDHC approval
+	'rejected',                    // Rejected by ZDHC admin
+	'approved-training-required',  // Approved but needs training
+	'approved-training-failed',    // Approved but training failed
+	'approved-already-qualified',  // Approved and already qualified
+	'approved-training-passed'     // Approved and training completed
+] as const;
+
+export type ExpertJourneyType = typeof EXPERT_JOURNEY_VALUES[number];
+
+/**
+ * Get journey-specific status message for expert assignments
+ * 
+ * Provides contextual messages based on the expert's journey state
+ * Uses existing status utilities for consistency
+ */
+export function getJourneyStatusMessage(
+	assignment: { 
+		status: ServiceStatus; 
+		trainingStatus?: TrainingStatus; 
+		rejectionReason?: string 
+	}, 
+	journeyType: ExpertJourneyType
+): string {
+	switch (journeyType) {
+		case 'under-review':
+			return 'Waiting for ZDHC approval';
+		case 'rejected':
+			return assignment.rejectionReason ? `Rejected - ${assignment.rejectionReason}` : 'Rejected';
+		case 'approved-training-required':
+			return assignment.trainingStatus ? getTrainingStatusDisplayName(assignment.trainingStatus) : 'Approved, training required';
+		case 'approved-training-failed':
+			return 'Approved, training failed - retry needed';
+		case 'approved-already-qualified':
+			return 'Approved, already qualified';
+		case 'approved-training-passed':
+			return 'Approved, training completed';
+		default:
+			return getServiceStatusDisplayName(assignment.status);
+	}
+}
+
+/**
+ * Get journey-specific status color for expert assignments
+ * 
+ * Provides appropriate color coding based on journey state
+ * Uses existing status utilities for consistency
+ */
+export function getJourneyStatusColor(
+	assignment: { 
+		status: ServiceStatus; 
+		trainingStatus?: TrainingStatus 
+	}, 
+	journeyType: ExpertJourneyType
+): string {
+	switch (journeyType) {
+		case 'under-review':
+			return getServiceStatusColor(assignment.status);
+		case 'rejected':
+			return getServiceStatusColor(assignment.status);
+		case 'approved-training-required':
+			return assignment.trainingStatus ? getTrainingStatusColor(assignment.trainingStatus) : getServiceStatusColor(assignment.status);
+		case 'approved-training-failed':
+			return assignment.trainingStatus ? getTrainingStatusColor(assignment.trainingStatus) : getServiceStatusColor(assignment.status);
+		case 'approved-already-qualified':
+			return assignment.trainingStatus ? getTrainingStatusColor(assignment.trainingStatus) : getServiceStatusColor(assignment.status);
+		case 'approved-training-passed':
+			return assignment.trainingStatus ? getTrainingStatusColor(assignment.trainingStatus) : getServiceStatusColor(assignment.status);
+		default:
+			return getServiceStatusColor(assignment.status);
+	}
+}
+
 /**
  * Get human-readable display name for expert role
  */

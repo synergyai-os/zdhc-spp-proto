@@ -167,44 +167,7 @@
 				</div>
 			</div>
 
-			<!-- Assignment Status Stats -->
-			<div class="mb-4">
-				<h4 class="text-sm font-medium text-gray-700 mb-3">Service Assignments</h4>
-				<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-					<button
-						type="button"
-						onclick={() => handleStatClick('assignment', 'pending_review')}
-						class="text-center p-3 rounded-lg border bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300 transition-all duration-150"
-					>
-						<div class="text-lg font-bold text-orange-600">{(stats as any).pendingAssignments || 0}</div>
-						<div class="text-xs text-gray-600 mt-1">Pending Review</div>
-					</button>
-					<button
-						type="button"
-						onclick={() => handleStatClick('assignment', 'approved')}
-						class="text-center p-3 rounded-lg border bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300 transition-all duration-150"
-					>
-						<div class="text-lg font-bold text-green-600">{(stats as any).approvedAssignments || 0}</div>
-						<div class="text-xs text-gray-600 mt-1">Approved</div>
-					</button>
-					<button
-						type="button"
-						onclick={() => handleStatClick('assignment', 'rejected')}
-						class="text-center p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300 transition-all duration-150"
-					>
-						<div class="text-lg font-bold text-red-600">{(stats as any).rejectedAssignments || 0}</div>
-						<div class="text-xs text-gray-600 mt-1">Rejected</div>
-					</button>
-					<button
-						type="button"
-						onclick={() => handleStatClick('assignment', 'total')}
-						class="text-center p-3 rounded-lg border bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all duration-150"
-					>
-						<div class="text-lg font-bold text-gray-600">{(stats as any).totalAssignments || 0}</div>
-						<div class="text-xs text-gray-600 mt-1">Total Assignments</div>
-					</button>
-				</div>
-			</div>
+			
 
 			<!-- Active Filter Indicator -->
 			{#if statusFilter}

@@ -5,6 +5,7 @@
 	import { getContext } from 'svelte';
 	import { getServiceStatusColor, getServiceStatusDisplayName, isQualified } from '../../convex/model/status';
 	import ExpertSection from './ExpertSection.svelte';
+	import ServiceSection from './ServiceSection.svelte';
 
 	const orgId = getContext('orgId');
 
@@ -17,6 +18,30 @@
 	const serviceAssignments = useQuery(api.services.getServiceAssignmentsByOrg, () => ({
 		organizationId: orgId as Id<'organizations'>
 	}));
+
+	// Helper function to categorize experts by journey status
+	const categorizeExpertsByJourney = (assignments: any[]) => {
+		const underReview = assignments.filter(a => a.status === 'pending_review');
+		const rejected = assignments.filter(a => a.status === 'rejected');
+		const approved = assignments.filter(a => a.status === 'approved');
+		
+		// Categorize approved experts by training status
+		const approvedTrainingRequired = approved.filter(a => 
+			['required', 'invited', 'in_progress'].includes(a.trainingStatus || '')
+		);
+		const approvedTrainingFailed = approved.filter(a => a.trainingStatus === 'failed');
+		const approvedAlreadyQualified = approved.filter(a => a.trainingStatus === 'not_required');
+		const approvedTrainingPassed = approved.filter(a => a.trainingStatus === 'passed');
+		
+		return {
+			underReview,
+			rejected,
+			approvedTrainingRequired,
+			approvedTrainingFailed,
+			approvedAlreadyQualified,
+			approvedTrainingPassed
+		};
+	};
 
 	// Categorize services into Active/Not Active and separate Lead/Regular experts
 	const categorizedServices = $derived.by(() => {
@@ -55,6 +80,9 @@
 			);
 			const isActive = qualifiedLeadExperts.length > 0;
 
+			// Categorize experts by journey for inactive services
+			const journeyCategories = categorizeExpertsByJourney(assignments);
+
 			parentGroups.get(parentId).versions.push({
 				...service,
 				assignments,
@@ -65,6 +93,7 @@
 				qualifiedLeadExperts,
 				pendingExperts,
 				rejectedExperts,
+				journeyCategories,
 				isActive
 			});
 		});
@@ -115,53 +144,15 @@
 				<p class="text-gray-600 mb-8">Services with qualified lead experts (approved and passed training)</p>
 				
 				{#each categorizedServices.active as parentService}
-					<div class="mb-12">
-						<h3 class="text-2xl font-semibold text-gray-800 mb-6">{parentService.parent?.name || 'Unknown Service'}</h3>
-						
-						<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-							{#each parentService.versions as version}
-								<div class="bg-white border border-green-200 rounded-lg shadow-sm">
-									<div class="p-4 border-b border-green-200 bg-green-50">
-										<h4 class="text-lg font-medium text-gray-900">{version.name}</h4>
-										<p class="text-sm text-green-600 mt-1">
-											✓ {version.qualifiedLeadExperts.length} qualified lead expert{version.qualifiedLeadExperts.length !== 1 ? 's' : ''}
-											{#if version.approvedRegularExperts.length > 0}
-												, {version.approvedRegularExperts.length} regular expert{version.approvedRegularExperts.length !== 1 ? 's' : ''}
-											{/if}
-										</p>
-									</div>
-									
-									<div class="p-4">
-										<!-- Qualified Lead Experts -->
-										<ExpertSection 
-											assignments={version.qualifiedLeadExperts} 
-											type="qualified-lead" 
-											title="Qualified Lead Experts" 
-										/>
-
-										<!-- Regular Experts -->
-										<ExpertSection 
-											assignments={version.approvedRegularExperts} 
-											type="regular" 
-											title="Regular Experts" 
-										/>
-
-										<!-- Pending/Rejected Experts (if any) -->
-										{#if version.pendingExperts.length > 0 || version.rejectedExperts.length > 0}
-											<div class="pt-3 border-t border-gray-200">
-												<ExpertSection 
-													assignments={[...version.pendingExperts, ...version.rejectedExperts]} 
-													type="pending" 
-													title="Other Assignments" 
-													showCount={false}
-												/>
-											</div>
-										{/if}
-									</div>
-								</div>
-							{/each}
-						</div>
-					</div>
+					<ServiceSection 
+						{parentService}
+						title="Active Service"
+						description="✓ {parentService.versions[0]?.qualifiedLeadExperts?.length || 0} qualified lead expert{(parentService.versions[0]?.qualifiedLeadExperts?.length || 0) !== 1 ? 's' : ''}"
+						icon="✓"
+						color="text-green-600"
+						borderColor="border-green-200"
+						bgColor="bg-green-50"
+					/>
 				{/each}
 			</div>
 		{/if}
@@ -173,38 +164,19 @@
 				<p class="text-gray-600 mb-8">Services without qualified lead experts (no approved lead experts or lead experts haven't passed training)</p>
 				
 				{#each categorizedServices.inactive as parentService}
-					<div class="mb-12">
-						<h3 class="text-2xl font-semibold text-gray-800 mb-6">{parentService.parent?.name || 'Unknown Service'}</h3>
-						
-						<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-							{#each parentService.versions as version}
-								<div class="bg-white border border-gray-200 rounded-lg shadow-sm opacity-75">
-									<div class="p-4 border-b border-gray-200 bg-gray-50">
-										<h4 class="text-lg font-medium text-gray-900">{version.name}</h4>
-										<p class="text-sm text-red-600 mt-1">
-											⚠ No qualified lead expert
-										</p>
-									</div>
-									
-									<div class="p-4">
-										{#if version.assignments.length > 0}
-											<ExpertSection 
-												assignments={version.assignments} 
-												type="inactive" 
-												title="Assigned Experts" 
-											/>
-										{:else}
-											<div class="text-center py-6">
-												<p class="text-gray-500 text-sm">No experts assigned</p>
-											</div>
-										{/if}
-									</div>
-								</div>
-							{/each}
-						</div>
-					</div>
+					<ServiceSection 
+						{parentService}
+						title="Not Active Service"
+						description="⚠ No qualified lead expert"
+						icon="⚠"
+						color="text-red-600"
+						borderColor="border-gray-200"
+						bgColor="bg-gray-50"
+						opacity="opacity-75"
+					/>
 				{/each}
 			</div>
 		{/if}
+
 	</div>
 {/if}

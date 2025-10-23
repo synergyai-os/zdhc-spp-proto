@@ -42,44 +42,6 @@
 			</div>
 		</div>
 
-		<!-- Instructions -->
-		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-			<div class="flex items-start space-x-3">
-				<svg
-					class="w-5 h-5 text-blue-500 mt-0.5"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-					/>
-				</svg>
-				<div>
-					<h3 class="text-sm font-medium text-blue-900">How to use this dashboard</h3>
-					<ul class="text-sm text-blue-700 mt-1 space-y-1">
-						<li>
-							• <strong>Filter by status:</strong> Use the dropdown to show experts by their current
-							status
-						</li>
-						<li>• <strong>Filter by organization:</strong> Focus on specific solution providers</li>
-						<li>• <strong>Search:</strong> Find experts by name or email address</li>
-						<li>
-							• <strong>Click any row</strong> or the "View CV" button to review the full CV and approve/reject
-							services
-						</li>
-						<li>
-							• <strong>Per-service approval:</strong> Each expert can be approved for some services
-							and rejected for others
-						</li>
-					</ul>
-				</div>
-			</div>
-		</div>
-
 		<!-- CV Review Table -->
 		<CVReviewTable onViewCV={handleViewCV} />
 
