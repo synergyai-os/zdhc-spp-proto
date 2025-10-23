@@ -174,10 +174,11 @@
 		const cvStatus = assignment.expertCV?.status;
 		const isPaid = isCVPaid(assignment);
 		
-		// If CV is not paid, that's the primary blocker
+		// If CV is not paid, show minimal CV status
 		if (!isPaid) {
-			const cvMessage = cvStatus ? getCVStatusDisplayName(cvStatus) : 'No CV';
-			return `${cvMessage} - Payment Required`;
+			if (!cvStatus) return 'No CV';
+			// Return minimal CV status without "Payment Required" suffix
+			return getCVStatusDisplayName(cvStatus);
 		}
 		
 		// If CV is paid, show service assignment status

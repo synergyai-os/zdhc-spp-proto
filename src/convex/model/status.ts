@@ -215,17 +215,17 @@ export function getJourneyStatusMessage(
 ): string {
 	switch (journeyType) {
 		case 'under-review':
-			return 'Waiting for ZDHC approval';
+			return 'Under Review';
 		case 'rejected':
-			return assignment.rejectionReason ? `Rejected - ${assignment.rejectionReason}` : 'Rejected';
+			return 'Rejected';
 		case 'approved-training-required':
-			return assignment.trainingStatus ? getTrainingStatusDisplayName(assignment.trainingStatus) : 'Approved, training required';
+			return assignment.trainingStatus ? getTrainingStatusDisplayName(assignment.trainingStatus) : 'Training Required';
 		case 'approved-training-failed':
-			return 'Approved, training failed - retry needed';
+			return 'Training Failed';
 		case 'approved-already-qualified':
-			return 'Approved, already qualified';
+			return 'Already Qualified';
 		case 'approved-training-passed':
-			return 'Approved, training completed';
+			return 'Training Completed';
 		default:
 			return getServiceStatusDisplayName(assignment.status);
 	}
