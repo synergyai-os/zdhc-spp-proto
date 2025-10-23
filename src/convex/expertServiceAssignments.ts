@@ -192,131 +192,6 @@ export const createExpertServiceAssignment = mutation({
 	}
 });
 
-export const approveServiceAssignment = mutation({
-	args: {
-		id: v.id('expertServiceAssignments'),
-		reviewedBy: v.string(),
-		reviewNotes: v.optional(v.string())
-	},
-	handler: async (ctx, args) => {
-		const now = Date.now();
-
-		// Check if assignment exists and is pending review
-		const assignment = await ctx.db.get(args.id);
-		if (!assignment) {
-			throw new Error('Assignment not found');
-		}
-
-		if (assignment.status !== 'pending_review') {
-			throw new Error('Can only approve assignments that are pending review');
-		}
-
-		// Update assignment status
-		const result = await ctx.db.patch(args.id, {
-			status: 'approved',
-			reviewedAt: now,
-			reviewedBy: args.reviewedBy,
-			approvedAt: now,
-			approvedBy: args.reviewedBy,
-			reviewNotes: args.reviewNotes
-		});
-
-		// Check if we should lock the CV
-		await checkAndLockCV(ctx, assignment.expertCVId);
-
-		return result;
-	}
-});
-
-export const rejectServiceAssignment = mutation({
-	args: {
-		id: v.id('expertServiceAssignments'),
-		rejectionReason: v.string(),
-		reviewedBy: v.string(),
-		reviewNotes: v.optional(v.string())
-	},
-	handler: async (ctx, args) => {
-		const now = Date.now();
-
-		// Check if assignment exists and is pending review
-		const assignment = await ctx.db.get(args.id);
-		if (!assignment) {
-			throw new Error('Assignment not found');
-		}
-
-		if (assignment.status !== 'pending_review') {
-			throw new Error('Can only reject assignments that are pending review');
-		}
-
-		// Update assignment status
-		const result = await ctx.db.patch(args.id, {
-			status: 'rejected',
-			reviewedAt: now,
-			reviewedBy: args.reviewedBy,
-			rejectedAt: now,
-			rejectedBy: args.reviewedBy,
-			rejectionReason: args.rejectionReason,
-			reviewNotes: args.reviewNotes
-		});
-
-		// Check if we should lock the CV
-		await checkAndLockCV(ctx, assignment.expertCVId);
-
-		return result;
-	}
-});
-
-export const checkCVLockStatus = mutation({
-	args: { expertCVId: v.id('expertCVs') },
-	handler: async (ctx, args) => {
-		return await checkAndLockCV(ctx, args.expertCVId);
-	}
-});
-
-// ==========================================
-// UTILITY FUNCTIONS
-// ==========================================
-
-async function checkAndLockCV(ctx: any, expertCVId: any) {
-	// Get the CV
-	const cv = await ctx.db.get(expertCVId);
-	if (!cv || cv.status !== 'submitted') {
-		return { locked: false, reason: 'CV not in submitted status' };
-	}
-
-	// Get all assignments for this CV
-	const assignments = await ctx.db
-		.query('expertServiceAssignments')
-		.filter((q: any) => q.eq(q.field('expertCVId'), expertCVId))
-		.collect();
-
-	// Check if all assignments are decided (approved or rejected)
-	const undecidedAssignments = assignments.filter(
-		(a: any) => a.status === 'pending_review'
-	);
-
-	if (undecidedAssignments.length > 0) {
-		return {
-			locked: false,
-			reason: `${undecidedAssignments.length} assignments still pending review`,
-			pendingCount: undecidedAssignments.length
-		};
-	}
-
-	// All assignments are decided, lock the CV
-	const now = Date.now();
-	await ctx.db.patch(expertCVId, {
-		status: 'locked',
-		lockedAt: now
-	});
-
-	return {
-		locked: true,
-		reason: 'All assignments decided',
-		approvedCount: assignments.filter((a: any) => a.status === 'approved').length,
-		rejectedCount: assignments.filter((a: any) => a.status === 'rejected').length
-	};
-}
 
 // ==========================================
 // BULK OPERATIONS
@@ -431,27 +306,11 @@ export const updateMultipleAssignmentStatuses = mutation({
 			args.assignmentIds.map((id) => ctx.db.patch(id, updateData))
 		);
 
-		// Check if any CVs should be locked
-		const cvIds = new Set();
-		for (const id of args.assignmentIds) {
-			const assignment = await ctx.db.get(id);
-			if (assignment) {
-				cvIds.add(assignment.expertCVId);
-			}
-		}
-
-		const lockResults = [];
-		for (const cvId of cvIds) {
-			const lockResult = await checkAndLockCV(ctx, cvId);
-			lockResults.push({ cvId, ...lockResult });
-		}
-
 		return {
 			success: true,
 			updatedCount: results.length,
 			status: args.status,
-			timestamp: now,
-			lockResults
+			timestamp: now
 		};
 	}
 });

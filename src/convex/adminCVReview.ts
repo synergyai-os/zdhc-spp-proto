@@ -116,19 +116,15 @@ export const getExpertsForCVReview = query({
 			// Track most recent update
 			const updateTime = Math.max(
 				cv.createdAt,
-				cv.completedAt || 0,
-				cv.paymentInitiatedAt || 0,
-				cv.paidAt || 0,
 				cv.submittedAt || 0,
-				cv.lockedForReviewAt || 0,
-				cv.unlockedForEditsAt || 0,
-				cv.lockedFinalAt || 0
+				cv.paidAt || 0,
+				cv.lockedAt || 0
 			);
 			userGroup.lastUpdated = Math.max(userGroup.lastUpdated, updateTime);
 		}
 
 		// Convert to array format for display
-		const result = Array.from(userGroups.values()).map((userGroup) => ({
+		const result = Array.from(userGroups.values()).map((userGroup: any) => ({
 			userId: userGroup.user._id,
 			user: userGroup.user,
 			cvs: userGroup.cvs,
@@ -142,10 +138,10 @@ export const getExpertsForCVReview = query({
 		// Sort by last updated (most recent first)
 		const finalResult = result.sort((a, b) => b.lastUpdated - a.lastUpdated);
 		console.log('🎯 Final result:', finalResult.length, 'users');
-		console.log('🎯 User CV statuses:', finalResult.map(user => ({ 
+		console.log('🎯 User CV statuses:', finalResult.map((user: any) => ({ 
 			userId: user.userId, 
 			userName: user.user.firstName + ' ' + user.user.lastName,
-			cvStatuses: user.cvs.map(cv => cv.status)
+			cvStatuses: user.cvs.map((cv: any) => cv.status)
 		})));
 		
 		return finalResult;
@@ -379,8 +375,11 @@ async function checkAndLockCV(ctx: any, expertCVId: any) {
 	const now = Date.now();
 	await ctx.db.patch(expertCVId, {
 		status: 'locked_final',
-		lockedFinalAt: now
+		lockedAt: now
 	});
+
+	// Handle post-lock actions
+	await handlePostLockActions(ctx, expertCVId, assignments);
 
 	return {
 		locked: true,
@@ -388,6 +387,126 @@ async function checkAndLockCV(ctx: any, expertCVId: any) {
 		approvedCount: assignments.filter((a: any) => a.status === 'approved').length,
 		rejectedCount: assignments.filter((a: any) => a.status === 'rejected').length
 	};
+}
+
+/**
+ * Handle post-lock actions when a CV becomes locked_final
+ * This includes academy qualification checks, email notifications, and webhook integrations
+ */
+async function handlePostLockActions(ctx: any, expertCVId: any, assignments: any[]) {
+	console.log('🎯 Handling post-lock actions for CV:', expertCVId);
+	
+	// Get the CV and user details
+	const cv = await ctx.db.get(expertCVId);
+	if (!cv) {
+		console.error('❌ CV not found for post-lock actions:', expertCVId);
+		return;
+	}
+
+	const user = await ctx.db.get(cv.userId);
+	if (!user) {
+		console.error('❌ User not found for post-lock actions:', cv.userId);
+		return;
+	}
+
+	console.log('👤 Processing post-lock actions for user:', user.firstName, user.lastName, user.email);
+
+	// Filter to only approved assignments (these need academy processing)
+	const approvedAssignments = assignments.filter(a => a.status === 'approved');
+	console.log('✅ Approved assignments:', approvedAssignments.length);
+
+	// Process each approved assignment
+	for (const assignment of approvedAssignments) {
+		await processApprovedAssignment(ctx, assignment, user, cv);
+	}
+
+	// Send summary email to user
+	await sendCVReviewCompleteEmail(user, cv, approvedAssignments);
+
+	// Send webhook to academy system
+	await sendAcademyWebhook(user, cv, approvedAssignments);
+}
+
+/**
+ * Process an approved service assignment for academy qualification
+ */
+async function processApprovedAssignment(ctx: any, assignment: any, user: any, cv: any) {
+	console.log('🔍 Processing approved assignment:', assignment._id);
+
+	// Check if user already has qualification for this service version
+	const existingQualification = await ctx.db
+		.query('expertQualifications')
+		.withIndex('by_user_service', (q: any) =>
+			q.eq('userId', assignment.userId).eq('serviceVersionId', assignment.serviceVersionId)
+		)
+		.first();
+
+	if (existingQualification) {
+		console.log('✅ User already qualified for service:', assignment.serviceVersionId);
+		
+		// Update assignment with existing qualification info
+		await ctx.db.patch(assignment._id, {
+			trainingStatus: 'not_required',
+			qualificationId: existingQualification._id.toString(),
+			qualifiedAt: existingQualification.trainingPassedAt,
+			trainingNotes: `Already qualified - training completed on ${new Date(existingQualification.trainingPassedAt).toISOString()}`
+		});
+	} else {
+		console.log('📚 User needs academy training for service:', assignment.serviceVersionId);
+		
+		// Update assignment to require training
+		await ctx.db.patch(assignment._id, {
+			trainingStatus: 'required',
+			trainingNotes: 'Training required - will be invited to academy'
+		});
+
+		// TODO: Send academy invitation
+		// await sendAcademyInvitation(user, assignment);
+		console.log('📧 TODO: Send academy invitation for user:', user.email, 'service:', assignment.serviceVersionId);
+	}
+}
+
+/**
+ * Send email notification when CV review is complete
+ */
+async function sendCVReviewCompleteEmail(user: any, cv: any, approvedAssignments: any[]) {
+	console.log('📧 TODO: Send CV review complete email to:', user.email);
+	console.log('📧 Email content would include:');
+	console.log('   - CV review completed');
+	console.log('   - Approved services:', approvedAssignments.length);
+	console.log('   - Next steps for academy training (if needed)');
+	console.log('   - Contact information for support');
+	
+	// TODO: Implement actual email sending
+	// await emailService.sendCVReviewComplete({
+	//   to: user.email,
+	//   firstName: user.firstName,
+	//   lastName: user.lastName,
+	//   approvedServices: approvedAssignments.map(a => a.serviceVersion?.name),
+	//   needsTraining: approvedAssignments.some(a => a.trainingStatus === 'required')
+	// });
+}
+
+/**
+ * Send webhook to academy system for training management
+ */
+async function sendAcademyWebhook(user: any, cv: any, approvedAssignments: any[]) {
+	console.log('🔗 TODO: Send webhook to academy system');
+	console.log('🔗 Webhook payload would include:');
+	console.log('   - User details:', user.email);
+	console.log('   - CV ID:', cv._id);
+	console.log('   - Approved services requiring training');
+	console.log('   - Organization context');
+	
+	// TODO: Implement actual webhook sending
+	// await webhookService.sendToAcademy({
+	//   event: 'cv_review_complete',
+	//   userId: user._id,
+	//   userEmail: user.email,
+	//   cvId: cv._id,
+	//   approvedServices: approvedAssignments.filter(a => a.trainingStatus === 'required'),
+	//   organizationId: cv.organizationId
+	// });
 }
 
 // ==========================================
