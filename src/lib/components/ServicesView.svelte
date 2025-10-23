@@ -1,24 +1,25 @@
 <script lang="ts">
 	import { useQuery } from 'convex-svelte';
 	import { api } from '$lib';
+	import type { Id } from '$lib';
 	import { getContext } from 'svelte';
-	import { getServiceStatusColor, getServiceStatusDisplayName } from '../../convex/model/status';
+	import { getServiceStatusColor, getServiceStatusDisplayName, isQualified } from '../../convex/model/status';
 
 	const orgId = getContext('orgId');
 
 	// Get approved services for the organization
 	const approvedServices = useQuery(api.services.getApprovedServices, () => ({
-		organizationId: orgId
+		organizationId: orgId as Id<'organizations'>
 	}));
 
 	// Get all service assignments for the organization
 	const serviceAssignments = useQuery(api.services.getServiceAssignmentsByOrg, () => ({
-		organizationId: orgId
+		organizationId: orgId as Id<'organizations'>
 	}));
 
 	// Categorize services into Active/Not Active and separate Lead/Regular experts
 	const categorizedServices = $derived.by(() => {
-		if (!approvedServices?.data || !serviceAssignments?.data) {
+		if (!approvedServices?.data) {
 			return { active: [], inactive: [] };
 		}
 
@@ -34,10 +35,10 @@
 				});
 			}
 			
-			// Get assignments for this service version
-			const assignments = serviceAssignments.data.filter(
+			// Get assignments for this service version (if any)
+			const assignments = serviceAssignments?.data?.filter(
 				assignment => assignment.serviceVersion?._id === service._id
-			);
+			) || [];
 
 			// Separate experts by role and status
 			const leadExperts = assignments.filter(a => a.role === 'lead');
@@ -47,8 +48,11 @@
 			const pendingExperts = assignments.filter(a => a.status === 'pending_review');
 			const rejectedExperts = assignments.filter(a => a.status === 'rejected');
 
-			// Service is active if it has at least one approved lead expert
-			const isActive = approvedLeadExperts.length > 0;
+			// Service is active if it has at least one approved lead expert who is qualified (passed training)
+			const qualifiedLeadExperts = approvedLeadExperts.filter(a => 
+				a.trainingStatus && isQualified(a.trainingStatus)
+			);
+			const isActive = qualifiedLeadExperts.length > 0;
 
 			parentGroups.get(parentId).versions.push({
 				...service,
@@ -57,6 +61,7 @@
 				regularExperts,
 				approvedLeadExperts,
 				approvedRegularExperts,
+				qualifiedLeadExperts,
 				pendingExperts,
 				rejectedExperts,
 				isActive
@@ -67,17 +72,17 @@
 		const allParentServices = Array.from(parentGroups.values());
 		
 		const activeParentServices = allParentServices
-			.filter(parentService => parentService.versions.some(v => v.isActive))
+			.filter(parentService => parentService.versions.some((v: any) => v.isActive))
 			.map(parentService => ({
 				...parentService,
-				versions: parentService.versions.filter(v => v.isActive)
+				versions: parentService.versions.filter((v: any) => v.isActive)
 			}));
 
 		const inactiveParentServices = allParentServices
-			.filter(parentService => !parentService.versions.some(v => v.isActive))
+			.filter(parentService => !parentService.versions.some((v: any) => v.isActive))
 			.map(parentService => ({
 				...parentService,
-				versions: parentService.versions.filter(v => !v.isActive)
+				versions: parentService.versions.filter((v: any) => !v.isActive)
 			}));
 
 		return {
@@ -106,7 +111,7 @@
 		{#if categorizedServices.active.length > 0}
 			<div>
 				<h2 class="text-3xl font-bold text-gray-900 mb-8">Active Services</h2>
-				<p class="text-gray-600 mb-8">Services with approved lead experts</p>
+				<p class="text-gray-600 mb-8">Services with qualified lead experts (approved and passed training)</p>
 				
 				{#each categorizedServices.active as parentService}
 					<div class="mb-12">
@@ -116,9 +121,9 @@
 							{#each parentService.versions as version}
 								<div class="bg-white border border-green-200 rounded-lg shadow-sm">
 									<div class="p-4 border-b border-green-200 bg-green-50">
-										<h4 class="text-lg font-medium text-gray-900">Version {version.version}</h4>
+										<h4 class="text-lg font-medium text-gray-900">{version.name}</h4>
 										<p class="text-sm text-green-600 mt-1">
-											✓ {version.approvedLeadExperts.length} lead expert{version.approvedLeadExperts.length !== 1 ? 's' : ''}
+											✓ {version.qualifiedLeadExperts.length} qualified lead expert{version.qualifiedLeadExperts.length !== 1 ? 's' : ''}
 											{#if version.approvedRegularExperts.length > 0}
 												, {version.approvedRegularExperts.length} regular expert{version.approvedRegularExperts.length !== 1 ? 's' : ''}
 											{/if}
@@ -126,15 +131,15 @@
 									</div>
 									
 									<div class="p-4">
-										<!-- Lead Experts -->
-										{#if version.approvedLeadExperts.length > 0}
+										<!-- Qualified Lead Experts -->
+										{#if version.qualifiedLeadExperts.length > 0}
 											<div class="mb-4">
 												<h5 class="text-sm font-semibold text-purple-800 mb-3 flex items-center">
 													<span class="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-													Lead Experts ({version.approvedLeadExperts.length})
+													Qualified Lead Experts ({version.qualifiedLeadExperts.length})
 												</h5>
 												<div class="space-y-2">
-													{#each version.approvedLeadExperts as assignment}
+													{#each version.qualifiedLeadExperts as assignment}
 														<div class="flex items-center justify-between p-2 bg-purple-50 rounded-md">
 															<div class="flex items-center space-x-3">
 																<div class="flex-shrink-0 h-8 w-8">
@@ -233,7 +238,7 @@
 		{#if categorizedServices.inactive.length > 0}
 			<div>
 				<h2 class="text-3xl font-bold text-gray-900 mb-8">Not Active Services</h2>
-				<p class="text-gray-600 mb-8">Services without approved lead experts</p>
+				<p class="text-gray-600 mb-8">Services without qualified lead experts (no approved lead experts or lead experts haven't passed training)</p>
 				
 				{#each categorizedServices.inactive as parentService}
 					<div class="mb-12">
@@ -245,7 +250,7 @@
 									<div class="p-4 border-b border-gray-200 bg-gray-50">
 										<h4 class="text-lg font-medium text-gray-900">{version.name}</h4>
 										<p class="text-sm text-red-600 mt-1">
-											⚠ No approved lead expert
+											⚠ No qualified lead expert
 										</p>
 									</div>
 									
