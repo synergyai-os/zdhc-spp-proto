@@ -4,6 +4,7 @@
 	import type { Id } from '$lib';
 	import { getContext } from 'svelte';
 	import { getServiceStatusColor, getServiceStatusDisplayName, isQualified } from '../../convex/model/status';
+	import ExpertSection from './ExpertSection.svelte';
 
 	const orgId = getContext('orgId');
 
@@ -132,97 +133,28 @@
 									
 									<div class="p-4">
 										<!-- Qualified Lead Experts -->
-										{#if version.qualifiedLeadExperts.length > 0}
-											<div class="mb-4">
-												<h5 class="text-sm font-semibold text-purple-800 mb-3 flex items-center">
-													<span class="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-													Qualified Lead Experts ({version.qualifiedLeadExperts.length})
-												</h5>
-												<div class="space-y-2">
-													{#each version.qualifiedLeadExperts as assignment}
-														<div class="flex items-center justify-between p-2 bg-purple-50 rounded-md">
-															<div class="flex items-center space-x-3">
-																<div class="flex-shrink-0 h-8 w-8">
-																	<div class="h-8 w-8 rounded-full bg-purple-500 flex items-center justify-center">
-																		<span class="text-white font-medium text-xs">
-																			{assignment.user?.firstName?.[0]}{assignment.user?.lastName?.[0]}
-																		</span>
-																	</div>
-																</div>
-																<div>
-																	<div class="text-sm font-medium text-gray-900">
-																		{assignment.user?.firstName} {assignment.user?.lastName}
-																	</div>
-																	<div class="text-xs text-gray-500">Lead Expert</div>
-																</div>
-															</div>
-															<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {getServiceStatusColor(assignment.status)}">
-																{getServiceStatusDisplayName(assignment.status)}
-															</span>
-														</div>
-													{/each}
-												</div>
-											</div>
-										{/if}
+										<ExpertSection 
+											assignments={version.qualifiedLeadExperts} 
+											type="qualified-lead" 
+											title="Qualified Lead Experts" 
+										/>
 
 										<!-- Regular Experts -->
-										{#if version.approvedRegularExperts.length > 0}
-											<div class="mb-4">
-												<h5 class="text-sm font-semibold text-blue-800 mb-3 flex items-center">
-													<span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-													Regular Experts ({version.approvedRegularExperts.length})
-												</h5>
-												<div class="space-y-2">
-													{#each version.approvedRegularExperts as assignment}
-														<div class="flex items-center justify-between p-2 bg-blue-50 rounded-md">
-															<div class="flex items-center space-x-3">
-																<div class="flex-shrink-0 h-8 w-8">
-																	<div class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-																		<span class="text-white font-medium text-xs">
-																			{assignment.user?.firstName?.[0]}{assignment.user?.lastName?.[0]}
-																		</span>
-																	</div>
-																</div>
-																<div>
-																	<div class="text-sm font-medium text-gray-900">
-																		{assignment.user?.firstName} {assignment.user?.lastName}
-																	</div>
-																	<div class="text-xs text-gray-500">Regular Expert</div>
-																</div>
-															</div>
-															<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {getServiceStatusColor(assignment.status)}">
-																{getServiceStatusDisplayName(assignment.status)}
-															</span>
-														</div>
-													{/each}
-												</div>
-											</div>
-										{/if}
+										<ExpertSection 
+											assignments={version.approvedRegularExperts} 
+											type="regular" 
+											title="Regular Experts" 
+										/>
 
 										<!-- Pending/Rejected Experts (if any) -->
 										{#if version.pendingExperts.length > 0 || version.rejectedExperts.length > 0}
 											<div class="pt-3 border-t border-gray-200">
-												<h5 class="text-sm font-semibold text-gray-600 mb-2">Other Assignments</h5>
-												<div class="space-y-1">
-													{#each [...version.pendingExperts, ...version.rejectedExperts] as assignment}
-														<div class="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-															<div class="flex items-center space-x-2">
-																<div class="h-6 w-6 rounded-full bg-gray-400 flex items-center justify-center">
-																	<span class="text-white font-medium text-xs">
-																		{assignment.user?.firstName?.[0]}{assignment.user?.lastName?.[0]}
-																	</span>
-																</div>
-																<span class="text-gray-700">
-																	{assignment.user?.firstName} {assignment.user?.lastName}
-																	({assignment.role === 'lead' ? 'Lead' : 'Regular'})
-																</span>
-															</div>
-															<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {getServiceStatusColor(assignment.status)}">
-																{getServiceStatusDisplayName(assignment.status)}
-															</span>
-														</div>
-													{/each}
-												</div>
+												<ExpertSection 
+													assignments={[...version.pendingExperts, ...version.rejectedExperts]} 
+													type="pending" 
+													title="Other Assignments" 
+													showCount={false}
+												/>
 											</div>
 										{/if}
 									</div>
@@ -256,32 +188,11 @@
 									
 									<div class="p-4">
 										{#if version.assignments.length > 0}
-											<div class="space-y-2">
-												{#each version.assignments as assignment}
-													<div class="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-														<div class="flex items-center space-x-3">
-															<div class="flex-shrink-0 h-8 w-8">
-																<div class="h-8 w-8 rounded-full bg-gray-400 flex items-center justify-center">
-																	<span class="text-white font-medium text-xs">
-																		{assignment.user?.firstName?.[0]}{assignment.user?.lastName?.[0]}
-																	</span>
-																</div>
-															</div>
-															<div>
-																<div class="text-sm font-medium text-gray-900">
-																	{assignment.user?.firstName} {assignment.user?.lastName}
-																</div>
-																<div class="text-xs text-gray-500">
-																	{assignment.role === 'lead' ? 'Lead Expert' : 'Regular Expert'}
-																</div>
-															</div>
-														</div>
-														<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full {getServiceStatusColor(assignment.status)}">
-															{getServiceStatusDisplayName(assignment.status)}
-														</span>
-													</div>
-												{/each}
-											</div>
+											<ExpertSection 
+												assignments={version.assignments} 
+												type="inactive" 
+												title="Assigned Experts" 
+											/>
 										{:else}
 											<div class="text-center py-6">
 												<p class="text-gray-500 text-sm">No experts assigned</p>
