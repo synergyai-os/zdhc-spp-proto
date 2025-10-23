@@ -84,6 +84,11 @@
 				a.trainingStatus && isQualified(a.trainingStatus)
 			);
 			
+			// Experts currently in training (approved but training required/invited/in_progress)
+			const inTrainingExperts = [...approvedLeadExperts, ...approvedRegularExperts].filter(a => 
+				a.trainingStatus && ['required', 'invited', 'in_progress'].includes(a.trainingStatus)
+			);
+			
 			const isActive = qualifiedLeadExperts.length > 0;
 
 			// Categorize experts by journey for inactive services
@@ -98,6 +103,7 @@
 				approvedRegularExperts,
 				qualifiedLeadExperts,
 				qualifiedRegularExperts,
+				inTrainingExperts,
 				pendingExperts,
 				rejectedExperts,
 				journeyCategories,

@@ -16,6 +16,7 @@
 		};
 		qualifiedLeadExperts?: any[];
 		qualifiedRegularExperts?: any[];
+		inTrainingExperts?: any[];
 		pendingExperts?: any[];
 		rejectedExperts?: any[];
 	}
@@ -71,11 +72,10 @@
 
 	// Process version data to avoid long variable names in template
 	const processVersionData = (version: ServiceVersion) => {
-		// Get all other assignments (excluding qualified leads and regular experts)
+		// Get all other assignments (excluding qualified leads, regular experts, and training experts)
 		const otherAssignments = [
 			...version.journeyCategories.underReview,
 			...version.journeyCategories.rejected,
-			...version.journeyCategories.approvedTrainingRequired,
 			...version.journeyCategories.approvedTrainingFailed,
 			...version.journeyCategories.approvedAlreadyQualified,
 			...version.journeyCategories.approvedTrainingPassed
@@ -84,8 +84,13 @@
 		// Separate by payment status
 		const paymentGroups = separateByPaymentStatus(otherAssignments);
 		
-		// Get filtered experts for each journey type
+		// Get filtered experts for each journey type (excluding training experts)
 		const getFilteredExperts = (journeyType: string, paymentStatus: 'paid' | 'unpaid') => {
+			// Skip training required experts since they have their own section
+			if (journeyType === 'approvedTrainingRequired') {
+				return [];
+			}
+			
 			const experts = version.journeyCategories[journeyType as keyof typeof version.journeyCategories] || [];
 			return experts.filter(a => paymentStatus === 'paid' ? isCVPaid(a) : !isCVPaid(a));
 		};
@@ -130,6 +135,21 @@
 								type="regular" 
 								title="Regular Experts" 
 							/>
+						{/if}
+
+						<!-- In Training Section -->
+						{#if version.inTrainingExperts && version.inTrainingExperts.length > 0}
+							<div class="mt-4 pt-3 border-t border-gray-200 bg-blue-50 rounded-lg p-4">
+								<h5 class="text-lg font-semibold text-blue-800 mb-3 flex items-center">
+									📚 In Training
+								</h5>
+								
+								<ExpertSection 
+									assignments={version.inTrainingExperts} 
+									type="approved-training-required" 
+									title="Training Required" 
+								/>
+							</div>
 						{/if}
 
 						<!-- Separate all other assignments by payment status -->
