@@ -5,6 +5,8 @@
 		type CVStatus
 	} from '../../convex/model/status';
 	import type { Id } from '$lib';
+	import CVStatusTracker from './CVStatusTracker.svelte';
+	import ServiceTrainingTracker from './ServiceTrainingTracker.svelte';
 
 	interface ServiceAssignment {
 		_id: Id<'expertServiceAssignments'>;
@@ -37,6 +39,47 @@
 		if (!assignment.expertCV) return false;
 		const paidStatuses = ['paid', 'locked_for_review', 'unlocked_for_edits', 'locked_final'];
 		return paidStatuses.includes(assignment.expertCV.status);
+	};
+
+	// Determine which tracker to show
+	const shouldShowCVTracker = () => {
+		return assignment.status === 'pending_review';
+	};
+
+	const shouldShowTrainingTracker = () => {
+		return assignment.status === 'approved';
+	};
+
+	// Map CV status to tracker status
+	const getCVTrackerStatus = (): 'paid' | 'in_review' | 'approved' | 'denied' | 'waiting_for_response' => {
+		if (!assignment.expertCV) return 'paid';
+		
+		const cvStatus = assignment.expertCV.status;
+		
+		// Map CV statuses to tracker statuses
+		if (cvStatus === 'paid') return 'paid';
+		if (cvStatus === 'locked_for_review') return 'in_review';
+		if (cvStatus === 'unlocked_for_edits') return 'waiting_for_response';
+		if (cvStatus === 'locked_final') return 'approved';
+		
+		// Default to paid for other statuses
+		return 'paid';
+	};
+
+	// Map training status to tracker status
+	const getTrainingTrackerStatus = (): 'invited' | 'in_progress' | 'qualified' | 'failed' => {
+		if (!assignment.trainingStatus) return 'invited';
+		
+		const trainingStatus = assignment.trainingStatus;
+		
+		// Map training statuses to tracker statuses
+		if (trainingStatus === 'invited') return 'invited';
+		if (trainingStatus === 'in_progress') return 'in_progress';
+		if (trainingStatus === 'passed') return 'qualified';
+		if (trainingStatus === 'failed') return 'failed';
+		
+		// Default to invited for other statuses
+		return 'invited';
 	};
 </script>
 
@@ -84,6 +127,21 @@
 				<span class="font-medium">Training:</span>
 				<span class="text-gray-700">{assignment.trainingStatus}</span>
 			</div>
+		{/if}
+	</div>
+	
+	<!-- Status Trackers -->
+	<div class="mt-4 px-2">
+		{#if shouldShowCVTracker()}
+			<CVStatusTracker 
+				status={getCVTrackerStatus()} 
+				title="CV Approval Progress" 
+			/>
+		{:else if shouldShowTrainingTracker()}
+			<ServiceTrainingTracker 
+				status={getTrainingTrackerStatus()} 
+				title="Service Readiness" 
+			/>
 		{/if}
 	</div>
 </div>
