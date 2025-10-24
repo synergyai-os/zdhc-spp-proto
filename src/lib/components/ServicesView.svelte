@@ -19,55 +19,46 @@
 		organizationId: orgId as Id<'organizations'>
 	}));
 
-	// Helper function to categorize experts by journey status
-	const categorizeExpertsByJourney = (assignments: any[]) => {
-		// First, separate by actual database status
-		const pendingReview = assignments.filter(a => a.status === 'pending_review');
-		const rejected = assignments.filter(a => a.status === 'rejected');
-		const approved = assignments.filter(a => a.status === 'approved');
+	// Get organization service approvals to check payment status
+	const organizationApprovals = useQuery(api.utilities.getOrganizationApprovals, () => ({
+		organizationId: orgId as Id<'organizations'>
+	}));
+
+	// Helper function to check if organization has paid annual fee for a service
+	const isOrganizationServicePaid = (serviceVersionId: string) => {
+		if (!organizationApprovals?.data) return false;
 		
-		// For approved assignments, check if CV is locked to determine true status
-		const trulyApproved = approved.filter(a => {
-			// Only consider truly approved if CV is locked_final
-			return a.expertCV && a.expertCV.status === 'locked_final';
-		});
+		const approval = organizationApprovals.data.find(a => a.serviceVersionId === serviceVersionId);
+		if (!approval) return false;
 		
-		// Approved assignments whose CVs are not locked should be treated as "under review"
-		const underReview = [
-			...pendingReview,
-			...approved.filter(a => !a.expertCV || a.expertCV.status !== 'locked_final')
-		];
+		// Check if payment exists and is not expired
+		const hasPayment = approval.paidAt !== undefined;
+		const isNotExpired = approval.expiresAt ? Date.now() < approval.expiresAt : false;
+		return hasPayment && isNotExpired;
+	};
+
+	// Helper function to check if service has qualified lead expert
+	const hasQualifiedLeadExpert = (service: any) => {
+		const assignments = serviceAssignments?.data?.filter(
+			assignment => assignment.serviceVersion?._id === service._id
+		) || [];
 		
-		// Categorize truly approved experts by training status
-		// Only consider training status if it's been set (CV is locked)
-		const approvedTrainingRequired = trulyApproved.filter(a => 
-			a.trainingStatus && ['required', 'invited', 'in_progress'].includes(a.trainingStatus)
+		return assignments.some(assignment => 
+			assignment.role === 'lead' && 
+			assignment.status === 'approved' && 
+			assignment.expertCV?.status === 'locked_final' &&
+			assignment.trainingStatus && 
+			isQualified(assignment.trainingStatus)
 		);
-		const approvedTrainingFailed = trulyApproved.filter(a => a.trainingStatus === 'failed');
-		const approvedAlreadyQualified = trulyApproved.filter(a => a.trainingStatus === 'not_required');
-		const approvedTrainingPassed = trulyApproved.filter(a => a.trainingStatus === 'passed');
-		
-		return {
-			underReview,
-			rejected,
-			approvedTrainingRequired,
-			approvedTrainingFailed,
-			approvedAlreadyQualified,
-			approvedTrainingPassed
-		};
 	};
 
-	// Helper function to check if CV is paid and not expired
-	const isCVPaidAndValid = (assignment: any) => {
-		if (!assignment.expertCV) return false;
-		const paidStatuses = ['paid', 'locked_for_review', 'unlocked_for_edits', 'locked_final'];
-		const isPaid = paidStatuses.includes(assignment.expertCV.status);
-		const isNotExpired = !isPaymentExpired(assignment.expertCV.paidAt);
-		return isPaid && isNotExpired;
-	};
+	// Helper function to process a service with expert data
+	const processServiceWithExperts = (service: any) => {
+		// Get assignments for this service version
+		const assignments = serviceAssignments?.data?.filter(
+			assignment => assignment.serviceVersion?._id === service._id
+		) || [];
 
-	// Helper function to process a single service version
-	const processServiceVersion = (service: any, assignments: any[]) => {
 		// Separate experts by role and status
 		const leadExperts = assignments.filter(a => a.role === 'lead');
 		const regularExperts = assignments.filter(a => a.role === 'regular');
@@ -87,8 +78,17 @@
 		);
 		const rejectedExperts = assignments.filter(a => a.status === 'rejected');
 
-		// Categorize experts by journey first (needed for deduplication)
-		const journeyCategories = categorizeExpertsByJourney(assignments);
+		// Categorize experts by journey
+		const journeyCategories = {
+			underReview: pendingExperts,
+			rejected: rejectedExperts,
+			approvedTrainingRequired: approvedLeadExperts.filter(a => 
+				a.trainingStatus && ['required', 'invited', 'in_progress'].includes(a.trainingStatus)
+			),
+			approvedTrainingFailed: approvedLeadExperts.filter(a => a.trainingStatus === 'failed'),
+			approvedAlreadyQualified: approvedLeadExperts.filter(a => a.trainingStatus === 'not_required'),
+			approvedTrainingPassed: approvedLeadExperts.filter(a => a.trainingStatus === 'passed')
+		};
 
 		// Calculate qualified experts
 		const qualifiedLeadExperts = approvedLeadExperts.filter(a => 
@@ -101,32 +101,10 @@
 			a.trainingStatus && isQualified(a.trainingStatus)
 		);
 		
-		// Create deduplication set
-		const qualifiedExpertIds = new Set([
-			...qualifiedLeadExperts.map(a => a._id),
-			...qualifiedLeadExpertsPendingPayment.map(a => a._id),
-			...qualifiedRegularExperts.map(a => a._id)
-		]);
-		
-		// Filter journey categories to prevent duplication
-		const filteredJourneyCategories = {
-			underReview: journeyCategories.underReview.filter(a => !qualifiedExpertIds.has(a._id)),
-			rejected: journeyCategories.rejected.filter(a => !qualifiedExpertIds.has(a._id)),
-			approvedTrainingRequired: journeyCategories.approvedTrainingRequired.filter(a => !qualifiedExpertIds.has(a._id)),
-			approvedTrainingFailed: journeyCategories.approvedTrainingFailed.filter(a => !qualifiedExpertIds.has(a._id)),
-			approvedAlreadyQualified: journeyCategories.approvedAlreadyQualified.filter(a => !qualifiedExpertIds.has(a._id)),
-			approvedTrainingPassed: journeyCategories.approvedTrainingPassed.filter(a => !qualifiedExpertIds.has(a._id))
-		};
-		
 		// Experts currently in training
 		const inTrainingExperts = [...approvedLeadExperts, ...approvedRegularExperts].filter(a => 
 			a.trainingStatus && ['required', 'invited', 'in_progress'].includes(a.trainingStatus)
 		);
-		
-		// Determine service status
-		const isActive = qualifiedLeadExperts.length > 0;
-		const isPendingPayment = qualifiedLeadExpertsPendingPayment.length > 0 && !isActive;
-		const isInactive = !isActive && !isPendingPayment;
 
 		return {
 			...service,
@@ -141,78 +119,51 @@
 			inTrainingExperts,
 			pendingExperts,
 			rejectedExperts,
-			journeyCategories: filteredJourneyCategories,
-			isActive,
-			isPendingPayment,
-			isInactive
+			journeyCategories
 		};
 	};
 
-	// Helper function to categorize services by status
-	const categorizeServicesByStatus = (allParentServices: any[]) => {
-		const activeParentServices = allParentServices
-			.filter(parentService => parentService.versions.some((v: any) => v.isActive))
-			.map(parentService => ({
-				...parentService,
-				versions: parentService.versions.filter((v: any) => v.isActive)
-			}));
-
-		const pendingPaymentParentServices = allParentServices
-			.filter(parentService => parentService.versions.some((v: any) => v.isPendingPayment))
-			.map(parentService => ({
-				...parentService,
-				versions: parentService.versions.filter((v: any) => v.isPendingPayment)
-			}));
-
-		const inactiveParentServices = allParentServices
-			.filter(parentService => parentService.versions.some((v: any) => v.isInactive))
-			.map(parentService => ({
-				...parentService,
-				versions: parentService.versions.filter((v: any) => v.isInactive)
-			}));
-
-		return {
-			active: activeParentServices,
-			pendingPayment: pendingPaymentParentServices,
-			inactive: inactiveParentServices
-		};
+	// Helper function to check if CV is paid and not expired
+	const isCVPaidAndValid = (assignment: any) => {
+		if (!assignment.expertCV) return false;
+		const paidStatuses = ['paid', 'locked_for_review', 'unlocked_for_edits', 'locked_final'];
+		const isPaid = paidStatuses.includes(assignment.expertCV.status);
+		const isNotExpired = !isPaymentExpired(assignment.expertCV.paidAt);
+		return isPaid && isNotExpired;
 	};
 
-	// Categorize services into Active/Pending Payment/Not Active
+	// Simple categorization with rich objects - just 3 filters
 	const categorizedServices = $derived.by(() => {
-		if (!approvedServices?.data) {
-			return { active: [], pendingPayment: [], inactive: [] };
+		if (!approvedServices?.data) return { active: [], pendingPayment: [], approved: [] };
+		
+		// Wait for organization approvals to load, but don't wait forever
+		if (organizationApprovals?.isLoading) {
+			return { active: [], pendingPayment: [], approved: [] };
 		}
 
-		// Group services by parent
-		const parentGroups = new Map();
+		const active = approvedServices.data
+			.filter(service => 
+				hasQualifiedLeadExpert(service) && isOrganizationServicePaid(service._id)
+			)
+			.map(service => processServiceWithExperts(service));
 		
-		approvedServices.data.forEach(service => {
-			const parentId = service.parentId;
-			if (!parentGroups.has(parentId)) {
-				parentGroups.set(parentId, {
-					parent: service.serviceParent,
-					versions: []
-				});
-			}
-			
-			// Get assignments for this service version (if any)
-			const assignments = serviceAssignments?.data?.filter(
-				assignment => assignment.serviceVersion?._id === service._id
-			) || [];
+		const pendingPayment = approvedServices.data
+			.filter(service => 
+				hasQualifiedLeadExpert(service) && !isOrganizationServicePaid(service._id)
+			)
+			.map(service => processServiceWithExperts(service));
+		
+		const approved = approvedServices.data
+			.filter(service => 
+				!hasQualifiedLeadExpert(service)
+			)
+			.map(service => processServiceWithExperts(service));
 
-			// Process the service version
-			const processedVersion = processServiceVersion(service, assignments);
-			parentGroups.get(parentId).versions.push(processedVersion);
-		});
-
-		// Separate into three categories
-		const allParentServices = Array.from(parentGroups.values());
-		return categorizeServicesByStatus(allParentServices);
+		return { active, pendingPayment, approved };
 	});
 </script>
 
-{#if approvedServices?.isLoading || serviceAssignments?.isLoading}
+{#if approvedServices?.isLoading || serviceAssignments?.isLoading || organizationApprovals?.isLoading}
 	<div class="flex justify-center items-center py-12">
 		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
 		<span class="ml-3 text-gray-600">Loading services...</span>
@@ -221,7 +172,7 @@
 	<div class="bg-red-50 border border-red-200 rounded-md p-4">
 		<p class="text-red-800">Error loading services: {approvedServices?.error || serviceAssignments?.error}</p>
 	</div>
-{:else if categorizedServices.active.length === 0 && categorizedServices.pendingPayment.length === 0 && categorizedServices.inactive.length === 0}
+{:else if categorizedServices.active.length === 0 && categorizedServices.pendingPayment.length === 0 && categorizedServices.approved.length === 0}
 	<div class="text-center py-12">
 		<p class="text-gray-500 text-lg">No approved services found for this organization.</p>
 	</div>
@@ -233,11 +184,11 @@
 				<h2 class="text-3xl font-bold text-gray-900 mb-8">Active Services</h2>
 				<p class="text-gray-600 mb-8">Services with qualified lead experts who are paid and not expired (officially active!)</p>
 				
-				{#each categorizedServices.active as parentService}
+				{#each categorizedServices.active as service}
 					<ServiceSection 
-						{parentService}
+						parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
 						title="Active Service"
-						description="✓ {parentService.versions[0]?.qualifiedLeadExperts?.length || 0} qualified lead expert{(parentService.versions[0]?.qualifiedLeadExperts?.length || 0) !== 1 ? 's' : ''} (paid & valid)"
+						description="✓ Qualified lead expert (paid & valid)"
 						icon="✓"
 						color="text-green-600"
 						borderColor="border-green-200"
@@ -253,11 +204,11 @@
 				<h2 class="text-3xl font-bold text-gray-900 mb-8">Pending Payment Services</h2>
 				<p class="text-gray-600 mb-8">Services with qualified lead experts but payment is required or expired</p>
 				
-				{#each categorizedServices.pendingPayment as parentService}
+				{#each categorizedServices.pendingPayment as service}
 					<ServiceSection 
-						{parentService}
+						parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
 						title="Pending Payment Service"
-						description="⚠ {parentService.versions[0]?.qualifiedLeadExpertsPendingPayment?.length || 0} qualified lead expert{(parentService.versions[0]?.qualifiedLeadExpertsPendingPayment?.length || 0) !== 1 ? 's' : ''} (payment required)"
+						description="⚠ Qualified lead expert (payment required)"
 						icon="⚠"
 						color="text-yellow-600"
 						borderColor="border-yellow-200"
@@ -267,22 +218,21 @@
 			</div>
 		{/if}
 
-		<!-- Not Active Services Section -->
-		{#if categorizedServices.inactive.length > 0}
+		<!-- Approved Services Section -->
+		{#if categorizedServices.approved.length > 0}
 			<div>
-				<h2 class="text-3xl font-bold text-gray-900 mb-8">Not Active Services</h2>
-				<p class="text-gray-600 mb-8">Services without qualified lead experts (no approved lead experts or lead experts haven't passed training)</p>
+				<h2 class="text-3xl font-bold text-gray-900 mb-8">Approved Services</h2>
+				<p class="text-gray-600 mb-8">Services without qualified lead experts (could have a lead expert but is not yet qualified)</p>
 				
-				{#each categorizedServices.inactive as parentService}
+				{#each categorizedServices.approved as service}
 					<ServiceSection 
-						{parentService}
-						title="Not Active Service"
+						parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
+						title="Approved Service"
 						description="⚠ No qualified lead expert"
 						icon="⚠"
-						color="text-red-600"
-						borderColor="border-gray-200"
-						bgColor="bg-gray-50"
-						opacity="opacity-75"
+						color="text-blue-600"
+						borderColor="border-blue-200"
+						bgColor="bg-blue-50"
 					/>
 				{/each}
 			</div>
