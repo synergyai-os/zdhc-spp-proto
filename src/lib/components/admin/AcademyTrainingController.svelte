@@ -105,7 +105,7 @@
 <button
 	onclick={() => showModal = true}
 	class="p-1 text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded transition-colors"
-	title="Academy Training Controls"
+	title="Manage expert training status and academy invitations"
 >
 	<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />

@@ -16,6 +16,8 @@
 		status: string;
 		trainingStatus?: string;
 		rejectionReason?: string;
+		serviceVersionId?: Id<'serviceVersions'>;
+		organizationId?: Id<'organizations'>;
 		user?: {
 			firstName?: string;
 			lastName?: string;
@@ -165,6 +167,8 @@
 				cvId={assignment.expertCV._id}
 				assignmentId={assignment._id}
 				trainingStatus={assignment.trainingStatus as TrainingStatus}
+				organizationId={assignment.organizationId}
+				serviceVersionId={assignment.serviceVersionId}
 			/>
 		</div>
 	{/if}

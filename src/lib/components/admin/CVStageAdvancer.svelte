@@ -74,25 +74,28 @@
 	};
 </script>
 
-{#if canAdvance()}
-	<button
-		type="button"
-		onclick={(e) => handleAdvanceClick(e)}
-		disabled={isAdvancing}
-		class="inline-flex items-center justify-center w-8 h-8 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-full transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
-		title="Advance to next stage: {getCVStatusDisplayName(nextStage()!)}"
-	>
-		{#if isAdvancing}
-			<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-			</svg>
-		{:else}
-			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-			</svg>
-		{/if}
-	</button>
-{/if}
+<button
+	type="button"
+	onclick={(e) => handleAdvanceClick(e)}
+	disabled={!canAdvance() || isAdvancing}
+	class="inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed
+		{canAdvance() 
+			? 'text-blue-600 hover:text-blue-900 hover:bg-blue-50' 
+			: 'text-gray-400 cursor-not-allowed'}"
+	title="{canAdvance() 
+		? `Advance to next stage: ${getCVStatusDisplayName(nextStage()!)}` 
+		: 'CV is in terminal state - cannot advance further'}"
+>
+	{#if isAdvancing}
+		<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+		</svg>
+	{:else}
+		<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+		</svg>
+	{/if}
+</button>
 
 <!-- Confirmation Dialog -->
 {#if showConfirmDialog}

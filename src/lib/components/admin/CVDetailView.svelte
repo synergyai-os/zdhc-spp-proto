@@ -453,6 +453,7 @@
 			<DevelopmentToolBar 
 				cvStatus={currentCVData.status}
 				cvId={currentCVData._id as any}
+				serviceVersionId={currentCVData.approvedAssignments?.[0]?.serviceVersion?._id as any}
 				onActionCompleted={onApprovalChange}
 			/>
 		{/if}
