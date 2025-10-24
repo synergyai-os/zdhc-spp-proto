@@ -66,111 +66,90 @@
 		return isPaid && isNotExpired;
 	};
 
-	// Categorize services into Active/Pending Payment/Not Active
-	const categorizedServices = $derived.by(() => {
-		if (!approvedServices?.data) {
-			return { active: [], pendingPayment: [], inactive: [] };
-		}
-
-		// Group services by parent
-		const parentGroups = new Map();
+	// Helper function to process a single service version
+	const processServiceVersion = (service: any, assignments: any[]) => {
+		// Separate experts by role and status
+		const leadExperts = assignments.filter(a => a.role === 'lead');
+		const regularExperts = assignments.filter(a => a.role === 'regular');
 		
-		approvedServices.data.forEach(service => {
-			const parentId = service.parentId;
-			if (!parentGroups.has(parentId)) {
-				parentGroups.set(parentId, {
-					parent: service.serviceParent,
-					versions: []
-				});
-			}
-			
-			// Get assignments for this service version (if any)
-			const assignments = serviceAssignments?.data?.filter(
-				assignment => assignment.serviceVersion?._id === service._id
-			) || [];
-
-			// Separate experts by role and status
-			const leadExperts = assignments.filter(a => a.role === 'lead');
-			const regularExperts = assignments.filter(a => a.role === 'regular');
-			
-			// Only consider assignments as "approved" if their CV is locked_final
-			const approvedLeadExperts = leadExperts.filter(a => 
-				a.status === 'approved' && a.expertCV && a.expertCV.status === 'locked_final'
-			);
-			const approvedRegularExperts = regularExperts.filter(a => 
-				a.status === 'approved' && a.expertCV && a.expertCV.status === 'locked_final'
-			);
-			
-			// All other assignments (including approved but not locked) are considered pending
-			const pendingExperts = assignments.filter(a => 
-				a.status === 'pending_review' || 
-				(a.status === 'approved' && (!a.expertCV || a.expertCV.status !== 'locked_final'))
-			);
-			const rejectedExperts = assignments.filter(a => a.status === 'rejected');
-
-			// Categorize experts by journey first (needed for deduplication)
-			const journeyCategories = categorizeExpertsByJourney(assignments);
-
-			// Service is active if it has at least one approved lead expert who is qualified AND paid
-			// Only consider experts whose CV has been locked (trainingStatus is set)
-			// EXCLUDE experts who are already categorized in journey categories to avoid duplication
-			const journeyCategorizedExpertIds = new Set([
-				...journeyCategories.approvedTrainingRequired.map(a => a._id),
-				...journeyCategories.approvedTrainingFailed.map(a => a._id),
-				...journeyCategories.approvedAlreadyQualified.map(a => a._id),
-				...journeyCategories.approvedTrainingPassed.map(a => a._id)
-			]);
-			
-			const qualifiedLeadExperts = approvedLeadExperts.filter(a => 
-				a.trainingStatus && isQualified(a.trainingStatus) && isCVPaidAndValid(a) &&
-				!journeyCategorizedExpertIds.has(a._id)
-			);
-			
-			// Service is pending payment if it has qualified leads but they're unpaid or expired
-			const qualifiedLeadExpertsPendingPayment = approvedLeadExperts.filter(a => 
-				a.trainingStatus && isQualified(a.trainingStatus) && !isCVPaidAndValid(a) &&
-				!journeyCategorizedExpertIds.has(a._id)
-			);
-			
-			// Only show truly qualified regular experts (training passed or not required)
-			const qualifiedRegularExperts = approvedRegularExperts.filter(a => 
-				a.trainingStatus && isQualified(a.trainingStatus) &&
-				!journeyCategorizedExpertIds.has(a._id)
-			);
-			
-			// Experts currently in training (truly approved but training required/invited/in_progress)
-			const inTrainingExperts = [...approvedLeadExperts, ...approvedRegularExperts].filter(a => 
-				a.trainingStatus && ['required', 'invited', 'in_progress'].includes(a.trainingStatus)
-			);
-			
-			// Determine service status
-			const isActive = qualifiedLeadExperts.length > 0;
-			const isPendingPayment = qualifiedLeadExpertsPendingPayment.length > 0 && !isActive;
-			const isInactive = !isActive && !isPendingPayment;
-
-			parentGroups.get(parentId).versions.push({
-				...service,
-				assignments,
-				leadExperts,
-				regularExperts,
-				approvedLeadExperts,
-				approvedRegularExperts,
-				qualifiedLeadExperts,
-				qualifiedLeadExpertsPendingPayment,
-				qualifiedRegularExperts,
-				inTrainingExperts,
-				pendingExperts,
-				rejectedExperts,
-				journeyCategories,
-				isActive,
-				isPendingPayment,
-				isInactive
-			});
-		});
-
-		// Separate into three categories
-		const allParentServices = Array.from(parentGroups.values());
+		// Only consider assignments as "approved" if their CV is locked_final
+		const approvedLeadExperts = leadExperts.filter(a => 
+			a.status === 'approved' && a.expertCV && a.expertCV.status === 'locked_final'
+		);
+		const approvedRegularExperts = regularExperts.filter(a => 
+			a.status === 'approved' && a.expertCV && a.expertCV.status === 'locked_final'
+		);
 		
+		// All other assignments (including approved but not locked) are considered pending
+		const pendingExperts = assignments.filter(a => 
+			a.status === 'pending_review' || 
+			(a.status === 'approved' && (!a.expertCV || a.expertCV.status !== 'locked_final'))
+		);
+		const rejectedExperts = assignments.filter(a => a.status === 'rejected');
+
+		// Categorize experts by journey first (needed for deduplication)
+		const journeyCategories = categorizeExpertsByJourney(assignments);
+
+		// Calculate qualified experts
+		const qualifiedLeadExperts = approvedLeadExperts.filter(a => 
+			a.trainingStatus && isQualified(a.trainingStatus) && isCVPaidAndValid(a)
+		);
+		const qualifiedLeadExpertsPendingPayment = approvedLeadExperts.filter(a => 
+			a.trainingStatus && isQualified(a.trainingStatus) && !isCVPaidAndValid(a)
+		);
+		const qualifiedRegularExperts = approvedRegularExperts.filter(a => 
+			a.trainingStatus && isQualified(a.trainingStatus)
+		);
+		
+		// Create deduplication set
+		const qualifiedExpertIds = new Set([
+			...qualifiedLeadExperts.map(a => a._id),
+			...qualifiedLeadExpertsPendingPayment.map(a => a._id),
+			...qualifiedRegularExperts.map(a => a._id)
+		]);
+		
+		// Filter journey categories to prevent duplication
+		const filteredJourneyCategories = {
+			underReview: journeyCategories.underReview.filter(a => !qualifiedExpertIds.has(a._id)),
+			rejected: journeyCategories.rejected.filter(a => !qualifiedExpertIds.has(a._id)),
+			approvedTrainingRequired: journeyCategories.approvedTrainingRequired.filter(a => !qualifiedExpertIds.has(a._id)),
+			approvedTrainingFailed: journeyCategories.approvedTrainingFailed.filter(a => !qualifiedExpertIds.has(a._id)),
+			approvedAlreadyQualified: journeyCategories.approvedAlreadyQualified.filter(a => !qualifiedExpertIds.has(a._id)),
+			approvedTrainingPassed: journeyCategories.approvedTrainingPassed.filter(a => !qualifiedExpertIds.has(a._id))
+		};
+		
+		// Experts currently in training
+		const inTrainingExperts = [...approvedLeadExperts, ...approvedRegularExperts].filter(a => 
+			a.trainingStatus && ['required', 'invited', 'in_progress'].includes(a.trainingStatus)
+		);
+		
+		// Determine service status
+		const isActive = qualifiedLeadExperts.length > 0;
+		const isPendingPayment = qualifiedLeadExpertsPendingPayment.length > 0 && !isActive;
+		const isInactive = !isActive && !isPendingPayment;
+
+		return {
+			...service,
+			assignments,
+			leadExperts,
+			regularExperts,
+			approvedLeadExperts,
+			approvedRegularExperts,
+			qualifiedLeadExperts,
+			qualifiedLeadExpertsPendingPayment,
+			qualifiedRegularExperts,
+			inTrainingExperts,
+			pendingExperts,
+			rejectedExperts,
+			journeyCategories: filteredJourneyCategories,
+			isActive,
+			isPendingPayment,
+			isInactive
+		};
+	};
+
+	// Helper function to categorize services by status
+	const categorizeServicesByStatus = (allParentServices: any[]) => {
 		const activeParentServices = allParentServices
 			.filter(parentService => parentService.versions.some((v: any) => v.isActive))
 			.map(parentService => ({
@@ -197,6 +176,39 @@
 			pendingPayment: pendingPaymentParentServices,
 			inactive: inactiveParentServices
 		};
+	};
+
+	// Categorize services into Active/Pending Payment/Not Active
+	const categorizedServices = $derived.by(() => {
+		if (!approvedServices?.data) {
+			return { active: [], pendingPayment: [], inactive: [] };
+		}
+
+		// Group services by parent
+		const parentGroups = new Map();
+		
+		approvedServices.data.forEach(service => {
+			const parentId = service.parentId;
+			if (!parentGroups.has(parentId)) {
+				parentGroups.set(parentId, {
+					parent: service.serviceParent,
+					versions: []
+				});
+			}
+			
+			// Get assignments for this service version (if any)
+			const assignments = serviceAssignments?.data?.filter(
+				assignment => assignment.serviceVersion?._id === service._id
+			) || [];
+
+			// Process the service version
+			const processedVersion = processServiceVersion(service, assignments);
+			parentGroups.get(parentId).versions.push(processedVersion);
+		});
+
+		// Separate into three categories
+		const allParentServices = Array.from(parentGroups.values());
+		return categorizeServicesByStatus(allParentServices);
 	});
 </script>
 
