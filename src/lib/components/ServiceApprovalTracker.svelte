@@ -79,10 +79,7 @@
   };
 </script>
 
-<div class="w-full max-w-md mx-auto">
-  <!-- Title at the top, centered -->
-  <h3 class="text-2xl font-bold text-black text-center mb-8">{title}</h3>
-  
+<div class="w-full max-w-md mx-auto py-12">
   <!-- Progress tracker -->
   <div class="relative flex items-center justify-center">
     <!-- Steps container with proper spacing -->

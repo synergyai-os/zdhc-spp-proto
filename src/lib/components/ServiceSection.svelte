@@ -120,26 +120,24 @@
 </script>
 
 <div class="mb-12">
-	<h3 class="text-2xl font-semibold text-gray-800 mb-6">{parentService.parent?.name || 'Unknown Service'}</h3>
-	
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-		{#each parentService.versions as version}
-			{@const serviceApprovalStatus = getServiceApprovalStatus(version._id)}
-			<div class="bg-white border {borderColor} rounded-lg shadow-sm {opacity}">
-				<div class="p-4 border-b {borderColor} {bgColor}">
-					<h4 class="text-lg font-medium text-gray-900">{version.name}</h4>
-					<p class="text-sm {color} mt-1">
-						{@html description}
-					</p>
-				</div>
-				
-				<div class="p-4">
-					<!-- Service Approval Tracker -->
-					{#if serviceApprovalStatus?.data}
-						<ServiceApprovalTracker status={serviceApprovalStatus.data.status} title="Service Approval" />
-					{:else}
-						<ServiceApprovalTracker status="approved" title="Service Approval" />
-					{/if}
+	<!-- Single version display (no grid needed since ServicesView handles the grid) -->
+	{#each parentService.versions as version}
+		{@const serviceApprovalStatus = getServiceApprovalStatus(version._id)}
+		<div class="bg-white border {borderColor} rounded-lg shadow-sm {opacity}">
+			<div class="p-4 border-b {borderColor} {bgColor}">
+				<h4 class="text-lg font-medium text-gray-900">{version.name}</h4>
+				<p class="text-sm {color} mt-1">
+					{@html description}
+				</p>
+			</div>
+			
+			<div class="p-4">
+				<!-- Service Approval Tracker -->
+				{#if serviceApprovalStatus?.data}
+					<ServiceApprovalTracker status={serviceApprovalStatus.data.status} />
+				{:else}
+					<ServiceApprovalTracker status="approved" />
+				{/if}
 					
 					{#if version.assignments.length > 0}
 						{@const versionData = processVersionData(version)}
@@ -310,5 +308,4 @@
 				</div>
 			</div>
 		{/each}
-	</div>
 </div>

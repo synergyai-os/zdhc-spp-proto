@@ -184,17 +184,19 @@
 				<h2 class="text-3xl font-bold text-gray-900 mb-8">Active Services</h2>
 				<p class="text-gray-600 mb-8">Services with qualified lead experts who are paid and not expired (officially active!)</p>
 				
-				{#each categorizedServices.active as service}
-					<ServiceSection 
-						parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
-						title="Active Service"
-						description="✓ Qualified lead expert (paid & valid)"
-						icon="✓"
-						color="text-green-600"
-						borderColor="border-green-200"
-						bgColor="bg-green-50"
-					/>
-				{/each}
+				<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+					{#each categorizedServices.active as service}
+						<ServiceSection 
+							parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
+							title="Active Service"
+							description="✓ Qualified lead expert (paid & valid)"
+							icon="✓"
+							color="text-green-600"
+							borderColor="border-green-200"
+							bgColor="bg-green-50"
+						/>
+					{/each}
+				</div>
 			</div>
 		{/if}
 
@@ -204,17 +206,19 @@
 				<h2 class="text-3xl font-bold text-gray-900 mb-8">Pending Payment Services</h2>
 				<p class="text-gray-600 mb-8">Services with qualified lead experts but payment is required or expired</p>
 				
-				{#each categorizedServices.pendingPayment as service}
-					<ServiceSection 
-						parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
-						title="Pending Payment Service"
-						description="⚠ Qualified lead expert (payment required)"
-						icon="⚠"
-						color="text-yellow-600"
-						borderColor="border-yellow-200"
-						bgColor="bg-yellow-50"
-					/>
-				{/each}
+				<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+					{#each categorizedServices.pendingPayment as service}
+						<ServiceSection 
+							parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
+							title="Pending Payment Service"
+							description="⚠ Qualified lead expert (payment required)"
+							icon="⚠"
+							color="text-yellow-600"
+							borderColor="border-yellow-200"
+							bgColor="bg-yellow-50"
+						/>
+					{/each}
+				</div>
 			</div>
 		{/if}
 
@@ -224,17 +228,19 @@
 				<h2 class="text-3xl font-bold text-gray-900 mb-8">Approved Services</h2>
 				<p class="text-gray-600 mb-8">Services without qualified lead experts (could have a lead expert but is not yet qualified)</p>
 				
-				{#each categorizedServices.approved as service}
-					<ServiceSection 
-						parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
-						title="Approved Service"
-						description="⚠ No qualified lead expert"
-						icon="⚠"
-						color="text-blue-600"
-						borderColor="border-blue-200"
-						bgColor="bg-blue-50"
-					/>
-				{/each}
+				<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+					{#each categorizedServices.approved as service}
+						<ServiceSection 
+							parentService={{ parent: service.serviceParent || { name: 'Unknown Service' }, versions: [service] }}
+							title="Approved Service"
+							description="⚠ No qualified lead expert"
+							icon="⚠"
+							color="text-blue-600"
+							borderColor="border-blue-200"
+							bgColor="bg-blue-50"
+						/>
+					{/each}
+				</div>
 			</div>
 		{/if}
 
