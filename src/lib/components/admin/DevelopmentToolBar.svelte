@@ -1,15 +1,19 @@
 <script lang="ts">
 	import CVStageAdvancer from './CVStageAdvancer.svelte';
 	import PaymentConfirmationButton from './PaymentConfirmationButton.svelte';
-	import type { CVStatus } from '../../../convex/model/status';
+	import AcademyTrainingController from './AcademyTrainingController.svelte';
+	import type { CVStatus, TrainingStatus } from '../../../convex/model/status';
+	import type { Id } from '$lib';
 
 	interface Props {
 		cvStatus: CVStatus;
-		cvId: string;
+		cvId: Id<'expertCVs'>;
+		assignmentId?: string;
+		trainingStatus?: TrainingStatus;
 		onActionCompleted?: () => void;
 	}
 
-	let { cvStatus, cvId, onActionCompleted }: Props = $props();
+	let { cvStatus, cvId, assignmentId, trainingStatus, onActionCompleted }: Props = $props();
 
 	const handleActionCompleted = () => {
 		if (onActionCompleted) {
@@ -51,5 +55,19 @@
 				onPaymentConfirmed={handleActionCompleted}
 			/>
 		</div>
+
+		<!-- Divider -->
+		<div class="w-px h-6 bg-gray-300"></div>
+
+		<!-- Academy Training Controller -->
+		{#if assignmentId}
+			<div class="flex items-center gap-2">
+				<AcademyTrainingController 
+					assignmentId={assignmentId}
+					currentTrainingStatus={trainingStatus}
+					onTrainingStatusUpdated={handleActionCompleted}
+				/>
+			</div>
+		{/if}
 	</div>
 </div>

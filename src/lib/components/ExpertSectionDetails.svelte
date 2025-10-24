@@ -2,11 +2,13 @@
 	import { 
 		getCVStatusDisplayName,
 		type ExpertJourneyType,
-		type CVStatus
+		type CVStatus,
+		type TrainingStatus
 	} from '../../convex/model/status';
 	import type { Id } from '$lib';
 	import CVStatusTracker from './CVStatusTracker.svelte';
 	import ServiceTrainingTracker from './ServiceTrainingTracker.svelte';
+	import DevelopmentToolBar from './admin/DevelopmentToolBar.svelte';
 
 	interface ServiceAssignment {
 		_id: Id<'expertServiceAssignments'>;
@@ -144,4 +146,16 @@
 			/>
 		{/if}
 	</div>
+	
+	<!-- Development Tools -->
+	{#if assignment.expertCV}
+		<div class="mt-4 px-2">
+			<DevelopmentToolBar 
+				cvStatus={assignment.expertCV.status}
+				cvId={assignment.expertCV._id}
+				assignmentId={assignment._id}
+				trainingStatus={assignment.trainingStatus as TrainingStatus}
+			/>
+		</div>
+	{/if}
 </div>
