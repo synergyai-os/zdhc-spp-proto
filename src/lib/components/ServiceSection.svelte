@@ -1,8 +1,16 @@
 <script lang="ts">
 	import ExpertSection from './ExpertSection.svelte';
+	import ServiceApprovalTracker from './ServiceApprovalTracker.svelte';
+	import { useQuery } from 'convex-svelte';
+	import { api } from '$lib';
 	import type { Id } from '$lib';
+	import { getContext } from 'svelte';
+	import { api as convexApi } from '../../convex/_generated/api';
+
+	const orgId = getContext('orgId');
 
 	interface ServiceVersion {
+		_id: Id<'serviceVersions'>;
 		version: number;
 		name: string;
 		assignments: any[];
@@ -49,6 +57,14 @@
 		bgColor, 
 		opacity = 'opacity-100' 
 	}: Props = $props();
+
+	// Get service approval status for each version
+	const getServiceApprovalStatus = (serviceVersionId: Id<'serviceVersions'>) => {
+		return useQuery((api as any).serviceApproval.getServiceApprovalStatus, () => ({
+			organizationId: orgId as Id<'organizations'>,
+			serviceVersionId
+		}));
+	};
 
 	// Helper function to check if CV is paid
 	const isCVPaid = (assignment: any) => {
@@ -108,6 +124,7 @@
 	
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 		{#each parentService.versions as version}
+			{@const serviceApprovalStatus = getServiceApprovalStatus(version._id)}
 			<div class="bg-white border {borderColor} rounded-lg shadow-sm {opacity}">
 				<div class="p-4 border-b {borderColor} {bgColor}">
 					<h4 class="text-lg font-medium text-gray-900">{version.name}</h4>
@@ -117,6 +134,13 @@
 				</div>
 				
 				<div class="p-4">
+					<!-- Service Approval Tracker -->
+					{#if serviceApprovalStatus?.data}
+						<ServiceApprovalTracker status={serviceApprovalStatus.data.status} title="Service Approval" />
+					{:else}
+						<ServiceApprovalTracker status="approved" title="Service Approval" />
+					{/if}
+					
 					{#if version.assignments.length > 0}
 						{@const versionData = processVersionData(version)}
 						

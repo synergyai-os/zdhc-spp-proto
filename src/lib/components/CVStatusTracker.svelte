@@ -87,11 +87,29 @@
       return true;
     }
     
-    // Approved step: show checkmark if we're at approved or denied
-    if (stepIndex === 2 && (status === 'approved' || status === 'denied')) {
+    // Approved step: show checkmark ONLY if we're at approved (not denied)
+    if (stepIndex === 2 && status === 'approved') {
       return true;
     }
     
+    return false;
+  };
+
+  // Check if step should show X icon for denied status
+  const shouldShowX = (stepIndex: number) => {
+    // Approved step: show X if status is denied
+    if (stepIndex === 2 && status === 'denied') {
+      return true;
+    }
+    
+    return false;
+  };
+
+  const isCurrentStep = (stepIndex: number) => {
+    // Current step is the step that matches the current status (being worked on)
+    if (status === 'in_review' && stepIndex === 1) return true;                    // In Review (current action)
+    if (status === 'waiting_for_response' && stepIndex === 1) return true;         // Waiting for Response (current action)
+    if ((status === 'approved' || status === 'denied') && stepIndex === 2) return true;  // Approved/Denied (completed)
     return false;
   };
 </script>
@@ -108,19 +126,24 @@
         <div class="flex flex-col items-center relative">
           <!-- Circle node -->
           <div class="relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300
-            {shouldShowCheckmark(i) || i <= currentStepIndex ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'}">
+            {shouldShowX(i) || shouldShowCheckmark(i) ? 'bg-blue-500 border-blue-500' : isCurrentStep(i) ? 'bg-white border-blue-500' : 'bg-white border-gray-300'}">
             
             {#if shouldShowCheckmark(i)}
               <!-- White checkmark for completed steps -->
               <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
               </svg>
+            {:else if shouldShowX(i)}
+              <!-- White X for denied status -->
+              <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             {/if}
           </div>
           
           <!-- Text label below with proper text handling -->
           <div class="mt-3 text-center px-2">
-            <div class="text-sm font-medium {shouldShowCheckmark(i) || i <= currentStepIndex ? 'text-black font-bold' : 'text-gray-500'} break-words hyphens-auto">
+            <div class="text-sm font-medium {shouldShowCheckmark(i) || isCurrentStep(i) ? 'text-black font-bold' : 'text-gray-500'} break-words hyphens-auto">
               {step.getLabel()}
             </div>
           </div>

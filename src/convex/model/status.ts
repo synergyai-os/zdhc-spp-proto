@@ -362,3 +362,47 @@ export function getServiceStatusColor(status: ServiceStatus): string {
 		default: return 'bg-gray-100 text-gray-800';
 	}
 }
+
+// ==========================================
+// SERVICE APPROVAL STATUS MANAGEMENT (ServiceApprovalTracker)
+// ==========================================
+
+/**
+ * Service Approval Status Values - Single source of truth
+ * 
+ * Used by ServiceApprovalTracker component for UI display
+ */
+export const SERVICE_APPROVAL_STATUS_VALUES = [
+	'approved',
+	'assign_lead',
+	'pay_annual_fee',
+	'active'
+] as const;
+
+export type ServiceApprovalStatus = typeof SERVICE_APPROVAL_STATUS_VALUES[number];
+
+/**
+ * Get human-readable display name for service approval status
+ */
+export function getServiceApprovalStatusDisplayName(status: ServiceApprovalStatus): string {
+	switch (status) {
+		case 'approved': return 'Approved';
+		case 'assign_lead': return 'Assign Qualified Lead Expert';
+		case 'pay_annual_fee': return 'Pay Annual Fee';
+		case 'active': return 'Active';
+		default: return status;
+	}
+}
+
+/**
+ * Get status color classes for service approval status - Semantic color strategy
+ */
+export function getServiceApprovalStatusColor(status: ServiceApprovalStatus): string {
+	switch (status) {
+		case 'approved': return 'bg-green-100 text-green-800';           // Success - approved
+		case 'assign_lead': return 'bg-blue-100 text-blue-800';         // Info - action needed
+		case 'pay_annual_fee': return 'bg-yellow-100 text-yellow-800';   // Wait - payment needed
+		case 'active': return 'bg-green-100 text-green-800';             // Success - active
+		default: return 'bg-gray-100 text-gray-800';
+	}
+}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  type TrainingStatus = 'invited' | 'in_progress' | 'qualified' | 'failed';
+  type TrainingStatus = 'invited' | 'in_progress' | 'qualified' | 'failed' | 'did_not_pass_training';
 
   interface Props {
     status?: TrainingStatus;
@@ -16,20 +16,20 @@
     },
     { 
       key: 'in_progress', 
-      label: 'Training in Progress',
-      getLabel: () => status === 'failed' ? 'Training Failed' : 'Training in Progress'
+      label: 'Complete Training',
+      getLabel: () => status === 'failed' ? 'Did not pass<br/>(Retry Training)' : 'Complete Training'
     },
     { 
       key: 'qualified', 
       label: 'Qualified for Service',
-      getLabel: () => 'Qualified for Service'
+      getLabel: () => status === 'did_not_pass_training' ? 'Did not pass training' : 'Qualified for Service'
     }
   ];
 
   const getCurrentStepIndex = () => {
     if (status === 'invited') return 0;
     if (status === 'in_progress' || status === 'failed') return 1;
-    if (status === 'qualified') return 2;
+    if (status === 'qualified' || status === 'did_not_pass_training') return 2;
     return 0;
   };
 
@@ -39,7 +39,7 @@
   const getProgressPercentage = () => {
     if (status === 'invited') return 20; // Halfway to Training in Progress
     if (status === 'in_progress' || status === 'failed') return 40; // Full to Training in Progress
-    if (status === 'qualified') return 90; // Full to Qualified
+    if (status === 'qualified' || status === 'did_not_pass_training') return 90; // Full to Qualified
     return 0;
   };
 
@@ -66,7 +66,7 @@
       // Full to second circle
       return ((secondCircleCenter - firstCircleCenter) / containerWidth) * 100;
     }
-    if (status === 'qualified') {
+    if (status === 'qualified' || status === 'did_not_pass_training') {
       // Full to third circle
       return ((thirdCircleCenter - firstCircleCenter) / containerWidth) * 100;
     }
@@ -77,17 +77,17 @@
 
   // Check if step should show checkmark - completed steps keep their checkmarks
   const shouldShowCheckmark = (stepIndex: number) => {
-    // Invited step: show checkmark if we're at invited or beyond (including failed)
-    if (stepIndex === 0 && (status === 'invited' || status === 'in_progress' || status === 'failed' || status === 'qualified')) {
+    // Invited step: show checkmark if we're at invited or beyond (including failed/did_not_pass_training)
+    if (stepIndex === 0 && (status === 'invited' || status === 'in_progress' || status === 'failed' || status === 'qualified' || status === 'did_not_pass_training')) {
       return true;
     }
     
-    // Training in Progress step: show checkmark if we're at in_progress or qualified
-    if (stepIndex === 1 && (status === 'in_progress' || status === 'qualified')) {
+    // Complete Training step: show checkmark if training is completed (qualified or did_not_pass_training)
+    if (stepIndex === 1 && (status === 'qualified' || status === 'did_not_pass_training')) {
       return true;
     }
     
-    // Qualified step: show checkmark if we're at qualified
+    // Qualified step: show checkmark ONLY if we're at qualified (not did_not_pass_training)
     if (stepIndex === 2 && status === 'qualified') {
       return true;
     }
@@ -97,11 +97,22 @@
 
   // Check if step should show X icon for failed status
   const shouldShowX = (stepIndex: number) => {
-    // Training in Progress step: show X if training failed
+    // Complete Training step: show X if training failed
     if (stepIndex === 1 && status === 'failed') {
       return true;
     }
+    // Qualified step: show X if training did not pass
+    if (stepIndex === 2 && status === 'did_not_pass_training') {
+      return true;
+    }
     
+    return false;
+  };
+
+  const isCurrentStep = (stepIndex: number) => {
+    // Current step is the step that matches the current status (being worked on)
+    if (status === 'in_progress' && stepIndex === 1) return true;                    // Complete Training (current action)
+    if ((status === 'qualified' || status === 'did_not_pass_training') && stepIndex === 2) return true;  // Qualified/Did not pass (completed)
     return false;
   };
 </script>
@@ -118,7 +129,7 @@
         <div class="flex flex-col items-center relative">
           <!-- Circle node -->
           <div class="relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300
-            {shouldShowCheckmark(i) || i <= currentStepIndex ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'}">
+            {shouldShowX(i) || shouldShowCheckmark(i) ? 'bg-blue-500 border-blue-500' : isCurrentStep(i) ? 'bg-white border-blue-500' : 'bg-white border-gray-300'}">
             
             {#if shouldShowCheckmark(i)}
               <!-- White checkmark for completed steps -->
@@ -135,8 +146,8 @@
           
           <!-- Text label below with proper text handling -->
           <div class="mt-3 text-center px-2">
-            <div class="text-sm font-medium {shouldShowCheckmark(i) || i <= currentStepIndex ? 'text-black font-bold' : 'text-gray-500'} break-words hyphens-auto">
-              {step.getLabel()}
+            <div class="text-sm font-medium {shouldShowCheckmark(i) || isCurrentStep(i) ? 'text-black font-bold' : 'text-gray-500'} break-words hyphens-auto">
+              {@html step.getLabel()}
             </div>
           </div>
         </div>

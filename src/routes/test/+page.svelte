@@ -11,23 +11,25 @@
     | 'invited'
     | 'in_progress'
     | 'qualified'
-    | 'failed';
+    | 'failed'
+    | 'did_not_pass_training';
 
   let trainingStatus: TrainingStatus = $state('invited');
   const trainingStatuses: TrainingStatus[] = [
     'invited',
     'in_progress',
     'failed',
-    'qualified'
+    'qualified',
+    'did_not_pass_training'
   ];
 
-  type ServiceApprovalStatus = 'approved' | 'assign_lead' | 'pending_payment' | 'active';
+  type ServiceApprovalStatus = 'approved' | 'assign_lead' | 'pay_annual_fee' | 'active';
 
   let serviceApprovalStatus: ServiceApprovalStatus = $state('approved');
   const serviceApprovalStatuses: ServiceApprovalStatus[] = [
     'approved',
     'assign_lead',
-    'pending_payment',
+    'pay_annual_fee',
     'active'
   ];
 

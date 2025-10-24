@@ -1,5 +1,7 @@
 <script lang="ts">
-  type ServiceApprovalStatus = 'approved' | 'assign_lead' | 'pending_payment' | 'active';
+  import { getServiceApprovalStatusDisplayName } from '../../convex/model/status';
+  
+  type ServiceApprovalStatus = 'approved' | 'assign_lead' | 'pay_annual_fee' | 'active';
 
   interface Props {
     status?: ServiceApprovalStatus;
@@ -7,29 +9,35 @@
   }
   let { status = 'approved', title = 'Service Approval' }: Props = $props();
 
-  // Define the 3 main steps with dynamic labels
+  // Define the 4 main steps with dynamic labels
   const steps = [
     { 
       key: 'approved', 
       label: 'Approved',
-      getLabel: () => 'Approved'
+      getLabel: () => getServiceApprovalStatusDisplayName('approved')
     },
     { 
       key: 'assign_lead', 
-      label: 'Assign Lead Expert',
-      getLabel: () => status === 'pending_payment' ? 'Pending Payment' : 'Assign Lead Expert'
+      label: 'Assign Qualified Lead Expert',
+      getLabel: () => getServiceApprovalStatusDisplayName('assign_lead')
+    },
+    { 
+      key: 'pay_annual_fee', 
+      label: 'Pay Annual Fee',
+      getLabel: () => getServiceApprovalStatusDisplayName('pay_annual_fee')
     },
     { 
       key: 'active', 
       label: 'Active',
-      getLabel: () => 'Active'
+      getLabel: () => getServiceApprovalStatusDisplayName('active')
     }
   ];
 
   const getCurrentStepIndex = () => {
     if (status === 'approved') return 0;
-    if (status === 'assign_lead' || status === 'pending_payment') return 1;
-    if (status === 'active') return 2;
+    if (status === 'assign_lead') return 1;
+    if (status === 'pay_annual_fee') return 2;
+    if (status === 'active') return 3;
     return 0;
   };
 
@@ -37,62 +45,37 @@
 
   // Calculate progress percentage - line extends to center of current step
   const getProgressPercentage = () => {
-    if (status === 'approved') return 20; // Halfway to Assign Lead Expert
-    if (status === 'assign_lead' || status === 'pending_payment') return 40; // Full to Assign Lead Expert
-    if (status === 'active') return 90; // Full to Active
+    if (status === 'approved') return 25; // Link to Assign Lead Expert
+    if (status === 'assign_lead') return 25; // Full to Assign Lead Expert
+    if (status === 'pay_annual_fee') return 50; // Full to Pay Annual Fee
+    if (status === 'active') return 70; // Full to Active
     return 0;
   };
 
   const progressPercentage = $derived(getProgressPercentage());
 
-  // Calculate actual line width based on circle positions
-  const getLineWidth = () => {
-    // Calculate the exact pixel positions for each circle center
-    // Container width is max-w-md (28rem = 448px)
-    const containerWidth = 448; // max-w-md in pixels
-    const circleRadius = 16; // w-8 h-8 = 32px, radius = 16px
-    
-    // Circle centers as percentages of container width
-    const firstCircleCenter = (containerWidth * 0.1667) + circleRadius; // 16.67% + 16px
-    const secondCircleCenter = (containerWidth * 0.5) + circleRadius; // 50% + 16px  
-    const thirdCircleCenter = (containerWidth * 0.8333) + circleRadius; // 83.33% + 16px
-    
-    if (status === 'approved') {
-      // Halfway between first and second circle
-      const halfway = firstCircleCenter + (secondCircleCenter - firstCircleCenter) / 2;
-      return ((halfway - firstCircleCenter) / containerWidth) * 100;
-    }
-    if (status === 'assign_lead' || status === 'pending_payment') {
-      // Full to second circle
-      return ((secondCircleCenter - firstCircleCenter) / containerWidth) * 100;
-    }
-    if (status === 'active') {
-      // Full to third circle
-      return ((thirdCircleCenter - firstCircleCenter) / containerWidth) * 100;
-    }
-    return 0;
-  };
-
-  const lineWidth = $derived(getLineWidth());
-
   // Check if step should show checkmark - completed steps keep their checkmarks
   const shouldShowCheckmark = (stepIndex: number) => {
-    // Approved step: show checkmark if we're at approved or beyond
-    if (stepIndex === 0 && (status === 'approved' || status === 'assign_lead' || status === 'pending_payment' || status === 'active')) {
-      return true;
-    }
-    
-    // Assign Lead Expert step: show checkmark if we're at active
-    if (stepIndex === 1 && status === 'active') {
-      return true;
-    }
-    
-    // Active step: show checkmark if we're at active
-    if (stepIndex === 2 && status === 'active') {
-      return true;
-    }
-    
+    // Show checkmark for completed steps (steps before the current actionable step)
+    if (status === 'approved' && stepIndex === 0) return true;         // Approved completed
+    if (status === 'assign_lead' && stepIndex === 0) return true;     // Approved completed (same as approved)
+    if (status === 'pay_annual_fee' && stepIndex <= 1) return true;   // Approved + Assign Lead completed
+    if (status === 'active' && stepIndex <= 3) return true;           // All steps completed
     return false;
+  };
+
+  const isCurrentStep = (stepIndex: number) => {
+    // Current step is the NEXT actionable step based on status
+    if (status === 'approved' && stepIndex === 1) return true;        // Assign Lead Expert
+    if (status === 'assign_lead' && stepIndex === 1) return true;     // Assign Lead Expert (same as approved)
+    if (status === 'pay_annual_fee' && stepIndex === 2) return true;  // Pay Annual Fee
+    if (status === 'active' && stepIndex === 3) return true;         // Active (completed)
+    return false;
+  };
+
+  const isCompletedStep = (stepIndex: number) => {
+    // Completed steps are those before the current step
+    return stepIndex < currentStepIndex;
   };
 </script>
 
@@ -103,12 +86,12 @@
   <!-- Progress tracker -->
   <div class="relative flex items-center justify-center">
     <!-- Steps container with proper spacing -->
-    <div class="relative grid grid-cols-3 gap-0 w-full">
+    <div class="relative grid grid-cols-4 gap-0 w-full">
       {#each steps as step, i}
         <div class="flex flex-col items-center relative">
           <!-- Circle node -->
           <div class="relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300
-            {shouldShowCheckmark(i) || i <= currentStepIndex ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'}">
+            {shouldShowCheckmark(i) ? 'bg-blue-500 border-blue-500' : isCurrentStep(i) ? 'bg-white border-blue-500' : 'bg-white border-gray-300'}">
             
             {#if shouldShowCheckmark(i)}
               <!-- White checkmark for completed steps -->
@@ -120,7 +103,7 @@
           
           <!-- Text label below with proper text handling -->
           <div class="mt-3 text-center px-2">
-            <div class="text-sm font-medium {shouldShowCheckmark(i) || i <= currentStepIndex ? 'text-black font-bold' : 'text-gray-500'} break-words hyphens-auto">
+            <div class="text-sm font-medium {shouldShowCheckmark(i) || isCurrentStep(i) ? 'text-black font-bold' : 'text-gray-500'} break-words hyphens-auto">
               {step.getLabel()}
             </div>
           </div>
@@ -129,12 +112,12 @@
     </div>
     
     <!-- Horizontal line - positioned exactly between circle centers -->
-    <div class="absolute h-0.5 bg-gray-300 top-4" style="left: calc(16.67% + 16px); right: calc(16.67% + 16px);"></div>
+    <div class="absolute h-0.5 bg-gray-300 top-4" style="left: calc(12.5% + 16px); right: calc(12.5% + 16px);"></div>
     
     <!-- Progress line (blue for completed steps) -->
     <div 
       class="absolute h-0.5 bg-blue-500 top-4 transition-all duration-300"
-      style={`left: calc(16.67% + 16px); width: ${lineWidth}%;`}
+      style={`left: calc(12.5% + 16px); width: ${progressPercentage}%;`}
     ></div>
   </div>
 </div>

@@ -64,9 +64,16 @@ export default defineSchema({
 		expiresAt: v.optional(v.number()),
 		notes: v.optional(v.string()),
 		rejectionReason: v.optional(v.string()),
+		
+		// Payment tracking for ServiceApprovalTracker
+		paymentReference: v.optional(v.string()),
+		paymentAmount: v.optional(v.number()),
+		paidAt: v.optional(v.number()),
+		
 		createdAt: v.number(),
 		updatedAt: v.number()
 	}),
+
 
 	// Staff Members table (users with SPP platform access)
 	staffMembers: defineTable({
