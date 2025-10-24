@@ -45,11 +45,16 @@
 
 	// Determine which tracker to show
 	const shouldShowCVTracker = () => {
-		return assignment.status === 'pending_review';
+		// Show CV tracker for pending review OR approved assignments whose CVs are not locked
+		return assignment.status === 'pending_review' || 
+		       (assignment.status === 'approved' && (!assignment.expertCV || assignment.expertCV.status !== 'locked_final'));
 	};
 
 	const shouldShowTrainingTracker = () => {
-		return assignment.status === 'approved';
+		// Only show training tracker for approved assignments whose CVs are locked
+		return assignment.status === 'approved' && 
+		       assignment.expertCV && 
+		       assignment.expertCV.status === 'locked_final';
 	};
 
 	// Map CV status to tracker status
@@ -63,6 +68,11 @@
 		if (cvStatus === 'locked_for_review') return 'in_review';
 		if (cvStatus === 'unlocked_for_edits') return 'waiting_for_response';
 		if (cvStatus === 'locked_final') return 'approved';
+		
+		// For approved assignments whose CVs are not locked, show as in_review
+		if (assignment.status === 'approved' && (cvStatus as string) !== 'locked_final') {
+			return 'in_review';
+		}
 		
 		// Default to paid for other statuses
 		return 'paid';

@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { PAYMENT_EXPIRY_PERIOD_MS } from '../../lib/config';
 
 // ==========================================
 // CV STATUS MANAGEMENT
@@ -151,6 +152,16 @@ export function isQualified(trainingStatus: TrainingStatus): boolean {
  */
 export function isActiveForService(assignment: { status: ServiceStatus; trainingStatus: TrainingStatus }): boolean {
 	return assignment.status === 'approved' && isQualified(assignment.trainingStatus);
+}
+
+/**
+ * Check if a payment is expired based on paidAt timestamp
+ * Uses the payment expiry period from config
+ */
+export function isPaymentExpired(paidAt: number | undefined): boolean {
+	if (!paidAt) return true; // No payment = expired
+	const now = Date.now();
+	return (now - paidAt) > PAYMENT_EXPIRY_PERIOD_MS;
 }
 
 // ==========================================

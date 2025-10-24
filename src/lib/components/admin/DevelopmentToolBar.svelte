@@ -2,6 +2,7 @@
 	import CVStageAdvancer from './CVStageAdvancer.svelte';
 	import PaymentConfirmationButton from './PaymentConfirmationButton.svelte';
 	import AcademyTrainingController from './AcademyTrainingController.svelte';
+	import PayAnnualFeeController from './PayAnnualFeeController.svelte';
 	import type { CVStatus, TrainingStatus } from '../../../convex/model/status';
 	import type { Id } from '$lib';
 
@@ -69,5 +70,15 @@
 				/>
 			</div>
 		{/if}
+
+		<!-- Divider -->
+		<div class="w-px h-6 bg-gray-300"></div>
+
+		<!-- Pay Annual Fee Controller -->
+		<div class="flex items-center gap-2">
+			<PayAnnualFeeController 
+				onPaymentCompleted={handleActionCompleted}
+			/>
+		</div>
 	</div>
 </div>

@@ -196,12 +196,29 @@
 	};
 
 	const canApprove = (assignment: ServiceAssignment): boolean => {
-		return assignment.status === SERVICE_STATUS_VALUES[0]; // 'pending_review'
+		return assignment.status !== 'approved' && currentCVData?.status !== 'locked_final';
 	};
 
 	const canReject = (assignment: ServiceAssignment): boolean => {
-		return assignment.status === SERVICE_STATUS_VALUES[0]; // 'pending_review'
+		return assignment.status !== 'rejected' && currentCVData?.status !== 'locked_final';
 	};
+
+	const canToggleStatus = (assignment: ServiceAssignment): boolean => {
+		return currentCVData?.status !== 'locked_final';
+	};
+
+	const canLockCV = $derived(() => {
+		if (!currentCVData || currentCVData.status !== 'locked_for_review') {
+			return false;
+		}
+		// Check if all assignments are decided (approved or rejected)
+		const allAssignments = [
+			...currentCVData.pendingAssignments,
+			...currentCVData.approvedAssignments,
+			...currentCVData.rejectedAssignments
+		];
+		return allAssignments.every(a => a.status === 'approved' || a.status === 'rejected');
+	});
 
 	// CV switching functions
 	const switchToCV = (cvId: string) => {
@@ -324,6 +341,28 @@
 		}
 	};
 
+	const lockCV = async () => {
+		if (!currentCVData) return;
+
+		isProcessing = true;
+		errorMessage = '';
+		successMessage = '';
+
+		try {
+			const result = await client.mutation((api as any).adminCVReview.lockCVFinal, {
+				cvId: currentCVData._id as any,
+				lockedBy: 'admin-user' // TODO: Get actual admin user ID
+			});
+
+			successMessage = `CV locked and finalized! ${result.approvedCount} services approved, ${result.rejectedCount} services rejected. Training invitations will be sent for approved services.`;
+			onApprovalChange(); // Refresh data
+		} catch (error) {
+			errorMessage = `Failed to lock CV: ${error}`;
+		} finally {
+			isProcessing = false;
+		}
+	};
+
 	// Clear messages after 5 seconds
 	$effect(() => {
 		if (successMessage || errorMessage) {
@@ -385,7 +424,11 @@
 			</div>
 			<div class="space-y-2">
 				{#each allUserCVs as cv}
-					<div class="p-2 rounded-lg cursor-pointer transition-colors {cv.id === selectedCVId ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'}" onclick={() => switchToCV(cv.id)}>
+					<button 
+						type="button"
+						class="w-full p-2 rounded-lg transition-colors text-left {cv.id === selectedCVId ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'}" 
+						onclick={() => switchToCV(cv.id)}
+					>
 						<div class="flex items-center justify-between">
 							<div class="flex items-center space-x-2">
 								<span class="text-xs font-medium text-gray-900">v{cv.version}</span>
@@ -400,7 +443,7 @@
 						<div class="text-xs text-gray-500 mt-1">
 							{cv.organization} • {formatDateShort(cv.createdAt)}
 						</div>
-					</div>
+					</button>
 				{/each}
 			</div>
 		</div>
@@ -409,7 +452,7 @@
 		{#if currentCVData}
 			<DevelopmentToolBar 
 				cvStatus={currentCVData.status}
-				cvId={currentCVData._id}
+				cvId={currentCVData._id as any}
 				onActionCompleted={onApprovalChange}
 			/>
 		{/if}
@@ -448,147 +491,140 @@
 						<h2 class="text-xl font-bold text-gray-900">
 							Service Applications for {currentCVData.organization.name}
 						</h2>
-						<!-- Unlock CV Button (when CV is locked for review) -->
-						{#if currentCVData.status === 'locked_for_review'}
-							<button 
-								type="button"
-								class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-								onclick={unlockCV}
-								disabled={isProcessing}
-							>
-								Unlock CV for Edits
-							</button>
-						{/if}
+						<div class="flex items-center space-x-3">
+							<!-- Lock CV Button (when all assignments are decided) -->
+							{#if canLockCV()}
+								<button 
+									type="button"
+									class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+									onclick={lockCV}
+									disabled={isProcessing}
+								>
+									🔒 Lock CV & Finalize Review
+								</button>
+							{/if}
+							
+							<!-- Unlock CV Button (when CV is locked for review) -->
+							{#if currentCVData.status === 'locked_for_review'}
+								<button 
+									type="button"
+									class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+									onclick={unlockCV}
+									disabled={isProcessing}
+								>
+									Unlock CV for Edits
+								</button>
+							{/if}
+						</div>
 					</div>
 
-					<!-- PENDING REVIEW SERVICES (Priority) -->
-					{#if currentCVData.pendingAssignments.length > 0}
-						<div class="mb-6">
-							<h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-								<svg class="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-								</svg>
-								Pending Review ({currentCVData.pendingAssignments.length})
-							</h3>
-							<div class="space-y-3">
-								{#each currentCVData.pendingAssignments as assignment}
-									<div class="border border-yellow-200 rounded-lg p-4 bg-yellow-50">
-										<div class="flex justify-between items-start">
-											<div class="flex-1">
-												<div class="flex items-center space-x-2 mb-1">
-													<h4 class="font-semibold text-gray-900">{assignment.serviceVersion.name}</h4>
-													<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getExpertRoleColor(assignment.role)}">
-														{getExpertRoleDisplayName(assignment.role)}
-													</span>
-												</div>
-												<p class="text-sm text-gray-600">{assignment.serviceParent.name} • {assignment.serviceVersion.version}</p>
-												<div class="flex items-center space-x-2 mt-2">
-													<span class="text-xs text-gray-500">Applied: {formatDate(assignment.createdAt)}</span>
-												</div>
+					<!-- ALL SERVICE ASSIGNMENTS -->
+					{#if currentCVData.assignments && currentCVData.assignments.length > 0}
+						<div class="space-y-3">
+							{#each currentCVData.assignments as assignment}
+								<div class="border rounded-lg p-4 {assignment.status === 'pending_review' ? 'border-yellow-200 bg-yellow-50' : assignment.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}">
+									<div class="flex justify-between items-start">
+										<div class="flex-1">
+											<div class="flex items-center space-x-2 mb-1">
+												<h4 class="font-semibold text-gray-900">{assignment.serviceVersion.name}</h4>
+												<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getExpertRoleColor(assignment.role)}">
+													{getExpertRoleDisplayName(assignment.role)}
+												</span>
+												<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getServiceStatusColor(assignment.status)}">
+													{getServiceStatusDisplayName(assignment.status)}
+												</span>
 											</div>
-											<div class="flex items-center space-x-2">
-												<!-- Communication Icon -->
-												<button class="p-2 text-gray-400 hover:text-gray-600" title="Communication">
-													<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-													</svg>
-												</button>
-												<!-- Action Buttons -->
-												<button
-													type="button"
-													onclick={() => handleApprove(assignment)}
-													class="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
-												>
-													Approve
-												</button>
-												<button
-													type="button"
-													onclick={() => handleReject(assignment)}
-													class="px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
-												>
-													Reject
-												</button>
+											<p class="text-sm text-gray-600">{assignment.serviceParent.name} • {assignment.serviceVersion.version}</p>
+											<div class="flex items-center space-x-2 mt-2">
+												<span class="text-xs text-gray-500">Applied: {formatDate(assignment.createdAt)}</span>
+												{#if assignment.reviewedAt}
+													<span class="text-xs text-gray-500">Reviewed: {formatDate(assignment.reviewedAt)}</span>
+												{/if}
 											</div>
 										</div>
+										<div class="flex items-center space-x-2">
+											<!-- Communication Icon -->
+											<button class="p-2 text-gray-400 hover:text-gray-600" title="Communication">
+												<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+												</svg>
+											</button>
+											
+											<!-- Action Buttons (only show if CV is not locked) -->
+											{#if canToggleStatus(assignment)}
+												{#if assignment.status === 'pending_review'}
+													<button
+														type="button"
+														onclick={() => handleApprove(assignment)}
+														class="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+													>
+														Approve
+													</button>
+													<button
+														type="button"
+														onclick={() => handleReject(assignment)}
+														class="px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+													>
+														Reject
+													</button>
+												{:else if assignment.status === 'approved'}
+													<button
+														type="button"
+														onclick={() => handleReject(assignment)}
+														class="px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+													>
+														Change to Reject
+													</button>
+												{:else if assignment.status === 'rejected'}
+													<button
+														type="button"
+														onclick={() => handleApprove(assignment)}
+														class="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+													>
+														Change to Approve
+													</button>
+												{/if}
+											{:else}
+												<span class="text-xs text-gray-500 italic">CV Locked</span>
+											{/if}
+										</div>
 									</div>
-								{/each}
-							</div>
+									
+									<!-- Review History -->
+									{#if assignment.approvedAt || assignment.rejectedAt}
+										<div class="bg-gray-50 rounded-lg p-3 mt-3">
+											<div class="text-sm">
+												{#if assignment.approvedAt}
+													<p class="text-green-700">
+														<strong>Approved</strong> on {formatDate(assignment.approvedAt)}
+														{#if assignment.approvedBy} by {assignment.approvedBy}{/if}
+													</p>
+												{/if}
+												{#if assignment.rejectedAt}
+													<p class="text-red-700">
+														<strong>Rejected</strong> on {formatDate(assignment.rejectedAt)}
+														{#if assignment.rejectedBy} by {assignment.rejectedBy}{/if}
+													</p>
+													{#if assignment.rejectionReason}
+														<p class="text-red-600 mt-1">
+															<strong>Reason:</strong> {assignment.rejectionReason}
+														</p>
+													{/if}
+												{/if}
+												{#if assignment.reviewNotes}
+													<p class="text-gray-700 mt-2">
+														<strong>Notes:</strong> {assignment.reviewNotes}
+													</p>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								</div>
+							{/each}
 						</div>
-					{/if}
-
-					<!-- DECIDED SERVICES (Approved/Rejected) -->
-					{#if currentCVData.approvedAssignments.length > 0 || currentCVData.rejectedAssignments.length > 0}
-						<div>
-							<h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-								<svg class="w-5 h-5 text-gray-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-								</svg>
-								Decided Services
-							</h3>
-							<div class="space-y-3">
-								{#each [...currentCVData.approvedAssignments, ...currentCVData.rejectedAssignments] as assignment}
-									<div class="border border-gray-200 rounded-lg p-4">
-										<div class="flex justify-between items-start">
-											<div class="flex-1">
-												<div class="flex items-center space-x-2 mb-1">
-													<h4 class="font-semibold text-gray-900">{assignment.serviceVersion.name}</h4>
-													<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getExpertRoleColor(assignment.role)}">
-														{getExpertRoleDisplayName(assignment.role)}
-													</span>
-												</div>
-												<p class="text-sm text-gray-600">{assignment.serviceParent.name} • {assignment.serviceVersion.version}</p>
-												<div class="flex items-center space-x-2 mt-2">
-													<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getServiceStatusColor(assignment.status)}">
-														{getServiceStatusDisplayName(assignment.status)}
-													</span>
-													<span class="text-xs text-gray-500">Applied: {formatDate(assignment.createdAt)}</span>
-													{#if assignment.reviewedAt}
-														<span class="text-xs text-gray-500">Reviewed: {formatDate(assignment.reviewedAt)}</span>
-													{/if}
-												</div>
-											</div>
-											<div class="flex items-center space-x-2">
-												<!-- Communication Icon -->
-												<button class="p-2 text-gray-400 hover:text-gray-600" title="Communication">
-													<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-													</svg>
-												</button>
-											</div>
-										</div>
-										
-										<!-- Review History -->
-										{#if assignment.approvedAt || assignment.rejectedAt}
-											<div class="bg-gray-50 rounded-lg p-3 mt-3">
-												<div class="text-sm">
-													{#if assignment.approvedAt}
-														<p class="text-green-700">
-															<strong>Approved</strong> on {formatDate(assignment.approvedAt)}
-															{#if assignment.approvedBy} by {assignment.approvedBy}{/if}
-														</p>
-													{/if}
-													{#if assignment.rejectedAt}
-														<p class="text-red-700">
-															<strong>Rejected</strong> on {formatDate(assignment.rejectedAt)}
-															{#if assignment.rejectedBy} by {assignment.rejectedBy}{/if}
-														</p>
-														{#if assignment.rejectionReason}
-															<p class="text-red-600 mt-1">
-																<strong>Reason:</strong> {assignment.rejectionReason}
-															</p>
-														{/if}
-													{/if}
-													{#if assignment.reviewNotes}
-														<p class="text-gray-700 mt-2">
-															<strong>Notes:</strong> {assignment.reviewNotes}
-														</p>
-													{/if}
-												</div>
-											</div>
-										{/if}
-									</div>
-								{/each}
-							</div>
+					{:else}
+						<div class="text-center py-8 text-gray-500">
+							<p>No service assignments found for this CV.</p>
 						</div>
 					{/if}
 				</div>

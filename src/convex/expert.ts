@@ -233,7 +233,7 @@ export const addService = mutation({
 			serviceVersionId: args.serviceVersionId,
 			role: args.role || 'regular', // Use provided role or default to 'regular'
 			status: 'pending_review', // Default status
-			trainingStatus: 'required', // Training needed after approval
+			// Don't set trainingStatus here - it will be set when CV is locked
 			createdAt: Date.now(),
 			assignedBy: 'user' // TODO: Get actual user ID
 		});

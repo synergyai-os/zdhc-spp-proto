@@ -246,29 +246,22 @@ export const approveServiceAssignment = mutation({
 	handler: async (ctx, args) => {
 		const now = Date.now();
 
-		// Check if assignment exists and is pending review
+		// Check if assignment exists
 		const assignment = await ctx.db.get(args.assignmentId);
 		if (!assignment) {
 			throw new Error('Assignment not found');
 		}
 
-		if (assignment.status !== 'pending_review') { // 'pending_review'
-			throw new Error('Can only approve assignments that are pending review');
+		// Check if CV is already locked (can't change decisions after lock)
+		const cv = await ctx.db.get(assignment.expertCVId);
+		if (!cv || cv.status === 'locked_final') {
+			throw new Error('Cannot change assignment status - CV is already locked');
 		}
 
-		// Check if user already has qualification for this service version
-		const existingQualification = await ctx.db
-			.query('expertQualifications')
-			.withIndex('by_user_service', (q) =>
-				q.eq('userId', assignment.userId).eq('serviceVersionId', assignment.serviceVersionId)
-			)
-			.first();
-
-		// Determine training status based on existing qualification
-		const trainingStatus = existingQualification ? 'not_required' : 'required';
+		// Update assignment status immediately (for admin feedback)
+		// Training status will be set later when CV is locked
 		const updateData: any = {
 			status: 'approved',
-			trainingStatus,
 			reviewedAt: now,
 			reviewedBy: args.reviewedBy,
 			approvedAt: now,
@@ -276,20 +269,10 @@ export const approveServiceAssignment = mutation({
 			reviewNotes: args.reviewNotes
 		};
 
-		// If already qualified, set qualification reference and timestamp
-		if (existingQualification) {
-			updateData.qualificationId = existingQualification._id.toString();
-			updateData.qualifiedAt = existingQualification.trainingPassedAt;
-			updateData.trainingNotes = `Already qualified - training completed on ${new Date(existingQualification.trainingPassedAt).toISOString()}`;
-		}
-
 		// Update assignment status
-		const result = await ctx.db.patch(args.assignmentId, updateData);
+		await ctx.db.patch(args.assignmentId, updateData);
 
-		// Check if we should lock the CV
-		await checkAndLockCV(ctx, assignment.expertCVId);
-
-		return result;
+		return { success: true };
 	}
 });
 
@@ -303,31 +286,34 @@ export const rejectServiceAssignment = mutation({
 	handler: async (ctx, args) => {
 		const now = Date.now();
 
-		// Check if assignment exists and is pending review
+		// Check if assignment exists
 		const assignment = await ctx.db.get(args.assignmentId);
 		if (!assignment) {
 			throw new Error('Assignment not found');
 		}
 
-		if (assignment.status !== 'pending_review') { // 'pending_review'
-			throw new Error('Can only reject assignments that are pending review');
+		// Check if CV is already locked (can't change decisions after lock)
+		const cv = await ctx.db.get(assignment.expertCVId);
+		if (!cv || cv.status === 'locked_final') {
+			throw new Error('Cannot change assignment status - CV is already locked');
 		}
 
-		// Update assignment status
-		const result = await ctx.db.patch(args.assignmentId, {
-			status: 'rejected', // 'rejected'
+		// Update assignment status immediately (for admin feedback)
+		// Training status will be set later when CV is locked
+		const updateData: any = {
+			status: 'rejected',
 			reviewedAt: now,
 			reviewedBy: args.reviewedBy,
 			rejectedAt: now,
 			rejectedBy: args.reviewedBy,
 			rejectionReason: args.rejectionReason,
 			reviewNotes: args.reviewNotes
-		});
+		};
 
-		// Check if we should lock the CV
-		await checkAndLockCV(ctx, assignment.expertCVId);
+		// Update assignment status
+		await ctx.db.patch(args.assignmentId, updateData);
 
-		return result;
+		return { success: true };
 	}
 });
 
@@ -337,7 +323,172 @@ export const lockExpertCV = mutation({
 		lockedBy: v.string()
 	},
 	handler: async (ctx, args) => {
-		return await checkAndLockCV(ctx, args.expertCVId);
+		return await lockCVFinalHandler(ctx, args.expertCVId, args.lockedBy);
+	}
+});
+
+/**
+ * Explicit CV locking - admin-controlled finalization
+ * Only callable when all assignments are decided (approved/rejected)
+ */
+export const lockCVFinal = mutation({
+	args: {
+		cvId: v.id('expertCVs'),
+		lockedBy: v.string()
+	},
+	handler: async (ctx, args) => {
+		return await lockCVFinalHandler(ctx, args.cvId, args.lockedBy);
+	}
+});
+
+/**
+ * Handler function for CV locking logic
+ */
+async function lockCVFinalHandler(ctx: any, cvId: any, lockedBy: string) {
+	const cv = await ctx.db.get(cvId);
+	if (!cv) {
+		throw new Error('CV not found');
+	}
+
+	if (cv.status !== 'locked_for_review') {
+		throw new Error('CV must be in locked_for_review status to be locked');
+	}
+
+	// Get all assignments for this CV
+	const assignments = await ctx.db
+		.query('expertServiceAssignments')
+		.filter((q: any) => q.eq(q.field('expertCVId'), cvId))
+		.collect();
+
+	// Check if all assignments are decided (approved or rejected)
+	const undecidedAssignments = assignments.filter(
+		(a: any) => a.status === 'pending_review'
+	);
+
+	if (undecidedAssignments.length > 0) {
+		throw new Error(`${undecidedAssignments.length} assignments still pending review`);
+	}
+
+	// All assignments are decided - lock the CV
+	const now = Date.now();
+	await ctx.db.patch(cvId, {
+		status: 'locked_final',
+		lockedAt: now
+	});
+
+	// Process training status and send invitations for approved assignments
+	await handlePostLockActions(ctx, cvId, assignments);
+
+	return {
+		success: true,
+		locked: true,
+		approvedCount: assignments.filter((a: any) => a.status === 'approved').length,
+		rejectedCount: assignments.filter((a: any) => a.status === 'rejected').length
+	};
+}
+
+/**
+ * Toggle assignment status - allows admin to change decisions until CV is locked
+ * Can switch between approved/rejected or set to pending_review
+ */
+export const toggleAssignmentStatus = mutation({
+	args: {
+		assignmentId: v.id('expertServiceAssignments'),
+		newStatus: v.union(v.literal('approved'), v.literal('rejected'), v.literal('pending_review')),
+		reviewedBy: v.string(),
+		reviewNotes: v.optional(v.string()),
+		rejectionReason: v.optional(v.string())
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now();
+
+		// Check if assignment exists
+		const assignment = await ctx.db.get(args.assignmentId);
+		if (!assignment) {
+			throw new Error('Assignment not found');
+		}
+
+		// Check if CV is already locked (can't change decisions after lock)
+		const cv = await ctx.db.get(assignment.expertCVId);
+		if (!cv || cv.status === 'locked_final') {
+			throw new Error('Cannot change assignment status - CV is already locked');
+		}
+
+		// Build update data based on new status
+		const updateData: any = {
+			status: args.newStatus,
+			reviewedAt: now,
+			reviewedBy: args.reviewedBy,
+			reviewNotes: args.reviewNotes
+		};
+
+		// Set appropriate timestamps and fields based on status
+		if (args.newStatus === 'approved') {
+			updateData.approvedAt = now;
+			updateData.approvedBy = args.reviewedBy;
+			// Clear rejection fields if switching from rejected
+			updateData.rejectedAt = undefined;
+			updateData.rejectedBy = undefined;
+			updateData.rejectionReason = undefined;
+		} else if (args.newStatus === 'rejected') {
+			updateData.rejectedAt = now;
+			updateData.rejectedBy = args.reviewedBy;
+			updateData.rejectionReason = args.rejectionReason || 'No reason provided';
+			// Clear approval fields if switching from approved
+			updateData.approvedAt = undefined;
+			updateData.approvedBy = undefined;
+		} else if (args.newStatus === 'pending_review') {
+			// Clear all decision fields when resetting to pending
+			updateData.approvedAt = undefined;
+			updateData.approvedBy = undefined;
+			updateData.rejectedAt = undefined;
+			updateData.rejectedBy = undefined;
+			updateData.rejectionReason = undefined;
+		}
+
+		// Update assignment status
+		await ctx.db.patch(args.assignmentId, updateData);
+
+		return { success: true };
+	}
+});
+
+/**
+ * Clear training status for approved assignments whose CVs are not locked
+ * This fixes the issue where old assignments have training status set prematurely
+ */
+export const clearPrematureTrainingStatus = mutation({
+	args: {},
+	handler: async (ctx) => {
+		// Get all approved assignments
+		const approvedAssignments = await ctx.db
+			.query('expertServiceAssignments')
+			.filter((q: any) => q.eq(q.field('status'), 'approved'))
+			.collect();
+
+		let clearedCount = 0;
+
+		for (const assignment of approvedAssignments) {
+			// Get the CV for this assignment
+			const cv = await ctx.db.get(assignment.expertCVId);
+			
+			// If CV is not locked_final, clear the training status
+			if (cv && cv.status !== 'locked_final' && assignment.trainingStatus) {
+				await ctx.db.patch(assignment._id, {
+					trainingStatus: undefined,
+					trainingNotes: undefined,
+					qualificationId: undefined,
+					qualifiedAt: undefined
+				});
+				clearedCount++;
+			}
+		}
+
+		return {
+			success: true,
+			clearedCount,
+			message: `Cleared training status for ${clearedCount} assignments`
+		};
 	}
 });
 

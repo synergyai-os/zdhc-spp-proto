@@ -35,6 +35,17 @@ export const IS_DEVELOPMENT = true;
 export const DEBUG_MODE = true;
 
 // ==========================================
+// PAYMENT CONFIGURATION
+// ==========================================
+
+/**
+ * Payment expiration period in milliseconds
+ * Currently set to 1 year (365 days)
+ */
+export const PAYMENT_EXPIRY_PERIOD_MS = 365 * 24 * 60 * 60 * 1000; // 1 year in milliseconds
+
+
+// ==========================================
 // FUTURE CONFIGURATION
 // ==========================================
 
