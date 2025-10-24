@@ -108,20 +108,34 @@
 			);
 			const rejectedExperts = assignments.filter(a => a.status === 'rejected');
 
+			// Categorize experts by journey first (needed for deduplication)
+			const journeyCategories = categorizeExpertsByJourney(assignments);
+
 			// Service is active if it has at least one approved lead expert who is qualified AND paid
 			// Only consider experts whose CV has been locked (trainingStatus is set)
+			// EXCLUDE experts who are already categorized in journey categories to avoid duplication
+			const journeyCategorizedExpertIds = new Set([
+				...journeyCategories.approvedTrainingRequired.map(a => a._id),
+				...journeyCategories.approvedTrainingFailed.map(a => a._id),
+				...journeyCategories.approvedAlreadyQualified.map(a => a._id),
+				...journeyCategories.approvedTrainingPassed.map(a => a._id)
+			]);
+			
 			const qualifiedLeadExperts = approvedLeadExperts.filter(a => 
-				a.trainingStatus && isQualified(a.trainingStatus) && isCVPaidAndValid(a)
+				a.trainingStatus && isQualified(a.trainingStatus) && isCVPaidAndValid(a) &&
+				!journeyCategorizedExpertIds.has(a._id)
 			);
 			
 			// Service is pending payment if it has qualified leads but they're unpaid or expired
 			const qualifiedLeadExpertsPendingPayment = approvedLeadExperts.filter(a => 
-				a.trainingStatus && isQualified(a.trainingStatus) && !isCVPaidAndValid(a)
+				a.trainingStatus && isQualified(a.trainingStatus) && !isCVPaidAndValid(a) &&
+				!journeyCategorizedExpertIds.has(a._id)
 			);
 			
 			// Only show truly qualified regular experts (training passed or not required)
 			const qualifiedRegularExperts = approvedRegularExperts.filter(a => 
-				a.trainingStatus && isQualified(a.trainingStatus)
+				a.trainingStatus && isQualified(a.trainingStatus) &&
+				!journeyCategorizedExpertIds.has(a._id)
 			);
 			
 			// Experts currently in training (truly approved but training required/invited/in_progress)
@@ -133,9 +147,6 @@
 			const isActive = qualifiedLeadExperts.length > 0;
 			const isPendingPayment = qualifiedLeadExpertsPendingPayment.length > 0 && !isActive;
 			const isInactive = !isActive && !isPendingPayment;
-
-			// Categorize experts by journey for inactive services
-			const journeyCategories = categorizeExpertsByJourney(assignments);
 
 			parentGroups.get(parentId).versions.push({
 				...service,
