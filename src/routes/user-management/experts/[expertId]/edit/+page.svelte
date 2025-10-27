@@ -532,108 +532,146 @@
 </script>
 
 <!-- 5. Simple template -->
-<div class="max-w-4xl mx-auto px-6 py-8">
-	<h1 class="text-3xl font-bold text-gray-800 mb-6">Edit Expert CV</h1>
+<div class="bg-gray-50 min-h-screen">
+	<div class="max-w-7xl mx-auto px-6 py-8">
+		{#if expertCV?.data}
+			<div class="flex gap-6">
+				<!-- LEFT SIDEBAR: Expert Header (Smaller, like admin page) -->
+				<div class="w-80 flex-shrink-0">
+					<ExpertHeader {userDetails} {expertCV} />
+				</div>
 
-	<ExpertHeader {userDetails} {expertCV} />
-	
-	{#if expertCV?.data}
-		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-			<TabSwitcher 
-				tabs={['services', 'experience', 'education', 'training']} 
-				{activeTab} 
-				onTabChange={(tab: string) => activeTab = tab as 'services' | 'experience' | 'education' | 'training'} 
-			/>
+				<!-- MAIN CONTENT AREA: Tabs and Content (Wider) -->
+				<div class="flex-1 space-y-6">
+					<!-- Tab Switcher -->
+					<TabSwitcher 
+						tabs={['services', 'experience', 'education', 'training']} 
+						{activeTab} 
+						onTabChange={(tab: string) => activeTab = tab as 'services' | 'experience' | 'education' | 'training'} 
+					/>
+					
+					<!-- Main Content Card -->
+					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+						<!-- Services Tab Content -->
+						{#if activeTab === 'services'}
+							<ServiceSelection 
+								cvStatus={expertCV?.data?.status || 'draft'}
+								availableServices={availableServices?.data || []}
+								selectedServices={effectiveServiceSelection}
+								serviceRoles={serviceRoles}
+								roleChanges={roleChanges}
+								onServiceToggle={handleServiceToggle}
+								onRoleChange={handleRoleChange}
+								isLoading={availableServices?.isLoading}
+								error={availableServices?.error?.message || ''}
+								hasLeadExpert={hasLeadExpert}
+								readOnlyServices={readOnlyServices}
+							/>
+						{/if}
 
-			<!-- Services Tab Content -->
-			{#if activeTab === 'services'}
-				<ServiceSelection 
-					cvStatus={expertCV?.data?.status || 'draft'}
-					availableServices={availableServices?.data || []}
-					selectedServices={effectiveServiceSelection}
-					serviceRoles={serviceRoles}
-					roleChanges={roleChanges}
-					onServiceToggle={handleServiceToggle}
-					onRoleChange={handleRoleChange}
-					isLoading={availableServices?.isLoading}
-					error={availableServices?.error?.message || ''}
-					hasLeadExpert={hasLeadExpert}
-					readOnlyServices={readOnlyServices}
-				/>
-			{/if}
+						<!-- Experience Tab Content -->
+						{#if activeTab === 'experience'}
+							<ExperienceView 
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onAddExperience={addExperience}
+								onRemoveExperience={removeExperience}
+								onUpdateExperience={updateExperience}
+							/>
+						{/if}
 
-			<!-- Experience Tab Content -->
-			{#if activeTab === 'experience'}
-				<ExperienceView 
-					cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
-					{localCVData}
-					onAddExperience={addExperience}
-					onRemoveExperience={removeExperience}
-					onUpdateExperience={updateExperience}
-				/>
-			{/if}
+						<!-- Education Tab Content -->
+						{#if activeTab === 'education'}
+							<EducationView 
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onAddEducation={addEducation}
+								onRemoveEducation={removeEducation}
+								onUpdateEducation={updateEducation}
+							/>
+						{/if}
 
-			<!-- Education Tab Content -->
-			{#if activeTab === 'education'}
-				<EducationView 
-					cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
-					{localCVData}
-					onAddEducation={addEducation}
-					onRemoveEducation={removeEducation}
-					onUpdateEducation={updateEducation}
-				/>
-			{/if}
-
-			<!-- Training Qualification Tab Content -->
-			{#if activeTab === 'training'}
-				<TrainingQualificationView 
-					cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
-					{localCVData}
-					onAddTraining={addTraining}
-					onRemoveTraining={removeTraining}
-					onUpdateTraining={updateTraining}
-				/>
-			{/if}
-
-			<!-- Save Buttons - Always visible regardless of tab -->
-			<div class="mt-6 pt-6 border-t border-gray-200">
-				{#if canEditCVContent(expertCV?.data?.status || 'draft')}
-					<div class="flex gap-3">
-						<button 
-							onclick={save} 
-							disabled={isSaving} 
-							class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-						>
-							{isSaving ? 'Saving...' : 'Save CV'}
-						</button>
-						
-						{#if expertCV?.data?.status === 'unlocked_for_edits'}
-							<button 
-								onclick={resubmitForReview} 
-								disabled={isSaving} 
-								class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-							>
-								{isSaving ? 'Submitting...' : 'Resubmit for Review'}
-							</button>
+						<!-- Training Qualification Tab Content -->
+						{#if activeTab === 'training'}
+							<TrainingQualificationView 
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onAddTraining={addTraining}
+								onRemoveTraining={removeTraining}
+								onUpdateTraining={updateTraining}
+							/>
 						{/if}
 					</div>
-				{:else}
-					<div class="flex items-center space-x-2 text-sm text-gray-500 italic">
-						<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-						</svg>
-						<span>CV is locked and cannot be edited. Contact your administrator if changes are needed.</span>
+
+					<!-- Save Buttons - Fixed at bottom of page -->
+					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+						{#if canEditCVContent(expertCV?.data?.status || 'draft')}
+							<div class="flex items-center justify-between">
+								<div class="flex items-center space-x-2 text-sm text-gray-600">
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+									</svg>
+									<span>
+										{#if expertCV?.data?.status === 'unlocked_for_edits'}
+											Make your changes, then resubmit for review.
+										{:else}
+											Don't forget to save your changes.
+										{/if}
+									</span>
+								</div>
+								<div class="flex gap-3">
+									<button 
+										onclick={save} 
+										disabled={isSaving} 
+										class="inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
+									>
+										{#if isSaving}
+											<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+											</svg>
+											Saving...
+										{:else}
+											<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+											</svg>
+											Save Changes
+										{/if}
+									</button>
+									
+									{#if expertCV?.data?.status === 'unlocked_for_edits'}
+										<button 
+											onclick={resubmitForReview} 
+											disabled={isSaving} 
+											class="inline-flex items-center px-6 py-3 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
+										>
+											{#if isSaving}
+												<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+												</svg>
+												Submitting...
+											{:else}
+												<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+												</svg>
+												Resubmit for Review
+											{/if}
+										</button>
+									{/if}
+								</div>
+							</div>
+						{:else}
+							<div class="flex items-center space-x-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">
+								<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+								</svg>
+								<span>CV is locked and cannot be edited. Contact your administrator if changes are needed.</span>
+							</div>
+						{/if}
 					</div>
-				{/if}
+				</div>
 			</div>
-		</div>
-	{:else}
-		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-			<h2 class="text-xl font-semibold text-gray-800 mb-2">No CV Found</h2>
-			<p class="text-gray-600 mb-4">This expert doesn't have a CV yet.</p>
-			<button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-				Create New CV
-					</button>
+		{:else if !expertCV?.data}
+			<ExpertHeader {userDetails} {expertCV} />
+		{/if}
 	</div>
-	{/if}
 </div>
