@@ -60,24 +60,6 @@ export async function createExpertCV(ctx: MutationCtx, args: CreateExpertCVArgs)
   try {
     const now = Date.now();
 
-    // Validate experience data
-    const experienceValidation = validateExperienceData(args.experience);
-    if (!experienceValidation.isValid) {
-      return { 
-        success: false, 
-        error: `Experience validation failed: ${experienceValidation.errors.join(', ')}` 
-      };
-    }
-
-    // Validate education data
-    const educationValidation = validateEducationData(args.education);
-    if (!educationValidation.isValid) {
-      return { 
-        success: false, 
-        error: `Education validation failed: ${educationValidation.errors.join(', ')}` 
-      };
-    }
-
     // Get the next version number
     const existingCVs = await ctx.db
       .query('expertCVs')
@@ -97,10 +79,29 @@ export async function createExpertCV(ctx: MutationCtx, args: CreateExpertCVArgs)
 
     if (existingCVs.length > 0) {
       const latestCV = existingCVs.sort((a, b) => b.version - a.version)[0];
-      if (latestCV.status === 'locked') {
+      // Copy from locked CVs (locked_final, locked_for_review, etc.)
+      if (latestCV.status.startsWith('locked')) {
         experience = latestCV.experience;
         education = latestCV.education;
       }
+    }
+
+    // Validate experience data (after potential auto-copy)
+    const experienceValidation = validateExperienceData(experience);
+    if (!experienceValidation.isValid) {
+      return { 
+        success: false, 
+        error: `Experience validation failed: ${experienceValidation.errors.join(', ')}` 
+      };
+    }
+
+    // Validate education data (after potential auto-copy)
+    const educationValidation = validateEducationData(education);
+    if (!educationValidation.isValid) {
+      return { 
+        success: false, 
+        error: `Education validation failed: ${educationValidation.errors.join(', ')}` 
+      };
     }
 
     // Create the CV

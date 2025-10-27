@@ -204,6 +204,76 @@ export const seedInitialData = mutation({
 	}
 });
 
+/**
+ * Create a draft expert (user + CV + service assignments) in one transaction
+ * Used when adding a new expert via the add-expert flow
+ */
+export const createDraftExpert = mutation({
+	args: {
+		email: v.string(),
+		organizationId: v.id('organizations'),
+		serviceAssignments: v.array(
+			v.object({
+				serviceVersionId: v.id('serviceVersions'),
+				role: v.union(v.literal('lead'), v.literal('regular'))
+			})
+		),
+		createdBy: v.string(),
+		notes: v.optional(v.string())
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now();
+
+		// 1. Extract firstName from email (everything before @)
+		const emailPrefix = args.email.split('@')[0];
+		const firstName = emailPrefix || 'Unknown';
+
+		// 2. Create user (isActive=false for draft)
+		const userId = await ctx.db.insert('users', {
+			firstName,
+			lastName: '',
+			email: args.email,
+			country: '', // Not collected from users
+			isActive: false, // Draft mode
+			createdAt: now,
+			updatedAt: now
+		});
+
+		// 3. Create CV with empty experience/education (draft status)
+		const cvId = await ctx.db.insert('expertCVs', {
+			userId,
+			organizationId: args.organizationId,
+			version: 1,
+			experience: [], // Empty - expert will fill this in later
+			education: [], // Empty - expert will fill this in later
+			status: 'draft',
+			createdAt: now,
+			createdBy: args.createdBy,
+			notes: args.notes
+		});
+
+		// 4. Create service assignments
+		for (const assignment of args.serviceAssignments) {
+			await ctx.db.insert('expertServiceAssignments', {
+				userId,
+				organizationId: args.organizationId,
+				expertCVId: cvId,
+				serviceVersionId: assignment.serviceVersionId,
+				role: assignment.role,
+				status: 'pending_review',
+				createdAt: now,
+				assignedBy: args.createdBy
+			});
+		}
+
+		return {
+			success: true,
+			userId,
+			cvId
+		};
+	}
+});
+
 export const clearAllData = mutation({
 	args: {},
 	handler: async (ctx) => {

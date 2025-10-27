@@ -28,7 +28,7 @@
 	<!-- Tab Switcher -->
 	<div class="mt-8">
 		<TabSwitcher 
-			tabs={['staff', 'experts', 'services']} 
+			tabs={['Platform Users', 'experts', 'services']} 
 			{activeTab} 
 			onTabChange={handleTabChange} 
 		/>
@@ -36,9 +36,9 @@
 
 	<!-- Content Area -->
 	<div class="mt-8">
-		{#if activeTab === 'staff'}
+		{#if activeTab === 'Platform Users'}
 			<div class="text-center py-12">
-				<p class="text-gray-500 text-lg">Staff</p>
+				<p class="text-gray-500 text-lg">Platform Users</p>
 			</div>
 		{:else if activeTab === 'experts'}
 			<ExpertTableView />
