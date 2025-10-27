@@ -8,6 +8,7 @@ export interface ExperienceEntry {
   startDate: string;
   endDate: string;
   current: boolean;
+  onSiteAuditsCompleted: number;
   description: string;
 }
 
@@ -20,11 +21,21 @@ export interface EducationEntry {
   description: string;
 }
 
+export interface TrainingQualificationEntry {
+  qualificationName: string;
+  trainingOrganisation: string;
+  trainingContent: string;
+  dateIssued: string;
+  expireDate: string;
+  description: string;
+}
+
 // CV update arguments
 export interface UpdateExpertCVArgs {
   id: Id<'expertCVs'>;
   experience?: ExperienceEntry[];
   education?: EducationEntry[];
+  trainingQualifications?: TrainingQualificationEntry[];
   notes?: string;
 }
 
@@ -34,6 +45,7 @@ export interface CreateExpertCVArgs {
   organizationId: Id<'organizations'>;
   experience: ExperienceEntry[];
   education: EducationEntry[];
+  trainingQualifications?: TrainingQualificationEntry[];
   createdBy: string;
   notes?: string;
 }

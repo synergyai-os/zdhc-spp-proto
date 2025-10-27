@@ -5,7 +5,8 @@ import type {
   CreateExpertCVArgs, 
   SubmitExpertCVArgs, 
   LockExpertCVArgs,
-  CVUpdateResult 
+  CVUpdateResult,
+  TrainingQualificationEntry
 } from './types';
 import { validateExperienceData, validateEducationData } from './validators';
 
@@ -37,6 +38,10 @@ export async function updateExpertCV(ctx: MutationCtx, args: UpdateExpertCVArgs)
 
     if (args.education !== undefined) {
       updateData.education = args.education;
+    }
+
+    if (args.trainingQualifications !== undefined) {
+      updateData.trainingQualifications = args.trainingQualifications;
     }
 
     if (args.notes !== undefined) {
@@ -76,6 +81,7 @@ export async function createExpertCV(ctx: MutationCtx, args: CreateExpertCVArgs)
     // Auto-copy from latest CV if exists and is locked
     let experience = args.experience;
     let education = args.education;
+    let trainingQualifications = args.trainingQualifications || [];
 
     if (existingCVs.length > 0) {
       const latestCV = existingCVs.sort((a, b) => b.version - a.version)[0];
@@ -83,6 +89,7 @@ export async function createExpertCV(ctx: MutationCtx, args: CreateExpertCVArgs)
       if (latestCV.status.startsWith('locked')) {
         experience = latestCV.experience;
         education = latestCV.education;
+        trainingQualifications = latestCV.trainingQualifications || [];
       }
     }
 
@@ -111,6 +118,7 @@ export async function createExpertCV(ctx: MutationCtx, args: CreateExpertCVArgs)
       version: nextVersion,
       experience,
       education,
+      trainingQualifications,
       status: 'draft',
       createdAt: now,
       createdBy: args.createdBy,

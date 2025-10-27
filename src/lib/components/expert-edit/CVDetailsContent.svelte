@@ -35,9 +35,6 @@
 		expertCV: ExpertCV;
 		cvStatus: CVStatus;
 		localCVData: CVData | null;
-		isSaving: boolean;
-		onSave: () => void;
-		onResubmit: () => void;
 		onAddExperience: () => void;
 		onRemoveExperience: (index: number) => void;
 		onUpdateExperience: (index: number, field: string, value: string | boolean) => void;
@@ -49,10 +46,7 @@
 	let { 
 		expertCV, 
 		cvStatus,
-		localCVData, 
-		isSaving, 
-		onSave, 
-		onResubmit, 
+		localCVData,
 		onAddExperience, 
 		onRemoveExperience, 
 		onUpdateExperience, 
@@ -366,21 +360,3 @@
 			</div>
 	{/if}
 	</div>
-
-<div class="mt-6 flex gap-3">
-	{#if !readOnly}
-		<button onclick={onSave} disabled={isSaving} class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-			{isSaving ? 'Saving...' : 'Save CV'}
-		</button>
-		
-		{#if cvStatus === 'unlocked_for_edits'}
-			<button onclick={onResubmit} disabled={isSaving} class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50">
-				{isSaving ? 'Submitting...' : 'Resubmit for Review'}
-			</button>
-		{/if}
-	{:else}
-		<div class="text-sm text-gray-500 italic">
-			CV is locked and cannot be edited. Contact your administrator if changes are needed.
-		</div>
-	{/if}
-</div>

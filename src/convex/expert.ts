@@ -367,6 +367,7 @@ export const updateCV = mutation({
 			startDate: v.string(),
 			endDate: v.optional(v.string()),
 			current: v.boolean(),
+			onSiteAuditsCompleted: v.number(),
 			description: v.optional(v.string())
 		}))),
 		education: v.optional(v.array(v.object({
@@ -375,6 +376,14 @@ export const updateCV = mutation({
 			field: v.string(),
 			startDate: v.string(),
 			endDate: v.string(),
+			description: v.string()
+		}))),
+		trainingQualifications: v.optional(v.array(v.object({
+			qualificationName: v.string(),
+			trainingOrganisation: v.string(),
+			trainingContent: v.string(),
+			dateIssued: v.string(),
+			expireDate: v.string(),
 			description: v.string()
 		})))
 	},
@@ -397,6 +406,9 @@ export const updateCV = mutation({
 		}
 		if (args.education !== undefined) {
 			updateData.education = args.education;
+		}
+		if (args.trainingQualifications !== undefined) {
+			updateData.trainingQualifications = args.trainingQualifications;
 		}
 
 		await ctx.db.patch(args.cvId, updateData);

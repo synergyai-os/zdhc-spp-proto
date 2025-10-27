@@ -123,6 +123,7 @@ export const createExpertCV = mutation({
 				startDate: v.string(),
 				endDate: v.string(),
 				current: v.boolean(),
+				onSiteAuditsCompleted: v.number(),
 				description: v.string()
 			})
 		),
@@ -136,6 +137,16 @@ export const createExpertCV = mutation({
 				description: v.string()
 			})
 		),
+		trainingQualifications: v.optional(v.array(
+			v.object({
+				qualificationName: v.string(),
+				trainingOrganisation: v.string(),
+				trainingContent: v.string(),
+				dateIssued: v.string(),
+				expireDate: v.string(),
+				description: v.string()
+			})
+		)),
 		createdBy: v.string(),
 		notes: v.optional(v.string())
 	},
@@ -164,6 +175,7 @@ export const updateExpertCV = mutation({
 					startDate: v.string(),
 					endDate: v.string(),
 					current: v.boolean(),
+					onSiteAuditsCompleted: v.number(),
 					description: v.string()
 				})
 			)
@@ -180,6 +192,16 @@ export const updateExpertCV = mutation({
 				})
 			)
 		),
+		trainingQualifications: v.optional(v.array(
+			v.object({
+				qualificationName: v.string(),
+				trainingOrganisation: v.string(),
+				trainingContent: v.string(),
+				dateIssued: v.string(),
+				expireDate: v.string(),
+				description: v.string()
+			})
+		)),
 		notes: v.optional(v.string())
 	},
 	handler: async (ctx, args) => {
@@ -227,207 +249,5 @@ export const lockExpertCV = mutation({
 		}
 		
 		return result.cvId;
-	}
-});
-
-// ==========================================
-// SEED DATA FUNCTIONS
-// ==========================================
-
-export const seedExpertCVsTestData = mutation({
-	args: {},
-	handler: async (ctx) => {
-		const now = Date.now();
-
-		// Get existing users and organizations
-		const users = await ctx.db.query('users').collect();
-		const organizations = await ctx.db
-			.query('organizations')
-			.filter((q) => q.eq(q.field('type'), 'solution_provider'))
-			.collect();
-		const serviceVersions = await ctx.db
-			.query('serviceVersions')
-			.filter((q) => q.eq(q.field('isActive'), true))
-			.collect();
-
-		if (users.length === 0 || organizations.length === 0 || serviceVersions.length === 0) {
-			throw new Error(
-				'Need users, organizations, and service versions. Run seedInitialData and seedServiceData first.'
-			);
-		}
-
-		const results = [];
-
-		// Create test CVs for each user-organization combination
-		for (const user of users.slice(0, 3)) {
-			for (const org of organizations.slice(0, 2)) {
-				// Create CV v1 (locked - with approved services)
-				const cv1 = await ctx.db.insert('expertCVs', {
-					userId: user._id,
-					organizationId: org._id,
-					version: 1,
-					experience: [
-						{
-							title: 'Senior Environmental Consultant',
-							company: 'GreenTech Solutions',
-							location: 'Amsterdam, Netherlands',
-							startDate: '2020-01-01',
-							endDate: '2024-01-01',
-							current: false,
-							description: 'Led environmental assessments and compliance projects.'
-						}
-					],
-					education: [
-						{
-							school: 'University of Amsterdam',
-							degree: 'MSc Environmental Science',
-							field: 'Environmental Science',
-							startDate: '2018-09-01',
-							endDate: '2020-06-01',
-							description: 'Specialized in sustainable development and environmental policy.'
-						}
-					],
-					status: 'locked',
-					createdAt: now - 30 * 24 * 60 * 60 * 1000, // 30 days ago
-					createdBy: 'system-seed',
-					submittedAt: now - 25 * 24 * 60 * 60 * 1000,
-					paidAt: now - 25 * 24 * 60 * 60 * 1000,
-					lockedAt: now - 20 * 24 * 60 * 60 * 1000,
-					notes: 'First CV version - approved for ETP Assessment'
-				});
-
-				// Create service assignments for CV v1 (approved)
-				for (const service of serviceVersions.slice(0, 2)) {
-					await ctx.db.insert('expertServiceAssignments', {
-						userId: user._id,
-						organizationId: org._id,
-						expertCVId: cv1,
-						serviceVersionId: service._id,
-						role: 'regular',
-						status: 'approved',
-						reviewedAt: now - 20 * 24 * 60 * 60 * 1000,
-						reviewedBy: 'zdhc-admin',
-						approvedAt: now - 20 * 24 * 60 * 60 * 1000,
-						approvedBy: 'zdhc-admin',
-						createdAt: now - 25 * 24 * 60 * 60 * 1000,
-						assignedBy: 'spp-manager'
-					});
-				}
-
-				// Create CV v2 (submitted - under review)
-				const cv2 = await ctx.db.insert('expertCVs', {
-					userId: user._id,
-					organizationId: org._id,
-					version: 2,
-					experience: [
-						{
-							title: 'Senior Environmental Consultant',
-							company: 'GreenTech Solutions',
-							location: 'Amsterdam, Netherlands',
-							startDate: '2020-01-01',
-							endDate: '2024-01-01',
-							current: false,
-							description: 'Led environmental assessments and compliance projects.'
-						},
-						{
-							title: 'Lead Sustainability Manager',
-							company: 'EcoCorp International',
-							location: 'Rotterdam, Netherlands',
-							startDate: '2024-01-01',
-							endDate: '',
-							current: true,
-							description: 'Leading sustainability initiatives and chemical management programs.'
-						}
-					],
-					education: [
-						{
-							school: 'University of Amsterdam',
-							degree: 'MSc Environmental Science',
-							field: 'Environmental Science',
-							startDate: '2018-09-01',
-							endDate: '2020-06-01',
-							description: 'Specialized in sustainable development and environmental policy.'
-						},
-						{
-							school: 'TU Delft',
-							degree: 'Professional Certificate',
-							field: 'Chemical Management',
-							startDate: '2023-09-01',
-							endDate: '2023-12-01',
-							description: 'Advanced certification in chemical management and ZDHC standards.'
-						}
-					],
-					status: 'submitted',
-					createdAt: now - 10 * 24 * 60 * 60 * 1000, // 10 days ago
-					createdBy: 'spp-manager',
-					submittedAt: now - 5 * 24 * 60 * 60 * 1000,
-					paidAt: now - 5 * 24 * 60 * 60 * 1000,
-					notes: 'Second CV version - adding Chemical Management service'
-				});
-
-				// Create service assignments for CV v2 (pending review)
-				await ctx.db.insert('expertServiceAssignments', {
-					userId: user._id,
-					organizationId: org._id,
-					expertCVId: cv2,
-					serviceVersionId: serviceVersions[2]?._id || serviceVersions[0]._id,
-					role: 'lead',
-					status: 'pending_review',
-					createdAt: now - 5 * 24 * 60 * 60 * 1000,
-					assignedBy: 'spp-manager'
-				});
-
-				// Create CV v3 (draft - being prepared)
-				const cv3 = await ctx.db.insert('expertCVs', {
-					userId: user._id,
-					organizationId: org._id,
-					version: 3,
-					experience: [
-						{
-							title: 'Lead Sustainability Manager',
-							company: 'EcoCorp International',
-							location: 'Rotterdam, Netherlands',
-							startDate: '2024-01-01',
-							endDate: '',
-							current: true,
-							description: 'Leading sustainability initiatives and chemical management programs.'
-						}
-					],
-					education: [
-						{
-							school: 'TU Delft',
-							degree: 'Professional Certificate',
-							field: 'Chemical Management',
-							startDate: '2023-09-01',
-							endDate: '2023-12-01',
-							description: 'Advanced certification in chemical management and ZDHC standards.'
-						}
-					],
-					status: 'draft',
-					createdAt: now - 2 * 24 * 60 * 60 * 1000, // 2 days ago
-					createdBy: 'spp-manager',
-					notes: 'Third CV version - preparing for Supplier Assessment services'
-				});
-
-				results.push({
-					user: user.email,
-					organization: org.name,
-					cv1: { id: cv1, status: 'locked', assignments: 2 },
-					cv2: { id: cv2, status: 'submitted', assignments: 1 },
-					cv3: { id: cv3, status: 'draft', assignments: 0 }
-				});
-			}
-		}
-
-		return {
-			message: `Created ${results.length * 3} test CVs with various statuses`,
-			results,
-			summary: {
-				lockedCVs: results.length, // Each user-org has 1 locked CV
-				submittedCVs: results.length, // Each user-org has 1 submitted CV
-				draftCVs: results.length, // Each user-org has 1 draft CV
-				totalAssignments: results.length * 3 // 2 approved + 1 pending per user-org
-			}
-		};
 	}
 });

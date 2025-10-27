@@ -9,7 +9,7 @@
 		version: string;
 		serviceParent?: {
 			name: string;
-		};
+		} | null;
 	}
 
 	interface Props {
@@ -22,6 +22,8 @@
 		onRoleChange: (serviceId: string, role: string) => void;
 		isLoading?: boolean;
 		error?: string;
+		hasLeadExpert?: (serviceId: string) => boolean; // Check if service already has a lead expert
+		readOnlyServices?: string[]; // Services that are read-only (already approved)
 	}
 
 	let { 
@@ -33,14 +35,21 @@
 		onServiceToggle, 
 		onRoleChange,
 		isLoading = false,
-		error = ''
+		error = '',
+		hasLeadExpert,
+		readOnlyServices = []
 	}: Props = $props();
 
 	// Check if service editing is allowed based on CV status
 	let canEdit = $derived(canEditServices(cvStatus));
 	
+	// Calculate pricing based on number of NEW services (exclude read-only)
+	let newServicesCount = $derived(
+		selectedServices.filter(serviceId => !readOnlyServices.includes(serviceId)).length
+	);
+	
 	// Reactive pricing calculation
-	let pricing = $derived(calculateServicePricing(selectedServices.length));
+	let pricing = $derived(calculateServicePricing(newServicesCount));
 </script>
 
 <!-- Service Selection Component -->
@@ -70,59 +79,77 @@
 	{:else if availableServices && availableServices.length > 0}
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			{#each availableServices as service}
-				<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow {!canEdit ? 'opacity-50' : ''}">
-					<div class="flex items-start space-x-3">
-						<input 
-							type="checkbox" 
-							id="service-{service._id}"
-							checked={selectedServices.includes(service._id)}
-							onchange={() => onServiceToggle(service._id)}
-							disabled={!canEdit}
-							class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:cursor-not-allowed"
-						/>
-						<div class="flex-1">
-							<label for="service-{service._id}" class="block cursor-pointer {!canEdit ? 'cursor-not-allowed' : ''}">
-								<h4 class="text-sm font-semibold text-gray-800">{service.name}</h4>
-								<p class="text-xs text-gray-600 mt-1">{service.description}</p>
-								<div class="flex items-center space-x-2 mt-2">
-									<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-										{service.version}
-									</span>
-									{#if service.serviceParent}
-										<span class="text-xs text-gray-500">{service.serviceParent.name}</span>
+				{#key service._id}
+					{@const canBeLead = !hasLeadExpert || !hasLeadExpert(service._id)}
+					{@const isReadOnly = readOnlyServices.includes(service._id)}
+					<div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow {!canEdit ? 'opacity-50' : ''}" data-service-id={service._id}>
+						<div class="flex items-start space-x-3">
+							<input 
+								type="checkbox" 
+								id="service-{service._id}"
+								checked={selectedServices.includes(service._id)}
+								onchange={() => onServiceToggle(service._id)}
+								disabled={!canEdit || isReadOnly}
+								class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+							/>
+							<div class="flex-1">
+								<label for="service-{service._id}" class="block {isReadOnly || !canEdit ? 'cursor-not-allowed' : 'cursor-pointer'}">
+									<h4 class="text-sm font-semibold {isReadOnly ? 'text-gray-500' : 'text-gray-800'}">{service.name}</h4>
+									<p class="text-xs {isReadOnly ? 'text-gray-400' : 'text-gray-600'} mt-1">{service.description}</p>
+									<div class="flex items-center space-x-2 mt-2">
+										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+											{service.version}
+										</span>
+										{#if service.serviceParent}
+											<span class="text-xs text-gray-500">{service.serviceParent.name}</span>
+										{/if}
+										{#if isReadOnly}
+											<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+												Already Approved
+											</span>
+										{/if}
+									</div>
+								</label>
+							</div>
+							<!-- Role Dropdown - Only show when service is selected -->
+							{#if selectedServices.includes(service._id)}
+								<div class="ml-4 flex-shrink-0">
+									<select 
+										class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] shadow-sm {isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}"
+										onchange={(e) => onRoleChange(service._id, (e.target as HTMLSelectElement).value)}
+										value={(roleChanges as any)[service._id] || (serviceRoles as any)[service._id] || 'regular'}
+										disabled={!canEdit || isReadOnly}
+									>
+										<option value="regular">Regular</option>
+										<option value="lead" disabled={!canBeLead}>
+											Lead {#if !canBeLead}(Already assigned){/if}
+										</option>
+									</select>
+									{#if !canBeLead && ((roleChanges as any)[service._id] || (serviceRoles as any)[service._id]) !== 'lead'}
+										<p class="text-xs text-amber-600 mt-1">
+											Already has a lead expert
+										</p>
 									{/if}
 								</div>
-							</label>
+							{:else}
+								<div class="ml-4 flex-shrink-0 w-[100px]"></div>
+							{/if}
 						</div>
-						<!-- Role Dropdown - Only show when service is selected -->
-						{#if selectedServices.includes(service._id)}
-							<div class="ml-4 flex-shrink-0">
-								<select 
-									class="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[100px] shadow-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-									onchange={(e) => onRoleChange(service._id, (e.target as HTMLSelectElement).value)}
-									value={(roleChanges as any)[service._id] || (serviceRoles as any)[service._id] || 'regular'}
-									disabled={!canEdit}
-								>
-									<option value="regular">Regular</option>
-									<option value="lead">Lead</option>
-								</select>
-							</div>
-						{:else}
-							<!-- Placeholder for consistent layout -->
-							<div class="ml-4 flex-shrink-0 w-[100px]"></div>
-						{/if}
 					</div>
-				</div>
+				{/key}
 			{/each}
 		</div>
 	{:else}
 		<p class="text-gray-500">No available services found for this organization</p>
 	{/if}
 
-	<!-- Pricing Summary -->
-	{#if selectedServices.length > 0}
+	<!-- Pricing Summary - Only show if there are NEW services (not read-only) -->
+	{#if newServicesCount > 0}
 		<div class="mt-8 p-6 bg-gray-50 rounded-lg border">
-			<h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Estimated Cost</h3>
+			<h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Additional Services Cost</h3>
+			<p class="text-sm text-gray-600 mb-4">
+				Pricing for {newServicesCount} new service{newServicesCount > 1 ? 's' : ''} (approved services are excluded)
+			</p>
 			
 			<div class="space-y-3">
 				{#each pricing.breakdown as item}

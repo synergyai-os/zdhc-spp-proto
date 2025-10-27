@@ -5,11 +5,13 @@
 	import { DEFAULT_ORG_ID } from '$lib/config';
 	import { calculateServicePricing } from '$lib/pricing';
 	import { validateCVCompletion } from '$lib/cvValidation';
-	import { canEditServices, canEditCVContent, getCVStatusColor } from '../../../../../convex/model/status';
+	import { canEditServices, canEditCVContent, getCVStatusColor, type CVStatus } from '../../../../../convex/model/status';
 	import ServiceSelection from '$lib/components/expert-edit/ServiceSelection.svelte';
 	import ExpertHeader from '$lib/components/expert-edit/ExpertHeader.svelte';
 	import TabSwitcher from '$lib/components/expert-edit/TabSwitcher.svelte';
-	import CVDetailsContent from '$lib/components/expert-edit/CVDetailsContent.svelte';
+	import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
+	import EducationView from '$lib/components/expert-edit/EducationView.svelte';
+	import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -36,6 +38,11 @@
 		organizationId: orgId as Id<'organizations'>
 	}));
 
+	// Query all service assignments for the organization to check for existing leads
+	const orgAssignments = useQuery(api.expertServiceAssignments.getExpertServiceAssignments, () => ({
+		organizationId: orgId as Id<'organizations'>
+	}));
+
 	// ==========================================
 	// 2. STATE
 	// ==========================================
@@ -54,7 +61,7 @@
 	let localCVData = $state<any>(null);
 	
 	// Toggle switcher state
-	let activeTab = $state<'services' | 'cv-details'>('services');
+	let activeTab = $state<'services' | 'experience' | 'education' | 'training'>('services');
 	
 	// Service selection state - derived from assigned services
 	let serviceSelection = $derived(getSelectedServiceIds());
@@ -106,6 +113,7 @@
 			startDate: '',
 			endDate: '',
 			current: false,
+			onSiteAuditsCompleted: 0,
 			description: ''
 		};
 		localCVData.experience = [...(localCVData.experience || []), newExperience];
@@ -146,6 +154,31 @@
 		localCVData.education = [...localCVData.education];
 		localCVData.education[index] = { ...localCVData.education[index], [field]: value };
 	}
+
+	// Training management functions
+	function addTraining() {
+		if (!localCVData) return;
+		const newTraining = {
+			qualificationName: '',
+			trainingOrganisation: '',
+			trainingContent: '',
+			dateIssued: '',
+			expireDate: '',
+			description: ''
+		};
+		localCVData.trainingQualifications = [...(localCVData.trainingQualifications || []), newTraining];
+	}
+
+	function removeTraining(index: number) {
+		if (!localCVData) return;
+		localCVData.trainingQualifications = (localCVData.trainingQualifications || []).filter((_: any, i: number) => i !== index);
+	}
+
+	function updateTraining(index: number, field: string, value: string) {
+		if (!localCVData) return;
+		localCVData.trainingQualifications = [...(localCVData.trainingQualifications || [])];
+		localCVData.trainingQualifications[index] = { ...localCVData.trainingQualifications[index], [field]: value };
+	}
 	
 	
 	// Helper functions for cleaner code
@@ -170,6 +203,29 @@
 		return assignedServices.data.map((assignment: any) => assignment.serviceVersionId);
 	}
 	
+	// Check if there's already a lead expert for a service
+	function hasLeadExpert(serviceId: string): boolean {
+		if (!orgAssignments?.data) return false;
+		
+		// Check for any lead assignment (approved or pending - excludes rejected and inactive)
+		const activeLeadAssignments = orgAssignments.data.filter(
+			(assignment: any) => 
+				assignment.serviceVersionId === serviceId &&
+				assignment.status !== 'inactive' && // Exclude inactive
+				assignment.status !== 'rejected' && // Exclude rejected
+				assignment.role === 'lead'
+		);
+		
+		return activeLeadAssignments.length > 0;
+	}
+	
+	// Get read-only services (approved services for this CV)
+	let readOnlyServices = $derived.by(() => {
+		if (!assignedServices?.data) return [];
+		return assignedServices.data
+			.filter((assignment: any) => assignment.status === 'approved')
+			.map((assignment: any) => assignment.serviceVersionId);
+	});
 	
 	// Analysis function for save logic
 	function analyzeServiceChanges() {
@@ -241,13 +297,14 @@
 		saveError = null;
 		
 		try {
-			// Step 1: Save CV data changes (experience/education)
+			// Step 1: Save CV data changes (experience/education/training)
 			if (localCVData) {
 				await client.mutation(api.expert.updateCV, {
 					cvId: localCVData._id,
 					organizationId: orgId as Id<'organizations'>,
 					experience: localCVData.experience,
-					education: localCVData.education
+					education: localCVData.education,
+					trainingQualifications: localCVData.trainingQualifications
 				});
 			}
 			
@@ -483,9 +540,9 @@
 	{#if expertCV?.data}
 		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 			<TabSwitcher 
-				tabs={['services', 'cv-details']} 
+				tabs={['services', 'experience', 'education', 'training']} 
 				{activeTab} 
-				onTabChange={(tab: string) => activeTab = tab as 'services' | 'cv-details'} 
+				onTabChange={(tab: string) => activeTab = tab as 'services' | 'experience' | 'education' | 'training'} 
 			/>
 
 			<!-- Services Tab Content -->
@@ -500,26 +557,75 @@
 					onRoleChange={handleRoleChange}
 					isLoading={availableServices?.isLoading}
 					error={availableServices?.error?.message || ''}
+					hasLeadExpert={hasLeadExpert}
+					readOnlyServices={readOnlyServices}
 				/>
 			{/if}
 
-			<!-- CV Details Tab Content -->
-			{#if activeTab === 'cv-details'}
-				<CVDetailsContent 
-					{expertCV} 
+			<!-- Experience Tab Content -->
+			{#if activeTab === 'experience'}
+				<ExperienceView 
 					cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
-					{localCVData} 
-					{isSaving}
-					onSave={save}
-					onResubmit={resubmitForReview}
+					{localCVData}
 					onAddExperience={addExperience}
 					onRemoveExperience={removeExperience}
 					onUpdateExperience={updateExperience}
+				/>
+			{/if}
+
+			<!-- Education Tab Content -->
+			{#if activeTab === 'education'}
+				<EducationView 
+					cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+					{localCVData}
 					onAddEducation={addEducation}
 					onRemoveEducation={removeEducation}
 					onUpdateEducation={updateEducation}
 				/>
 			{/if}
+
+			<!-- Training Qualification Tab Content -->
+			{#if activeTab === 'training'}
+				<TrainingQualificationView 
+					cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+					{localCVData}
+					onAddTraining={addTraining}
+					onRemoveTraining={removeTraining}
+					onUpdateTraining={updateTraining}
+				/>
+			{/if}
+
+			<!-- Save Buttons - Always visible regardless of tab -->
+			<div class="mt-6 pt-6 border-t border-gray-200">
+				{#if canEditCVContent(expertCV?.data?.status || 'draft')}
+					<div class="flex gap-3">
+						<button 
+							onclick={save} 
+							disabled={isSaving} 
+							class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+						>
+							{isSaving ? 'Saving...' : 'Save CV'}
+						</button>
+						
+						{#if expertCV?.data?.status === 'unlocked_for_edits'}
+							<button 
+								onclick={resubmitForReview} 
+								disabled={isSaving} 
+								class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+							>
+								{isSaving ? 'Submitting...' : 'Resubmit for Review'}
+							</button>
+						{/if}
+					</div>
+				{:else}
+					<div class="flex items-center space-x-2 text-sm text-gray-500 italic">
+						<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+						</svg>
+						<span>CV is locked and cannot be edited. Contact your administrator if changes are needed.</span>
+					</div>
+				{/if}
+			</div>
 		</div>
 	{:else}
 		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">

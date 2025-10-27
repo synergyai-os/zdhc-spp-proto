@@ -107,6 +107,7 @@ export default defineSchema({
 				startDate: v.string(),
 				endDate: v.string(),
 				current: v.boolean(),
+				onSiteAuditsCompleted: v.number(),
 				description: v.string()
 			})
 		),
@@ -120,6 +121,16 @@ export default defineSchema({
 				description: v.string()
 			})
 		),
+		trainingQualifications: v.optional(v.array(
+			v.object({
+				qualificationName: v.string(),
+				trainingOrganisation: v.string(),
+				trainingContent: v.string(),
+				dateIssued: v.string(),
+				expireDate: v.string(),
+				description: v.string()
+			})
+		)),
 
 		// Status Lifecycle: draft → completed → payment_pending → paid → locked_for_review → unlocked_for_edits → locked_final
 		status: CV_STATUS_VALIDATOR,
