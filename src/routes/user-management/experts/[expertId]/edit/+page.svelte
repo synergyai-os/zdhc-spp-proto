@@ -20,6 +20,7 @@
 	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
 	import { analyzeServiceChanges } from '$lib/utils/serviceChangeAnalyzer';
 	import { buildCVForValidation } from '$lib/utils/cvValidationBuilder';
+	import { shouldTransitionCVStatus } from '$lib/utils/cvStatusTransitionHandler';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -330,18 +331,12 @@
 				
 				// Handle status transitions based on validation
 				const currentStatus = expertCV?.data?.status;
+				const targetStatus = shouldTransitionCVStatus(currentStatus || 'draft', validation.isValid);
 				
-				if (currentStatus === 'draft' && validation.isValid) {
-					// Draft → Completed: CV is now complete
+				if (targetStatus) {
 					await client.mutation(api.expert.updateCVStatus, {
 						cvId: localCVData._id,
-						newStatus: 'completed'
-					});
-				} else if (currentStatus === 'completed' && !validation.isValid) {
-					// Completed → Draft: CV is no longer complete (e.g., removed all education)
-					await client.mutation(api.expert.updateCVStatus, {
-						cvId: localCVData._id,
-						newStatus: 'draft'
+						newStatus: targetStatus
 					});
 				}
 			}
