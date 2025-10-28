@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { useQuery, useConvexClient } from 'convex-svelte';
 	import { api, type Id } from '$lib';
 	import { DEFAULT_ORG_ID } from '$lib/config';
@@ -674,6 +675,18 @@
 									Save Changes
 								{/if}
 							</button>
+							
+							{#if expertCV?.data?.status === 'completed'}
+								<button 
+									onclick={() => goto('/checkout')} 
+									class="inline-flex items-center px-6 py-3 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md"
+								>
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+									</svg>
+									Submit for Review
+								</button>
+							{/if}
 							
 							{#if expertCV?.data?.status === 'unlocked_for_edits'}
 								<button 
