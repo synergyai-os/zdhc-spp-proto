@@ -6,6 +6,7 @@ import { getServiceStatusDisplayName, getServiceStatusColor, SERVICE_STATUS_VALU
 import DevelopmentToolBar from './DevelopmentToolBar.svelte';
 import AuditTrailSection from './AuditTrailSection.svelte';
 import InternalNotesSection from './InternalNotesSection.svelte';
+import CVContentDisplay from './CVContentDisplay.svelte';
 
 	interface User {
 		_id: string;
@@ -35,12 +36,22 @@ import InternalNotesSection from './InternalNotesSection.svelte';
 		description: string;
 	}
 
+	interface TrainingQualification {
+		qualificationName: string;
+		trainingOrganisation: string;
+		trainingContent: string;
+		dateIssued: string;
+		expireDate: string;
+		description: string;
+	}
+
 	interface ExpertCV {
 		_id: string;
 		version: number;
 		status: CVStatus;
 		experience: Experience[];
 		education: Education[];
+		trainingQualifications?: TrainingQualification[];
 		createdAt: number;
 		submittedAt?: number;
 		lockedAt?: number;
@@ -744,52 +755,11 @@ import InternalNotesSection from './InternalNotesSection.svelte';
 
 		<!-- CV CONTENT SECTION: Experience & Education -->
 		{#if currentCVData}
-			{#if currentCVData.experience && currentCVData.experience.length > 0}
-				<div class="bg-white border border-gray-200 rounded-lg p-6">
-					<h2 class="text-xl font-bold text-gray-900 mb-4">Professional Experience</h2>
-					<div class="space-y-4">
-						{#each currentCVData.experience as exp}
-							<div class="border-l-4 border-blue-500 pl-4 py-2">
-								<div class="flex justify-between items-start">
-									<div>
-										<h3 class="font-semibold text-gray-900">{exp.title}</h3>
-										<p class="text-gray-600">{exp.company} • {exp.location}</p>
-										<p class="text-sm text-gray-500">
-											{exp.startDate} - {exp.current ? 'Present' : exp.endDate}
-										</p>
-									</div>
-									{#if exp.current}
-										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-											Current
-										</span>
-									{/if}
-								</div>
-								{#if exp.description}
-									<p class="text-gray-700 mt-2">{exp.description}</p>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				</div>
-			{/if}
-
-			{#if currentCVData.education && currentCVData.education.length > 0}
-				<div class="bg-white border border-gray-200 rounded-lg p-6">
-					<h2 class="text-xl font-bold text-gray-900 mb-4">Education</h2>
-					<div class="space-y-4">
-						{#each currentCVData.education as edu}
-							<div class="border-l-4 border-green-500 pl-4 py-2">
-								<h3 class="font-semibold text-gray-900">{edu.degree} in {edu.field}</h3>
-								<p class="text-gray-600">{edu.school}</p>
-								<p class="text-sm text-gray-500">{edu.startDate} - {edu.endDate}</p>
-								{#if edu.description}
-									<p class="text-gray-700 mt-2">{edu.description}</p>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				</div>
-			{/if}
+			<CVContentDisplay 
+				experience={currentCVData.experience} 
+				education={currentCVData.education}
+				trainingQualifications={currentCVData.trainingQualifications}
+			/>
 		{/if}
 
 		<!-- AUDIT TRAIL SECTION: History of Changes -->
