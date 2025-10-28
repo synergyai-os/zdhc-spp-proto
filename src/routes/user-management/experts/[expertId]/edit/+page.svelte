@@ -77,7 +77,7 @@
 	let localCVData = $state<any>(null);
 	
 	// Toggle switcher state
-	let activeTab = $state<'services' | 'experience' | 'education' | 'training'>('services');
+	let activeTab = $state<'services' | 'experience' | 'education' | 'training' | 'approvals'>('services');
 	
 	// Service selection state - derived from assigned services
 	let serviceSelection = $derived(getSelectedServiceIds());
@@ -550,9 +550,9 @@
 
 					<!-- Tab Switcher -->
 					<TabSwitcher 
-						tabs={['services', 'experience', 'education', 'training']} 
+						tabs={['services', 'experience', 'education', 'training', 'approvals']} 
 						{activeTab} 
-						onTabChange={(tab: string) => activeTab = tab as 'services' | 'experience' | 'education' | 'training'} 
+						onTabChange={(tab: string) => activeTab = tab as 'services' | 'experience' | 'education' | 'training' | 'approvals'} 
 					/>
 					
 					<!-- Main Content Card -->
@@ -608,6 +608,13 @@
 							onRemoveTraining={removeTraining}
 							onUpdateTraining={updateTraining}
 						/>
+					{/if}
+
+					<!-- Other Approvals Tab Content -->
+					{#if activeTab === 'approvals'}
+						<div class="py-8 text-center text-gray-500">
+							other approvals text comes here
+						</div>
 					{/if}
 					</div>
 				</div>

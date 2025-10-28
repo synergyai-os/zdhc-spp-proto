@@ -13,7 +13,8 @@
 			services: { icon: '🔧', label: 'Services' },
 			experience: { icon: '💼', label: 'Experience' },
 			education: { icon: '🎓', label: 'Education' },
-			training: { icon: '📚', label: 'Training' }
+			training: { icon: '📚', label: 'Training' },
+			approvals: { icon: '📋', label: 'Other Approvals' }
 		};
 		return info[tab] || { icon: '📄', label: tab };
 	}
