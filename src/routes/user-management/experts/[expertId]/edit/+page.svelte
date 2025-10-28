@@ -226,15 +226,6 @@
 			.map((assignment: any) => assignment.serviceVersionId);
 	});
 	
-	// Analysis function for save logic - now uses extracted utility
-	function getServiceChanges() {
-		return analyzeServiceChanges(
-			assignedServices?.data || [],
-			effectiveServiceSelection,
-			serviceRoles,
-			roleChanges as Record<string, 'lead' | 'regular'>
-		);
-	}
 	
 	// Action functions for save logic
 	async function addServiceAssignment(serviceId: string) {
@@ -291,7 +282,12 @@
 			}
 			
 			// Step 2: Analyze and execute service changes FIRST
-			const changes = getServiceChanges();
+			const changes = analyzeServiceChanges(
+				assignedServices?.data || [],
+				effectiveServiceSelection,
+				serviceRoles,
+				roleChanges as Record<string, 'lead' | 'regular'>
+			);
 			
 			// Check if service editing is allowed
 			const canEditServicesNow = canEditServices(expertCV?.data?.status || 'draft');
