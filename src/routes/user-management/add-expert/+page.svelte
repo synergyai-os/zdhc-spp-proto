@@ -303,25 +303,15 @@
 			role: serviceRoles[serviceId] || 'regular'
 		}));
 
-		// Filter out empty/incomplete experience entries
-		const validExperience = (cvData.experience || []).filter((exp: any) => 
-			exp.title && exp.company && exp.startDate && (exp.current || exp.endDate)
-		);
-
-		// Filter out empty/incomplete education entries
-		const validEducation = (cvData.education || []).filter((edu: any) => 
-			edu.school && edu.degree && edu.field && edu.startDate && edu.endDate
-		);
-
-		// Create new CV version (experience/education will be copied by the model layer)
-		const cvId = await client.mutation(api.expertCVs.createExpertCV, {
-			userId: foundUser._id as Id<'users'>,
-			organizationId: currentOrgId as Id<'organizations'>,
-			experience: validExperience, // Only valid experience
-			education: validEducation, // Only valid education
-			createdBy: 'system',
-			notes: `New CV version created to add/modify services`
-		});
+	// Create new CV version - model layer will auto-copy experience/education/training from locked CV
+	const cvId = await client.mutation(api.expertCVs.createExpertCV, {
+		userId: foundUser._id as Id<'users'>,
+		organizationId: currentOrgId as Id<'organizations'>,
+		experience: [], // Empty - model layer will auto-copy from locked CV
+		education: [], // Empty - model layer will auto-copy from locked CV
+		createdBy: 'system',
+		notes: `New CV version created to add/modify services`
+	});
 
 			// Create service assignments only for new/changed services
 			for (const assignment of serviceAssignments) {
