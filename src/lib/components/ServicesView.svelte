@@ -52,12 +52,45 @@
 		);
 	};
 
+	// Helper function to deduplicate assignments - keep only latest CV per expert
+	const deduplicateAssignmentsByExpert = (assignments: any[]) => {
+		// Group by userId
+		const assignmentsByUser = new Map();
+		
+		assignments.forEach(assignment => {
+			const userId = assignment.user?._id;
+			if (!userId) return;
+			
+			if (!assignmentsByUser.has(userId)) {
+				assignmentsByUser.set(userId, []);
+			}
+			assignmentsByUser.get(userId).push(assignment);
+		});
+		
+		// For each expert, keep only the assignment from their latest CV
+		const latestAssignments: any[] = [];
+		assignmentsByUser.forEach(assignmentsList => {
+			// Sort by CV creation date (latest first) and take the first one
+			const sorted = assignmentsList.sort((a: any, b: any) => {
+				const aCreatedAt = a.expertCV?.createdAt || 0;
+				const bCreatedAt = b.expertCV?.createdAt || 0;
+				return bCreatedAt - aCreatedAt;
+			});
+			latestAssignments.push(sorted[0]);
+		});
+		
+		return latestAssignments;
+	};
+
 	// Helper function to process a service with expert data
 	const processServiceWithExperts = (service: any) => {
 		// Get assignments for this service version
-		const assignments = serviceAssignments?.data?.filter(
+		const allAssignments = serviceAssignments?.data?.filter(
 			assignment => assignment.serviceVersion?._id === service._id
 		) || [];
+		
+		// Deduplicate: keep only latest assignment per expert
+		const assignments = deduplicateAssignmentsByExpert(allAssignments);
 
 		// Separate experts by role and status
 		const leadExperts = assignments.filter(a => a.role === 'lead');
@@ -72,11 +105,15 @@
 		);
 		
 		// All other assignments (including approved but not locked) are considered pending
+		// Note: Rejected assignments should only be shown if CV is locked_final, otherwise they're under review
 		const pendingExperts = assignments.filter(a => 
 			a.status === 'pending_review' || 
-			(a.status === 'approved' && (!a.expertCV || a.expertCV.status !== 'locked_final'))
+			(a.status === 'approved' && (!a.expertCV || a.expertCV.status !== 'locked_final')) ||
+			(a.status === 'rejected' && a.expertCV && a.expertCV.status !== 'locked_final')
 		);
-		const rejectedExperts = assignments.filter(a => a.status === 'rejected');
+		const rejectedExperts = assignments.filter(a => 
+			a.status === 'rejected' && a.expertCV && a.expertCV.status === 'locked_final'
+		);
 
 		// Categorize experts by journey
 		const journeyCategories = {
