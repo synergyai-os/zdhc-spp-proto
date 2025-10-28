@@ -30,6 +30,11 @@
 		endDate: '',
 		current: false,
 		onSiteAuditsCompleted: 0,
+		fieldExperienceTypes: {
+			assessment: false,
+			sampling: false,
+			training: false
+		},
 		fieldExperienceCounts: {
 			assessment: { total: 0, last12m: 0 },
 			sampling: { total: 0, last12m: 0 },
@@ -50,6 +55,11 @@
 				endDate: existing.endDate || '',
 				current: existing.current || false,
 				onSiteAuditsCompleted: existing.onSiteAuditsCompleted || 0,
+				fieldExperienceTypes: existing.fieldExperienceTypes || {
+					assessment: false,
+					sampling: false,
+					training: false
+				},
 				fieldExperienceCounts: existing.fieldExperienceCounts || {
 					assessment: { total: 0, last12m: 0 },
 					sampling: { total: 0, last12m: 0 },
@@ -249,11 +259,54 @@
 				<div class="border-t border-gray-200 pt-6">
 					<div class="mb-4">
 						<h3 class="text-sm font-semibold text-gray-900 mb-1">Field Experience</h3>
-						<p class="text-xs text-gray-500">Enter the number of assessments, samplings, and trainings conducted</p>
+						<p class="text-xs text-gray-500">Select what applies to your experience at {formData.company || 'this organization'}</p>
+					</div>
+					
+					<!-- Selection Checkboxes -->
+					<div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+						<div class="space-y-3">
+							<div class="flex items-center">
+								<input
+									type="checkbox"
+									id="field-assessment"
+									bind:checked={formData.fieldExperienceTypes.assessment}
+									disabled={!canEdit}
+									class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:cursor-not-allowed"
+								/>
+								<label for="field-assessment" class="ml-3 block text-sm text-gray-700">
+									Assessments
+								</label>
+							</div>
+							<div class="flex items-center">
+								<input
+									type="checkbox"
+									id="field-sampling"
+									bind:checked={formData.fieldExperienceTypes.sampling}
+									disabled={!canEdit}
+									class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:cursor-not-allowed"
+								/>
+								<label for="field-sampling" class="ml-3 block text-sm text-gray-700">
+									Samplings
+								</label>
+							</div>
+							<div class="flex items-center">
+								<input
+									type="checkbox"
+									id="field-training"
+									bind:checked={formData.fieldExperienceTypes.training}
+									disabled={!canEdit}
+									class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:cursor-not-allowed"
+								/>
+								<label for="field-training" class="ml-3 block text-sm text-gray-700">
+									Trainings Given
+								</label>
+							</div>
+						</div>
 					</div>
 					
 					<div class="space-y-4">
 						<!-- Assessments -->
+						{#if formData.fieldExperienceTypes.assessment}
 						<div class="bg-white border border-gray-200 rounded-lg p-4">
 							<h4 class="text-sm font-semibold text-gray-900 mb-3">Assessments</h4>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -285,8 +338,10 @@
 								</div>
 							</div>
 						</div>
+						{/if}
 						
 						<!-- Samplings -->
+						{#if formData.fieldExperienceTypes.sampling}
 						<div class="bg-white border border-gray-200 rounded-lg p-4">
 							<h4 class="text-sm font-semibold text-gray-900 mb-3">Samplings</h4>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -318,8 +373,10 @@
 								</div>
 							</div>
 						</div>
+						{/if}
 						
 						<!-- Trainings -->
+						{#if formData.fieldExperienceTypes.training}
 						<div class="bg-white border border-gray-200 rounded-lg p-4">
 							<h4 class="text-sm font-semibold text-gray-900 mb-3">Trainings Given</h4>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -351,6 +408,7 @@
 								</div>
 							</div>
 						</div>
+						{/if}
 					</div>
 				</div>
 				
