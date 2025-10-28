@@ -19,6 +19,7 @@
 	import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData } from '$lib/utils/testDataGenerators';
 	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
 	import { analyzeServiceChanges } from '$lib/utils/serviceChangeAnalyzer';
+	import { buildCVForValidation } from '$lib/utils/cvValidationBuilder';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -317,38 +318,13 @@
 			// Step 3: NOW validate and handle status transitions AFTER all data is saved
 			
 			if (localCVData) {
-				// Create CV object with UPDATED service assignments for validation
-				// We need to simulate what the service assignments will look like after our changes
-				const updatedServiceAssignments = [...(assignedServices?.data || [])];
-				
-				// Add new service assignments
-				for (const serviceId of changes.toAdd) {
-					const role = (roleChanges as any)[serviceId] || 'regular';
-					updatedServiceAssignments.push({
-						_id: `temp-${serviceId}`, // Temporary ID for validation
-						serviceVersionId: serviceId,
-						role: role
-					});
-				}
-				
-				// Remove service assignments
-				const filteredAssignments = updatedServiceAssignments.filter(
-					(assignment: any) => !changes.toRemove.includes(assignment.serviceVersionId)
+				// Build CV object for validation by simulating service changes
+				const cvForValidation = buildCVForValidation(
+					localCVData,
+					assignedServices?.data || [],
+					changes,
+					roleChanges as Record<string, 'lead' | 'regular'>
 				);
-				
-				// Update roles for existing assignments
-				const finalAssignments = filteredAssignments.map((assignment: any) => {
-					if (changes.toUpdate.some((update: any) => update.assignmentId === assignment._id)) {
-						const update = changes.toUpdate.find((update: any) => update.assignmentId === assignment._id);
-						return { ...assignment, role: update?.newRole || assignment.role };
-					}
-					return assignment;
-				});
-				
-				const cvForValidation = {
-					...localCVData,
-					serviceAssignments: finalAssignments
-				};
 				
 				const validation = validateCVCompletion(cvForValidation);
 				
