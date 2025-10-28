@@ -13,6 +13,7 @@
 	import EducationView from '$lib/components/expert-edit/EducationView.svelte';
 	import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
 	import DevelopmentToolBar from '$lib/components/admin/DevelopmentToolBar.svelte';
+	import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -558,6 +559,19 @@
 
 				<!-- MAIN CONTENT AREA: Tabs and Content (Wider) -->
 				<div class="flex-1 space-y-6">
+					<!-- Completion Checklist -->
+					{#if expertCV?.data}
+						{@const totalAudits = expertCV.data.experience?.reduce((sum: number, exp: any) => sum + (exp.onSiteAuditsCompleted || 0), 0) || 0}
+						<CompletionChecklist 
+							userIsActive={userDetails?.data?.isActive || false}
+							experienceCount={expertCV.data.experience?.length || 0}
+							educationCount={expertCV.data.education?.length || 0}
+							serviceCount={assignedServices?.data?.length || 0}
+							{totalAudits}
+							cvStatus={expertCV.data.status}
+						/>
+					{/if}
+
 					<!-- Tab Switcher -->
 					<TabSwitcher 
 						tabs={['services', 'experience', 'education', 'training']} 
@@ -617,76 +631,80 @@
 							/>
 						{/if}
 					</div>
-
-					<!-- Save Buttons - Fixed at bottom of page -->
-					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-						{#if canEditCVContent(expertCV?.data?.status || 'draft')}
-							<div class="flex items-center justify-between">
-								<div class="flex items-center space-x-2 text-sm text-gray-600">
-									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-									</svg>
-									<span>
-										{#if expertCV?.data?.status === 'unlocked_for_edits'}
-											Make your changes, then resubmit for review.
-										{:else}
-											Don't forget to save your changes.
-										{/if}
-									</span>
-								</div>
-								<div class="flex gap-3">
-									<button 
-										onclick={save} 
-										disabled={isSaving} 
-										class="inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
-									>
-										{#if isSaving}
-											<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-											</svg>
-											Saving...
-										{:else}
-											<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-											</svg>
-											Save Changes
-										{/if}
-									</button>
-									
-									{#if expertCV?.data?.status === 'unlocked_for_edits'}
-										<button 
-											onclick={resubmitForReview} 
-											disabled={isSaving} 
-											class="inline-flex items-center px-6 py-3 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
-										>
-											{#if isSaving}
-												<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-												</svg>
-												Submitting...
-											{:else}
-												<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-												</svg>
-												Resubmit for Review
-											{/if}
-										</button>
-									{/if}
-								</div>
-							</div>
-						{:else}
-							<div class="flex items-center space-x-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">
-								<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-								</svg>
-								<span>CV is locked and cannot be edited. Contact your administrator if changes are needed.</span>
-							</div>
-						{/if}
-					</div>
 				</div>
 			</div>
 		{:else if !expertCV?.data}
 			<ExpertHeader {userDetails} {expertCV} />
 		{/if}
 	</div>
+
+	<!-- Save Buttons - Full width sticky at bottom -->
+	{#if expertCV?.data}
+		<div class="sticky bottom-0 w-full bg-white border-t border-gray-200 shadow-lg z-50">
+			<div class="max-w-7xl mx-auto px-6 py-4">
+				{#if canEditCVContent(expertCV?.data?.status || 'draft')}
+					<div class="flex items-center justify-between">
+						<div class="flex items-center space-x-2 text-sm text-gray-600">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							</svg>
+							<span>
+								{#if expertCV?.data?.status === 'unlocked_for_edits'}
+									Make your changes, then resubmit for review.
+								{:else}
+									Don't forget to save your changes.
+								{/if}
+							</span>
+						</div>
+						<div class="flex gap-3">
+							<button 
+								onclick={save} 
+								disabled={isSaving} 
+								class="inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
+							>
+								{#if isSaving}
+									<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+									</svg>
+									Saving...
+								{:else}
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+									</svg>
+									Save Changes
+								{/if}
+							</button>
+							
+							{#if expertCV?.data?.status === 'unlocked_for_edits'}
+								<button 
+									onclick={resubmitForReview} 
+									disabled={isSaving} 
+									class="inline-flex items-center px-6 py-3 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
+								>
+									{#if isSaving}
+										<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+										</svg>
+										Submitting...
+									{:else}
+										<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+										</svg>
+										Resubmit for Review
+									{/if}
+								</button>
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<div class="flex items-center space-x-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">
+						<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+						</svg>
+						<span>CV is locked and cannot be edited. Contact your administrator if changes are needed.</span>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </div>

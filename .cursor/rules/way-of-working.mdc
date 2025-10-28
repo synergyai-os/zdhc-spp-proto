@@ -13,5 +13,5 @@ alwaysApply: true
 - **STRICT ENFORCEMENT**: If I violate this workflow, call me out immediately
 - **CONTEXT7 REQUIREMENT**: When validating issues and not 95% sure about patterns, ALWAYS use Context7 MCP to get latest documentation before proposing solutions
 - minimize the amount of tokens used and write simple clean svelte 5 patterns with clear variables
-- never git commit but do remind the user to do this after a succesfull step is implemented.
+- never git commit unless the user explicelty asks you but do remind the user to do this after a succesfull step is implemented.
 - never test or run tests, always ask the human to do this. When the human requests you to test, you can.
