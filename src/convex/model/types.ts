@@ -8,7 +8,7 @@ export interface ExperienceEntry {
   startDate: string;
   endDate: string;
   current: boolean;
-  onSiteAuditsCompleted: number;
+  onSiteAuditsCompleted?: number;
   description: string;
 }
 

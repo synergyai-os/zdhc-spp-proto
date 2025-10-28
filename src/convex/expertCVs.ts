@@ -123,7 +123,7 @@ export const createExpertCV = mutation({
 				startDate: v.string(),
 				endDate: v.string(),
 				current: v.boolean(),
-				onSiteAuditsCompleted: v.number(),
+				onSiteAuditsCompleted: v.optional(v.number()),
 				description: v.string()
 			})
 		),
@@ -175,7 +175,7 @@ export const updateExpertCV = mutation({
 					startDate: v.string(),
 					endDate: v.string(),
 					current: v.boolean(),
-					onSiteAuditsCompleted: v.number(),
+					onSiteAuditsCompleted: v.optional(v.number()),
 					description: v.string()
 				})
 			)

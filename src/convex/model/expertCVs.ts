@@ -93,7 +93,16 @@ export async function createExpertCV(ctx: MutationCtx, args: CreateExpertCVArgs)
       }
     }
 
-    // Validate experience data (after potential auto-copy)
+    // Filter out empty/incomplete entries before validation
+    experience = experience.filter((exp) => 
+      exp.title && exp.company && exp.startDate && (exp.current || exp.endDate)
+    );
+
+    education = education.filter((edu) => 
+      edu.school && edu.degree && edu.field && edu.startDate && edu.endDate
+    );
+
+    // Validate experience data (after potential auto-copy and filtering)
     const experienceValidation = validateExperienceData(experience);
     if (!experienceValidation.isValid) {
       return { 
@@ -102,7 +111,7 @@ export async function createExpertCV(ctx: MutationCtx, args: CreateExpertCVArgs)
       };
     }
 
-    // Validate education data (after potential auto-copy)
+    // Validate education data (after potential auto-copy and filtering)
     const educationValidation = validateEducationData(education);
     if (!educationValidation.isValid) {
       return { 

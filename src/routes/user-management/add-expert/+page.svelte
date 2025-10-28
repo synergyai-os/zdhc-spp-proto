@@ -297,21 +297,31 @@
 				return;
 			}
 
-			// Convert filtered services to the format needed for the mutation
-			const serviceAssignments = newOrChangedServices.map((serviceId) => ({
-				serviceVersionId: serviceId as Id<'serviceVersions'>,
-				role: serviceRoles[serviceId] || 'regular'
-			}));
+		// Convert filtered services to the format needed for the mutation
+		const serviceAssignments = newOrChangedServices.map((serviceId) => ({
+			serviceVersionId: serviceId as Id<'serviceVersions'>,
+			role: serviceRoles[serviceId] || 'regular'
+		}));
 
-			// Create new CV version (experience/education will be copied by the model layer)
-			const cvId = await client.mutation(api.expertCVs.createExpertCV, {
-				userId: foundUser._id as Id<'users'>,
-				organizationId: currentOrgId as Id<'organizations'>,
-				experience: cvData.experience || [], // Copy from current CV
-				education: cvData.education || [], // Copy from current CV
-				createdBy: 'system',
-				notes: `New CV version created to add/modify services`
-			});
+		// Filter out empty/incomplete experience entries
+		const validExperience = (cvData.experience || []).filter((exp: any) => 
+			exp.title && exp.company && exp.startDate && (exp.current || exp.endDate)
+		);
+
+		// Filter out empty/incomplete education entries
+		const validEducation = (cvData.education || []).filter((edu: any) => 
+			edu.school && edu.degree && edu.field && edu.startDate && edu.endDate
+		);
+
+		// Create new CV version (experience/education will be copied by the model layer)
+		const cvId = await client.mutation(api.expertCVs.createExpertCV, {
+			userId: foundUser._id as Id<'users'>,
+			organizationId: currentOrgId as Id<'organizations'>,
+			experience: validExperience, // Only valid experience
+			education: validEducation, // Only valid education
+			createdBy: 'system',
+			notes: `New CV version created to add/modify services`
+		});
 
 			// Create service assignments only for new/changed services
 			for (const assignment of serviceAssignments) {
