@@ -53,6 +53,13 @@
 		organizationId: orgId as Id<'organizations'>
 	}));
 
+	// Query all approved service assignments for this user (from any CV) to make them read-only
+	const approvedServices = useQuery(api.expertServiceAssignments.getExpertServiceAssignments, () => ({
+		userId: expertId as Id<'users'>,
+		organizationId: orgId as Id<'organizations'>,
+		status: 'approved' as const
+	}));
+
 	// ==========================================
 	// 2. STATE
 	// ==========================================
@@ -218,12 +225,24 @@
 		return activeLeadAssignments.length > 0;
 	}
 	
-	// Get read-only services (approved services for this CV)
+	// Get read-only services (approved services from current CV + any prior approved services)
 	let readOnlyServices = $derived.by(() => {
-		if (!assignedServices?.data) return [];
-		return assignedServices.data
-			.filter((assignment: any) => assignment.status === 'approved')
-			.map((assignment: any) => assignment.serviceVersionId);
+		const readOnlySet = new Set<string>();
+		
+		// Add approved services from current CV
+		if (assignedServices?.data) {
+			assignedServices.data
+				.filter((assignment: any) => assignment.status === 'approved')
+				.forEach((assignment: any) => readOnlySet.add(assignment.serviceVersionId));
+		}
+		
+		// Add approved services from any prior CVs for this user
+		if (approvedServices?.data) {
+			approvedServices.data
+				.forEach((assignment: any) => readOnlySet.add(assignment.serviceVersionId));
+		}
+		
+		return Array.from(readOnlySet);
 	});
 	
 	
