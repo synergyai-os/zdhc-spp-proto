@@ -18,6 +18,7 @@
 	import TestDataGenerator from '$lib/components/expert-edit/TestDataGenerator.svelte';
 	import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData } from '$lib/utils/testDataGenerators';
 	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
+	import { analyzeServiceChanges } from '$lib/utils/serviceChangeAnalyzer';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -222,31 +223,14 @@
 			.map((assignment: any) => assignment.serviceVersionId);
 	});
 	
-	// Analysis function for save logic
-	function analyzeServiceChanges() {
-		const current = assignedServices?.data || [];
-		const selected = effectiveServiceSelection; // Use effective selection (assigned + user changes)
-		const roles = serviceRoles;
-		const changes = roleChanges;
-		
-		// Extract complex logic to variables for readability
-		const currentServiceIds = current.map((assignment: any) => assignment.serviceVersionId);
-		
-		const toAdd = selected.filter((id: any) => !currentServiceIds.includes(id));
-		const toRemove = currentServiceIds.filter((id: any) => !selected.includes(id));
-		
-		// Simple role update logic - use user changes
-		const roleUpdates = current.filter((assignment: any) => {
-			const serviceId = assignment.serviceVersionId;
-			return (changes as any)[serviceId] && (changes as any)[serviceId] !== assignment.role;
-		});
-		
-		const toUpdate = roleUpdates.map((assignment: any) => ({
-			assignmentId: assignment._id,
-			newRole: (changes as any)[assignment.serviceVersionId]
-		}));
-		
-		return { toAdd, toRemove, toUpdate };
+	// Analysis function for save logic - now uses extracted utility
+	function getServiceChanges() {
+		return analyzeServiceChanges(
+			assignedServices?.data || [],
+			effectiveServiceSelection,
+			serviceRoles,
+			roleChanges as Record<string, 'lead' | 'regular'>
+		);
 	}
 	
 	// Action functions for save logic
@@ -304,7 +288,7 @@
 			}
 			
 			// Step 2: Analyze and execute service changes FIRST
-			const changes = analyzeServiceChanges();
+			const changes = getServiceChanges();
 			console.log('📊 Changes to make:', changes);
 			console.log('Current assigned services:', assignedServices?.data);
 			console.log('User effective selection:', effectiveServiceSelection);
