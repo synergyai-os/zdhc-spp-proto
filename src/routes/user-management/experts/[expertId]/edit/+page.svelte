@@ -245,6 +245,13 @@
 		return Array.from(readOnlySet);
 	});
 	
+	// Filter out approved services from available services (show only selectable services)
+	let selectableServices = $derived.by(() => {
+		if (!availableServices?.data) return [];
+		return availableServices.data.filter(
+			(service: any) => !readOnlyServices.includes(service._id)
+		);
+	});
 	
 	// Action functions for save logic
 	async function addServiceAssignment(serviceId: string) {
@@ -458,7 +465,7 @@
 			<div class="flex gap-6">
 				<!-- LEFT SIDEBAR: Expert Header (Smaller, like admin page) -->
 				<div class="w-80 flex-shrink-0 space-y-4">
-					<ExpertHeader {userDetails} {expertCV} />
+					<ExpertHeader {userDetails} {expertCV} {approvedServices} />
 					
 					<!-- Completion Checklist -->
 					{#if expertCV?.data}
@@ -541,7 +548,7 @@
 						{#if activeTab === 'services'}
 							<ServiceSelection 
 								cvStatus={expertCV?.data?.status || 'draft'}
-								availableServices={availableServices?.data || []}
+								availableServices={selectableServices}
 								selectedServices={effectiveServiceSelection}
 								serviceRoles={serviceRoles}
 								roleChanges={roleChanges}
@@ -550,7 +557,7 @@
 								isLoading={availableServices?.isLoading}
 								error={availableServices?.error?.message || ''}
 								hasLeadExpert={hasLeadExpert}
-								readOnlyServices={readOnlyServices}
+								readOnlyServices={[]}
 							/>
 						{/if}
 

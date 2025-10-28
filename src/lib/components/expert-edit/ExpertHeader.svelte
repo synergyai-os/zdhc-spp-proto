@@ -4,9 +4,10 @@
 	interface Props {
 		userDetails: any;
 		expertCV: any;
+		approvedServices?: any; // Optional: approved service assignments
 	}
 
-	let { userDetails, expertCV }: Props = $props();
+	let { userDetails, expertCV, approvedServices }: Props = $props();
 
 	// Get user-friendly guidance message based on CV status
 	function getStatusGuidance(status: string): { message: string; icon: string } {
@@ -99,6 +100,27 @@
 							{getCVStatusDisplayName(expertCV.data.status)}
 						</span>
 					</div>
+					
+					<!-- Approved Services Section -->
+					{#if approvedServices?.data && approvedServices.data.length > 0}
+						<div class="mt-3">
+							<p class="text-xs text-gray-500 mb-2">Approved Services</p>
+							<div class="flex flex-wrap gap-1">
+								{#each approvedServices.data.slice(0, 3) as assignment}
+									{#if assignment.serviceVersion?.name}
+										<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+											{assignment.serviceVersion.name}
+										</span>
+									{/if}
+								{/each}
+								{#if approvedServices.data.length > 3}
+									<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-600">
+										+{approvedServices.data.length - 3} more
+									</span>
+								{/if}
+							</div>
+						</div>
+					{/if}
 				</div>
 			</div>
 		{/if}
