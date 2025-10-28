@@ -12,6 +12,7 @@
 	import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
 	import EducationView from '$lib/components/expert-edit/EducationView.svelte';
 	import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
+	import DevelopmentToolBar from '$lib/components/admin/DevelopmentToolBar.svelte';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -537,8 +538,22 @@
 		{#if expertCV?.data}
 			<div class="flex gap-6">
 				<!-- LEFT SIDEBAR: Expert Header (Smaller, like admin page) -->
-				<div class="w-80 flex-shrink-0">
+				<div class="w-80 flex-shrink-0 space-y-4">
 					<ExpertHeader {userDetails} {expertCV} />
+					
+					<!-- Development Tools -->
+					{#if expertCV?.data}
+						<DevelopmentToolBar 
+							userId={expertId as Id<'users'>}
+							userIsActive={userDetails?.data?.isActive}
+							cvStatus={expertCV.data.status}
+							cvId={expertCV.data._id}
+							onActionCompleted={() => {
+								console.log('🔧 Development tool action completed - data will refresh automatically');
+								// Convex queries will automatically refetch after mutations
+							}}
+						/>
+					{/if}
 				</div>
 
 				<!-- MAIN CONTENT AREA: Tabs and Content (Wider) -->

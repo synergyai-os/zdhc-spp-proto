@@ -107,7 +107,7 @@ export default defineSchema({
 				startDate: v.string(),
 				endDate: v.string(),
 				current: v.boolean(),
-				onSiteAuditsCompleted: v.number(),
+				onSiteAuditsCompleted: v.optional(v.number()),
 				description: v.string()
 			})
 		),

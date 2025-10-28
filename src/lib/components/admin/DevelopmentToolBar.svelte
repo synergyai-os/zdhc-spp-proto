@@ -1,4 +1,5 @@
 <script lang="ts">
+	import UserActivationButton from './UserActivationButton.svelte';
 	import CVStageAdvancer from './CVStageAdvancer.svelte';
 	import PaymentConfirmationButton from './PaymentConfirmationButton.svelte';
 	import AcademyTrainingController from './AcademyTrainingController.svelte';
@@ -7,6 +8,8 @@
 	import type { Id } from '$lib';
 
 	interface Props {
+		userId?: Id<'users'>;
+		userIsActive?: boolean;
 		cvStatus: CVStatus;
 		cvId: Id<'expertCVs'>;
 		assignmentId?: string;
@@ -16,7 +19,7 @@
 		onActionCompleted?: () => void;
 	}
 
-	let { cvStatus, cvId, assignmentId, trainingStatus, organizationId, serviceVersionId, onActionCompleted }: Props = $props();
+	let { userId, userIsActive, cvStatus, cvId, assignmentId, trainingStatus, organizationId, serviceVersionId, onActionCompleted }: Props = $props();
 
 	const handleActionCompleted = () => {
 		if (onActionCompleted) {
@@ -50,6 +53,13 @@
 			</div>
 			
 			<div class="flex items-center gap-2">
+				{#if userId}
+					<UserActivationButton 
+						{userId}
+						currentStatus={userIsActive || false}
+						onStatusChanged={handleActionCompleted}
+					/>
+				{/if}
 				<CVStageAdvancer 
 					cvStatus={cvStatus}
 					cvId={cvId}

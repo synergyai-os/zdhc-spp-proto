@@ -64,6 +64,27 @@ export const createUser = mutation({
 	}
 });
 
+export const toggleUserActiveStatus = mutation({
+	args: {
+		userId: v.id('users')
+	},
+	handler: async (ctx, args) => {
+		const user = await ctx.db.get(args.userId);
+		if (!user) {
+			throw new Error('User not found');
+		}
+		
+		const newStatus = !user.isActive;
+		
+		await ctx.db.patch(args.userId, {
+			isActive: newStatus,
+			updatedAt: Date.now()
+		});
+		
+		return { success: true, newStatus };
+	}
+});
+
 export const createOrganization = mutation({
 	args: {
 		name: v.string(),
