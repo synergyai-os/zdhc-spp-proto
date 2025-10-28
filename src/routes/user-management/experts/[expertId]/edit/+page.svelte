@@ -53,11 +53,10 @@
 		organizationId: orgId as Id<'organizations'>
 	}));
 
-	// Query all approved service assignments for this user (from any CV) to make them read-only
-	const approvedServices = useQuery(api.expertServiceAssignments.getExpertServiceAssignments, () => ({
+	// Query all service assignments for THIS USER across ALL CVs - to filter out already-assigned services
+	const allUserAssignments = useQuery(api.expertServiceAssignments.getExpertServiceAssignments, () => ({
 		userId: expertId as Id<'users'>,
-		organizationId: orgId as Id<'organizations'>,
-		status: 'approved' as const
+		organizationId: orgId as Id<'organizations'>
 	}));
 
 	// ==========================================
@@ -225,31 +224,45 @@
 		return activeLeadAssignments.length > 0;
 	}
 	
-	// Get read-only services (approved services from current CV + any prior approved services)
+	// Get read-only services (only approved services from the CURRENT CV where CV is locked)
+	// Services from prior CVs are NOT read-only on a new CV unless they're also approved and locked on current CV
 	let readOnlyServices = $derived.by(() => {
 		const readOnlySet = new Set<string>();
 		
-		// Add approved services from current CV
-		if (assignedServices?.data) {
+		// Only mark as read-only if the CV is locked (approved services are final)
+		const isCVLocked = expertCV?.data?.status === 'locked_final';
+		
+		// Add approved services from current CV ONLY if CV is locked
+		if (assignedServices?.data && isCVLocked) {
 			assignedServices.data
 				.filter((assignment: any) => assignment.status === 'approved')
 				.forEach((assignment: any) => readOnlySet.add(assignment.serviceVersionId));
 		}
 		
-		// Add approved services from any prior CVs for this user
-		if (approvedServices?.data) {
-			approvedServices.data
-				.forEach((assignment: any) => readOnlySet.add(assignment.serviceVersionId));
-		}
+		// Do NOT include approved services from other CVs - they are specific to those CVs
+		// The expert is working on a new CV and can choose services independently
 		
 		return Array.from(readOnlySet);
 	});
 	
-	// Filter out approved services from available services (show only selectable services)
+	// Show available services in the select list
+	// Exclude services that are already approved on locked CVs (they're final and can't be re-selected)
 	let selectableServices = $derived.by(() => {
 		if (!availableServices?.data) return [];
+		
+		// Get service IDs that are approved and locked (final) - these cannot be selected
+		const lockedApprovedServiceIds = new Set<string>();
+		if (allUserAssignments?.data) {
+			allUserAssignments.data.forEach((assignment: any) => {
+				if (assignment.status === 'approved' && assignment.expertCV?.status === 'locked_final') {
+					lockedApprovedServiceIds.add(assignment.serviceVersionId);
+				}
+			});
+		}
+		
+		// Filter out services that are already locked and approved
 		return availableServices.data.filter(
-			(service: any) => !readOnlyServices.includes(service._id)
+			(service: any) => !lockedApprovedServiceIds.has(service._id)
 		);
 	});
 	
@@ -465,7 +478,7 @@
 			<div class="flex gap-6">
 				<!-- LEFT SIDEBAR: Expert Header (Smaller, like admin page) -->
 				<div class="w-80 flex-shrink-0 space-y-4">
-					<ExpertHeader {userDetails} {expertCV} {approvedServices} />
+					<ExpertHeader {userDetails} {expertCV} allUserAssignments={allUserAssignments} />
 					
 					<!-- Completion Checklist -->
 					{#if expertCV?.data}
