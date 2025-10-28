@@ -21,6 +21,7 @@
 	import { analyzeServiceChanges } from '$lib/utils/serviceChangeAnalyzer';
 	import { buildCVForValidation } from '$lib/utils/cvValidationBuilder';
 	import { shouldTransitionCVStatus } from '$lib/utils/cvStatusTransitionHandler';
+	import { executeServiceChanges } from '$lib/utils/serviceChangeExecutor';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -297,23 +298,11 @@
 			
 			// Execute service changes (only if service editing is allowed)
 			if (canEditServicesNow) {
-				if (changes.toAdd.length > 0) {
-					for (const serviceId of changes.toAdd) {
-						await addServiceAssignment(serviceId);
-					}
-				}
-				
-				if (changes.toRemove.length > 0) {
-					for (const serviceId of changes.toRemove) {
-						await removeServiceAssignment(serviceId);
-					}
-				}
-				
-				if (changes.toUpdate.length > 0) {
-					for (const update of changes.toUpdate) {
-						await updateServiceRole(update.assignmentId, update.newRole);
-					}
-				}
+				await executeServiceChanges(changes, {
+					addServiceAssignment,
+					removeServiceAssignment,
+					updateServiceRole
+				});
 			}
 			
 			// Step 3: NOW validate and handle status transitions AFTER all data is saved

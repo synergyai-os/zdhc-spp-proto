@@ -13,8 +13,8 @@
  * Default organization ID for development/testing
  * Change this value to switch to a different organization
  */
-export const DEFAULT_ORG_ID = 'j975t878dn66x7br1076wb7ey17skxyg';
-
+// Test Org 1: export const DEFAULT_ORG_ID = 'j975t878dn66x7br1076wb7ey17skxyg';
+export const DEFAULT_ORG_ID = 'j97b4b01nyqmntkwyskrdgnc517sjbp7';
 /**
  * Default expert ID for testing (if needed)
  */

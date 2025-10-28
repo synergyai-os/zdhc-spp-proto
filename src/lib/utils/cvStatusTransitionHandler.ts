@@ -18,7 +18,7 @@ export interface StatusTransitionResult {
 export function shouldTransitionCVStatus(
 	currentStatus: string,
 	isValid: boolean
-): string | null {
+): 'completed' | 'draft' | null {
 	// Draft → Completed: CV is now complete
 	if (currentStatus === 'draft' && isValid) {
 		return 'completed';
