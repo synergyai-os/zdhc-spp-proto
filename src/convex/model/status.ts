@@ -257,7 +257,7 @@ export function getJourneyStatusColor(
 ): string {
 	switch (journeyType) {
 		case 'under-review':
-			return getServiceStatusColor(assignment.status);
+			return 'bg-yellow-100 text-yellow-800';
 		case 'rejected':
 			return getServiceStatusColor(assignment.status);
 		case 'approved-training-required':
