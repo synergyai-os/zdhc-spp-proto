@@ -1,0 +1,289 @@
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { useConvexClient, useQuery } from 'convex-svelte';
+	import { api, type Id } from '$lib';
+	import { DEFAULT_ORG_ID } from '$lib/config';
+	import { canEditCVContent, type CVStatus } from '../../../../../../convex/model/status';
+	
+	const client = useConvexClient();
+	const expertId = $derived($page.params.expertId);
+	const orgId = DEFAULT_ORG_ID;
+	const experienceIndex = $derived($page.url.searchParams.get('index'));
+	
+	// Get CV data to determine if we're editing
+	const expertCV = useQuery(api.expert.getLatestCV, () => ({
+		userId: expertId as Id<'users'>,
+		organizationId: orgId as Id<'organizations'>
+	}));
+	
+	// Determine if we're editing or creating new
+	let isEditing = $derived(experienceIndex !== null && !isNaN(Number(experienceIndex)));
+	let editIndex = $derived(isEditing ? Number(experienceIndex) : -1);
+	
+	// Form state
+	let formData = $state({
+		title: '',
+		company: '',
+		location: '',
+		startDate: '',
+		endDate: '',
+		current: false,
+		onSiteAuditsCompleted: 0,
+		description: ''
+	});
+	
+	// Load existing data if editing
+	$effect(() => {
+		if (isEditing && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.experience && expertCV.data.experience[editIndex]) {
+			const existing = expertCV.data.experience[editIndex];
+			formData = {
+				title: existing.title || '',
+				company: existing.company || '',
+				location: existing.location || '',
+				startDate: existing.startDate || '',
+				endDate: existing.endDate || '',
+				current: existing.current || false,
+				onSiteAuditsCompleted: existing.onSiteAuditsCompleted || 0,
+				description: existing.description || ''
+			};
+		}
+	});
+	
+	// Check if editing is allowed
+	let canEdit = $derived(canEditCVContent((!Array.isArray(expertCV?.data) && expertCV?.data?.status) || 'draft'));
+	
+	// Check if current field change
+	function handleCurrentChange(checked: boolean) {
+		formData.current = checked;
+		if (checked) {
+			formData.endDate = '';
+		}
+	}
+	
+	// Save experience
+	async function saveExperience() {
+		if (!expertCV?.data || Array.isArray(expertCV.data)) {
+			console.error('No CV data available');
+			return;
+		}
+		
+		if (!canEdit) {
+			console.error('CV is locked and cannot be edited');
+			return;
+		}
+		
+		try {
+			// Get current experience array
+			const experience = [...(expertCV.data.experience || [])];
+			
+			if (isEditing) {
+				// Update existing experience
+				experience[editIndex] = formData;
+			} else {
+				// Add new experience
+				experience.push(formData);
+			}
+			
+			// Save to database
+			await client.mutation(api.expert.updateCV, {
+				cvId: expertCV.data._id as Id<'expertCVs'>,
+				organizationId: orgId as Id<'organizations'>,
+				experience: experience,
+				education: expertCV.data.education || [],
+				trainingQualifications: expertCV.data.trainingQualifications || []
+			});
+			
+			// Navigate back to edit page
+			await goto(`/user-management/experts/${expertId}/edit?tab=experience`);
+		} catch (error: any) {
+			console.error('Failed to save experience:', error);
+			alert('Failed to save experience: ' + error.message);
+		}
+	}
+	
+	// Navigate back
+	function goBack() {
+		goto(`/user-management/experts/${expertId}/edit?tab=experience`);
+	}
+</script>
+
+<div class="bg-gray-50 min-h-screen">
+	<div class="max-w-4xl mx-auto px-6 py-8">
+		<!-- Back Button -->
+		<div class="mb-6">
+			<button
+				onclick={goBack}
+				class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+			>
+				<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+				</svg>
+				Back to CV
+			</button>
+		</div>
+		
+		<!-- Form Card -->
+		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+			<h2 class="text-xl font-semibold text-gray-900 mb-6">
+				{isEditing ? 'Edit Experience' : 'Add New Experience'}
+			</h2>
+			
+			{#if !canEdit}
+				<div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+					<div class="flex items-center">
+						<svg class="w-5 h-5 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+						</svg>
+						<span class="text-sm text-amber-700">CV is locked and cannot be edited.</span>
+					</div>
+				</div>
+			{/if}
+			
+			<form onsubmit={(e) => { e.preventDefault(); saveExperience(); }} class="space-y-6">
+				<!-- Title and Company -->
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div>
+						<label for="title" class="block text-sm font-medium text-gray-700 mb-1">
+							Job Title *
+						</label>
+						<input
+							id="title"
+							type="text"
+							bind:value={formData.title}
+							required
+							disabled={!canEdit}
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+							placeholder="e.g., Senior Consultant"
+						/>
+					</div>
+					
+					<div>
+						<label for="company" class="block text-sm font-medium text-gray-700 mb-1">
+							Company *
+						</label>
+						<input
+							id="company"
+							type="text"
+							bind:value={formData.company}
+							required
+							disabled={!canEdit}
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+							placeholder="e.g., ABC Consulting"
+						/>
+					</div>
+				</div>
+				
+				<!-- Location -->
+				<div>
+					<label for="location" class="block text-sm font-medium text-gray-700 mb-1">
+						Location
+					</label>
+					<input
+						id="location"
+						type="text"
+						bind:value={formData.location}
+						disabled={!canEdit}
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+						placeholder="e.g., Amsterdam, Netherlands"
+					/>
+				</div>
+				
+				<!-- Dates -->
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div>
+						<label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">
+							Start Date *
+						</label>
+						<input
+							id="startDate"
+							type="date"
+							bind:value={formData.startDate}
+							required
+							disabled={!canEdit}
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+						/>
+					</div>
+					
+					<div>
+						<label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">
+							End Date
+						</label>
+						<input
+							id="endDate"
+							type="date"
+							bind:value={formData.endDate}
+							disabled={formData.current || !canEdit}
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+						/>
+					</div>
+				</div>
+				
+				<!-- Current checkbox -->
+				<div class="flex items-center">
+					<input
+						type="checkbox"
+						id="current"
+						checked={formData.current}
+						onchange={(e) => handleCurrentChange(e.currentTarget.checked)}
+						disabled={!canEdit}
+						class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:cursor-not-allowed"
+					/>
+					<label for="current" class="ml-2 block text-sm text-gray-700">
+						Currently working here
+					</label>
+				</div>
+				
+				<!-- On-site audits -->
+				<div>
+					<label for="audits" class="block text-sm font-medium text-gray-700 mb-1">
+						On-site Audits Completed
+					</label>
+					<input
+						id="audits"
+						type="number"
+						min="0"
+						bind:value={formData.onSiteAuditsCompleted}
+						disabled={!canEdit}
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+						placeholder="0"
+					/>
+				</div>
+				
+				<!-- Description -->
+				<div>
+					<label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+						Description
+					</label>
+					<textarea
+						id="description"
+						bind:value={formData.description}
+						disabled={!canEdit}
+						rows="4"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+						placeholder="Describe the role and key responsibilities..."
+					></textarea>
+				</div>
+				
+				<!-- Action Buttons -->
+				<div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+					<button
+						type="button"
+						onclick={goBack}
+						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+					>
+						Cancel
+					</button>
+					<button
+						type="submit"
+						disabled={!canEdit}
+						class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						Save Experience
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+

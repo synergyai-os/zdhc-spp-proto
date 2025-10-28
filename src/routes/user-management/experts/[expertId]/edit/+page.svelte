@@ -577,13 +577,16 @@
 					<!-- Experience Tab Content -->
 					{#if activeTab === 'experience'}
 						<TestDataGenerator tabName="Professional Experience" onFillData={fillTestData} />
-						<ExperienceView 
-							cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
-							{localCVData}
-							onAddExperience={addExperience}
-							onRemoveExperience={removeExperience}
-							onUpdateExperience={updateExperience}
-						/>
+						{#if expertId}
+							<ExperienceView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onAddExperience={addExperience}
+								onRemoveExperience={removeExperience}
+								onUpdateExperience={updateExperience}
+							/>
+						{/if}
 					{/if}
 
 					<!-- Education Tab Content -->
