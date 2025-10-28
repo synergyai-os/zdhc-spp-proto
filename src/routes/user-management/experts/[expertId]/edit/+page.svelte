@@ -17,6 +17,7 @@
 	import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
 	import TestDataGenerator from '$lib/components/expert-edit/TestDataGenerator.svelte';
 	import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData } from '$lib/utils/testDataGenerators';
+	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
 		
 	// ==========================================
 	// 1. SETUP & DATA
@@ -111,17 +112,7 @@
 	// Experience management functions
 	function addExperience() {
 		if (!localCVData) return;
-		const newExperience = {
-			title: '',
-			company: '',
-			location: '',
-			startDate: '',
-			endDate: '',
-			current: false,
-			onSiteAuditsCompleted: 0,
-			description: ''
-		};
-		localCVData.experience = [...(localCVData.experience || []), newExperience];
+		localCVData.experience = [...(localCVData.experience || []), createExperienceEntry()];
 	}
 
 	function removeExperience(index: number) {
@@ -138,15 +129,7 @@
 	// Education management functions
 	function addEducation() {
 		if (!localCVData) return;
-		const newEducation = {
-			school: '',
-			degree: '',
-			field: '',
-			startDate: '',
-			endDate: '',
-			description: ''
-		};
-		localCVData.education = [...(localCVData.education || []), newEducation];
+		localCVData.education = [...(localCVData.education || []), createEducationEntry()];
 	}
 
 	function removeEducation(index: number) {
@@ -163,15 +146,7 @@
 	// Training management functions
 	function addTraining() {
 		if (!localCVData) return;
-		const newTraining = {
-			qualificationName: '',
-			trainingOrganisation: '',
-			trainingContent: '',
-			dateIssued: '',
-			expireDate: '',
-			description: ''
-		};
-		localCVData.trainingQualifications = [...(localCVData.trainingQualifications || []), newTraining];
+		localCVData.trainingQualifications = [...(localCVData.trainingQualifications || []), createTrainingEntry()];
 	}
 
 	function removeTraining(index: number) {
