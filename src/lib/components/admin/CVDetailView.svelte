@@ -2,8 +2,10 @@
 	import { useConvexClient } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
 	import type { ServiceStatus, CVStatus, ExpertRole } from '../../../convex/model/status';
-	import { getServiceStatusDisplayName, getServiceStatusColor, SERVICE_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName, getExpertRoleDisplayName, getExpertRoleColor } from '../../../convex/model/status';
-	import DevelopmentToolBar from './DevelopmentToolBar.svelte';
+import { getServiceStatusDisplayName, getServiceStatusColor, SERVICE_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName, getExpertRoleDisplayName, getExpertRoleColor } from '../../../convex/model/status';
+import DevelopmentToolBar from './DevelopmentToolBar.svelte';
+import AuditTrailSection from './AuditTrailSection.svelte';
+import InternalNotesSection from './InternalNotesSection.svelte';
 
 	interface User {
 		_id: string;
@@ -147,15 +149,6 @@
 		return allCVs;
 	});
 	
-	const exampleAuditTrail = [
-		{ action: 'CV Status Changed', from: 'paid', to: 'locked_for_review', by: 'System', timestamp: Date.now() - 86400000 },
-		{ action: 'Payment Completed', from: 'payment_pending', to: 'paid', by: 'Payment Gateway', timestamp: Date.now() - 172800000 },
-		{ action: 'CV Submitted', from: 'completed', to: 'payment_pending', by: 'John Doe', timestamp: Date.now() - 259200000 }
-	];
-	const exampleInternalNotes = [
-		{ author: 'Sarah Johnson', note: 'CV looks good overall, but need to verify experience in chemical engineering.', timestamp: Date.now() - 3600000 },
-		{ author: 'Mike Chen', note: 'Waiting for additional documentation from the expert.', timestamp: Date.now() - 7200000 }
-	];
 
 	// State for approval/rejection actions
 	let activeAssignment = $state<ServiceAssignment | null>(null);
@@ -800,59 +793,10 @@
 		{/if}
 
 		<!-- AUDIT TRAIL SECTION: History of Changes -->
-		<div class="bg-white border border-gray-200 rounded-lg p-6">
-			<h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-				<svg class="w-5 h-5 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-				</svg>
-				Audit Trail
-			</h2>
-			<div class="space-y-3">
-				{#each exampleAuditTrail as entry}
-					<div class="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-						<div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-						<div class="flex-1">
-							<p class="text-sm font-medium text-gray-900">{entry.action}</p>
-							<p class="text-xs text-gray-600">
-								{#if entry.from && entry.to}
-									{entry.from} → {entry.to}
-								{/if}
-								by {entry.by} • {formatDate(entry.timestamp)}
-							</p>
-						</div>
-					</div>
-				{/each}
-			</div>
-		</div>
+		<AuditTrailSection />
 
 		<!-- INTERNAL NOTES SECTION: Team Communication -->
-		<div class="bg-white border border-gray-200 rounded-lg p-6">
-			<div class="flex items-center justify-between mb-4">
-				<h2 class="text-xl font-bold text-gray-900 flex items-center">
-					<svg class="w-5 h-5 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-					</svg>
-					Internal Notes
-				</h2>
-				<button class="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700">
-					Add Note
-				</button>
-			</div>
-			<div class="space-y-3">
-				{#each exampleInternalNotes as note}
-					<div class="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-						<div class="flex justify-between items-start">
-							<div class="flex-1">
-								<p class="text-sm text-gray-900">{note.note}</p>
-								<p class="text-xs text-gray-600 mt-1">
-									by {note.author} • {formatDate(note.timestamp)}
-								</p>
-							</div>
-						</div>
-					</div>
-				{/each}
-			</div>
-		</div>
+		<InternalNotesSection />
 	</div>
 </div>
 
