@@ -367,7 +367,7 @@ export const updateCV = mutation({
 			startDate: v.string(),
 			endDate: v.optional(v.string()),
 			current: v.boolean(),
-			onSiteAuditsCompleted: v.number(),
+			onSiteAuditsCompleted: v.optional(v.number()),
 			description: v.optional(v.string())
 		}))),
 		education: v.optional(v.array(v.object({
