@@ -30,13 +30,18 @@
 		endDate: '',
 		current: false,
 		onSiteAuditsCompleted: 0,
+		fieldExperienceCounts: {
+			assessment: { total: 0, last12m: 0 },
+			sampling: { total: 0, last12m: 0 },
+			training: { total: 0, last12m: 0 }
+		},
 		description: ''
 	});
 	
 	// Load existing data if editing
 	$effect(() => {
 		if (isEditing && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.experience && expertCV.data.experience[editIndex]) {
-			const existing = expertCV.data.experience[editIndex];
+			const existing: any = expertCV.data.experience[editIndex];
 			formData = {
 				title: existing.title || '',
 				company: existing.company || '',
@@ -45,6 +50,11 @@
 				endDate: existing.endDate || '',
 				current: existing.current || false,
 				onSiteAuditsCompleted: existing.onSiteAuditsCompleted || 0,
+				fieldExperienceCounts: existing.fieldExperienceCounts || {
+					assessment: { total: 0, last12m: 0 },
+					sampling: { total: 0, last12m: 0 },
+					training: { total: 0, last12m: 0 }
+				},
 				description: existing.description || ''
 			};
 		}
@@ -60,6 +70,7 @@
 			formData.endDate = '';
 		}
 	}
+	
 	
 	// Save experience
 	async function saveExperience() {
@@ -234,20 +245,113 @@
 					</label>
 				</div>
 				
-				<!-- On-site audits -->
-				<div>
-					<label for="audits" class="block text-sm font-medium text-gray-700 mb-1">
-						On-site Audits Completed
-					</label>
-					<input
-						id="audits"
-						type="number"
-						min="0"
-						bind:value={formData.onSiteAuditsCompleted}
-						disabled={!canEdit}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-						placeholder="0"
-					/>
+				<!-- Field Experience Section -->
+				<div class="border-t border-gray-200 pt-6">
+					<div class="mb-4">
+						<h3 class="text-sm font-semibold text-gray-900 mb-1">Field Experience</h3>
+						<p class="text-xs text-gray-500">Enter the number of assessments, samplings, and trainings conducted</p>
+					</div>
+					
+					<div class="space-y-4">
+						<!-- Assessments -->
+						<div class="bg-white border border-gray-200 rounded-lg p-4">
+							<h4 class="text-sm font-semibold text-gray-900 mb-3">Assessments</h4>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Total Assessments
+									</label>
+									<input
+										type="number"
+										min="0"
+										bind:value={formData.fieldExperienceCounts.assessment.total}
+										disabled={!canEdit}
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+										placeholder="0"
+									/>
+								</div>
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Last 12 Months
+									</label>
+									<input
+										type="number"
+										min="0"
+										bind:value={formData.fieldExperienceCounts.assessment.last12m}
+										disabled={!canEdit}
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+										placeholder="0"
+									/>
+								</div>
+							</div>
+						</div>
+						
+						<!-- Samplings -->
+						<div class="bg-white border border-gray-200 rounded-lg p-4">
+							<h4 class="text-sm font-semibold text-gray-900 mb-3">Samplings</h4>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Total Samplings
+									</label>
+									<input
+										type="number"
+										min="0"
+										bind:value={formData.fieldExperienceCounts.sampling.total}
+										disabled={!canEdit}
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+										placeholder="0"
+									/>
+								</div>
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Last 12 Months
+									</label>
+									<input
+										type="number"
+										min="0"
+										bind:value={formData.fieldExperienceCounts.sampling.last12m}
+										disabled={!canEdit}
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+										placeholder="0"
+									/>
+								</div>
+							</div>
+						</div>
+						
+						<!-- Trainings -->
+						<div class="bg-white border border-gray-200 rounded-lg p-4">
+							<h4 class="text-sm font-semibold text-gray-900 mb-3">Trainings Given</h4>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Total Trainings
+									</label>
+									<input
+										type="number"
+										min="0"
+										bind:value={formData.fieldExperienceCounts.training.total}
+										disabled={!canEdit}
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+										placeholder="0"
+									/>
+								</div>
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Last 12 Months
+									</label>
+									<input
+										type="number"
+										min="0"
+										bind:value={formData.fieldExperienceCounts.training.last12m}
+										disabled={!canEdit}
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+										placeholder="0"
+									/>
+								</div>
+							</div>
+						</div>
+					</div>
 				</div>
 				
 				<!-- Description -->
