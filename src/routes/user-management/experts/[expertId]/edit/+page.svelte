@@ -543,6 +543,19 @@
 				<div class="w-80 flex-shrink-0 space-y-4">
 					<ExpertHeader {userDetails} {expertCV} />
 					
+					<!-- Completion Checklist -->
+					{#if expertCV?.data}
+						{@const totalAudits = expertCV.data.experience?.reduce((sum: number, exp: any) => sum + (exp.onSiteAuditsCompleted || 0), 0) || 0}
+						<CompletionChecklist 
+							userIsActive={userDetails?.data?.isActive || false}
+							experienceCount={expertCV.data.experience?.length || 0}
+							educationCount={expertCV.data.education?.length || 0}
+							serviceCount={assignedServices?.data?.length || 0}
+							{totalAudits}
+							cvStatus={expertCV.data.status}
+						/>
+					{/if}
+					
 					<!-- Development Tools -->
 					{#if expertCV?.data}
 						<DevelopmentToolBar 
@@ -560,19 +573,6 @@
 
 				<!-- MAIN CONTENT AREA: Tabs and Content (Wider) -->
 				<div class="flex-1 space-y-6">
-					<!-- Completion Checklist -->
-					{#if expertCV?.data}
-						{@const totalAudits = expertCV.data.experience?.reduce((sum: number, exp: any) => sum + (exp.onSiteAuditsCompleted || 0), 0) || 0}
-						<CompletionChecklist 
-							userIsActive={userDetails?.data?.isActive || false}
-							experienceCount={expertCV.data.experience?.length || 0}
-							educationCount={expertCV.data.education?.length || 0}
-							serviceCount={assignedServices?.data?.length || 0}
-							{totalAudits}
-							cvStatus={expertCV.data.status}
-						/>
-					{/if}
-
 					<!-- Tab Switcher -->
 					<TabSwitcher 
 						tabs={['services', 'experience', 'education', 'training']} 
