@@ -289,52 +289,32 @@
 			
 			// Step 2: Analyze and execute service changes FIRST
 			const changes = getServiceChanges();
-			console.log('📊 Changes to make:', changes);
-			console.log('Current assigned services:', assignedServices?.data);
-			console.log('User effective selection:', effectiveServiceSelection);
-			console.log('Current service roles:', serviceRoles);
-			console.log('Role changes:', roleChanges);
 			
 			// Check if service editing is allowed
 			const canEditServicesNow = canEditServices(expertCV?.data?.status || 'draft');
-			console.log('🎯 Can edit services:', canEditServicesNow);
 			
 			// Execute service changes (only if service editing is allowed)
 			if (canEditServicesNow) {
 				if (changes.toAdd.length > 0) {
-					console.log('➕ Adding services:', changes.toAdd);
 					for (const serviceId of changes.toAdd) {
 						await addServiceAssignment(serviceId);
-						console.log(`✅ Added service: ${serviceId}`);
 					}
 				}
 				
 				if (changes.toRemove.length > 0) {
-					console.log('➖ Removing services:', changes.toRemove);
 					for (const serviceId of changes.toRemove) {
 						await removeServiceAssignment(serviceId);
-						console.log(`✅ Removed service: ${serviceId}`);
 					}
 				}
 				
 				if (changes.toUpdate.length > 0) {
-					console.log('🔄 Updating roles:', changes.toUpdate);
 					for (const update of changes.toUpdate) {
 						await updateServiceRole(update.assignmentId, update.newRole);
-						console.log(`✅ Updated role: ${update.assignmentId} → ${update.newRole}`);
 					}
 				}
-				
-				if (changes.toAdd.length === 0 && changes.toRemove.length === 0 && changes.toUpdate.length === 0) {
-					console.log('✅ No service changes needed');
-				}
-			} else {
-				console.log('🚫 Service editing not allowed - skipping service changes');
 			}
 			
 			// Step 3: NOW validate and handle status transitions AFTER all data is saved
-			console.log('🎯 CV Status:', expertCV?.data?.status);
-			console.log('🎯 Can edit CV content:', canEditCVContent(expertCV?.data?.status || 'draft'));
 			
 			if (localCVData) {
 				// Create CV object with UPDATED service assignments for validation
@@ -371,40 +351,28 @@
 				};
 				
 				const validation = validateCVCompletion(cvForValidation);
-				console.log('🎯 CV Validation:', validation);
-				console.log('🎯 Local CV Data:', localCVData);
-				console.log('🎯 Experience length:', localCVData.experience?.length);
-				console.log('🎯 Education length:', localCVData.education?.length);
-				console.log('🎯 Final service assignments length:', finalAssignments.length);
 				
 				// Handle status transitions based on validation
 				const currentStatus = expertCV?.data?.status;
 				
 				if (currentStatus === 'draft' && validation.isValid) {
 					// Draft → Completed: CV is now complete
-					console.log('🚀 Auto-transitioning: draft → completed');
 					await client.mutation(api.expert.updateCVStatus, {
 						cvId: localCVData._id,
 						newStatus: 'completed'
 					});
-					console.log('✅ Status updated to completed');
 				} else if (currentStatus === 'completed' && !validation.isValid) {
 					// Completed → Draft: CV is no longer complete (e.g., removed all education)
-					console.log('🚀 Auto-transitioning: completed → draft (CV no longer complete)');
 					await client.mutation(api.expert.updateCVStatus, {
 						cvId: localCVData._id,
 						newStatus: 'draft'
 					});
-					console.log('✅ Status reverted to draft');
 				}
 			}
-			
-			console.log('🎉 Save completed successfully!');
 			
 			// Clear user changes to sync UI with database state
 			userServiceChanges = new Set();
 			roleChanges = {};
-			console.log('🔄 Cleared user changes - UI now reflects database state');
 			
 		} catch (error: any) {
 			saveError = error.message;
@@ -427,12 +395,10 @@
 			await save();
 			
 			// Then update status to locked_for_review
-			console.log('🚀 Resubmitting for review: unlocked_for_edits → locked_for_review');
 			await client.mutation(api.expert.updateCVStatus, {
 				cvId: expertCV.data._id,
 				newStatus: 'locked_for_review'
 			});
-			console.log('✅ Resubmitted for review');
 			
 		} catch (error: any) {
 			saveError = error.message;
