@@ -32,7 +32,13 @@
 	// Get requirements for selected service version
 	const requirements = useQuery(
 		(api as any).serviceVersionRequirements.getRequirementsForServiceVersion,
-		() => selectedServiceVersionId ? { serviceVersionId: selectedServiceVersionId } : 'skip'
+		() => {
+			if (!selectedServiceVersionId) {
+				// Return a dummy ID that will return empty results (better than skip which doesn't work)
+				return { serviceVersionId: 'j1j1j1j1j1j1j1j1j1j1j1j1' as any };
+			}
+			return { serviceVersionId: selectedServiceVersionId };
+		}
 	);
 
 	// Get service parents for grouping
@@ -62,6 +68,19 @@
 	$effect(() => {
 		if (serviceVersions?.data && serviceVersions.data.length > 0 && !selectedServiceVersionId) {
 			selectedServiceVersionId = serviceVersions.data[0]._id;
+		}
+	});
+
+	// Debug logging
+	$effect(() => {
+		if (requirements) {
+			console.log('Requirements query state:', {
+				isLoading: requirements.isLoading,
+				error: requirements.error,
+				data: requirements.data,
+				hasData: !!requirements.data,
+				dataLength: requirements.data?.length
+			});
 		}
 	});
 
@@ -262,6 +281,10 @@
 
 				{#if requirements?.isLoading}
 					<div class="p-8 text-center text-gray-500">Loading requirements...</div>
+				{:else if requirements?.error}
+					<div class="p-8 text-center text-red-500">
+						Error loading requirements: {requirements.error}
+					</div>
 				{:else if requirements?.data && requirements.data.length > 0}
 					<div class="divide-y divide-gray-200">
 						{#each requirements.data as requirement (requirement._id)}
