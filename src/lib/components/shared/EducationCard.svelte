@@ -6,6 +6,7 @@
 		startDate: string;
 		endDate: string;
 		description?: string;
+		lockedForReviewAt?: number;
 	}
 
 	interface Props {
@@ -17,15 +18,25 @@
 	}
 
 	let { education, showEditButton = false, onEdit, onRemove, readOnly = false }: Props = $props();
+	
+	const isLocked = $derived(education.lockedForReviewAt !== undefined);
 </script>
 
-<div class="border-l-4 border-green-500 pl-4 py-4 bg-white rounded-r-lg border border-gray-200 hover:shadow-sm transition-shadow">
+<div class="border-l-4 {isLocked ? 'border-orange-500 bg-orange-50' : 'border-green-500'} pl-4 py-4 bg-white rounded-r-lg border border-gray-200 hover:shadow-sm transition-shadow">
 	<div class="flex justify-between items-start">
 		<div class="flex-1">
-			<h3 class="font-semibold text-gray-900">
+			<h3 class="font-semibold text-gray-900 inline-flex items-center gap-2">
 				{education.degree}
 				{#if education.field}
 					<span class="text-gray-600 font-normal"> in {education.field}</span>
+				{/if}
+				{#if isLocked}
+					<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800" title="Locked for review - cannot be edited">
+						<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+						</svg>
+						Locked
+					</span>
 				{/if}
 			</h3>
 			<p class="text-gray-600">{education.school}</p>
@@ -33,9 +44,9 @@
 				{education.startDate} - {education.endDate}
 			</p>
 		</div>
-		{#if (showEditButton && !readOnly) || onRemove}
+		{#if (showEditButton && !readOnly && !isLocked) || (onRemove && !isLocked)}
 			<div class="flex items-center gap-2 ml-4 flex-shrink-0">
-				{#if showEditButton && !readOnly && onEdit}
+				{#if showEditButton && !readOnly && !isLocked && onEdit}
 					<button
 						onclick={onEdit}
 						class="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
@@ -46,7 +57,7 @@
 						</svg>
 					</button>
 				{/if}
-				{#if onRemove && !readOnly}
+				{#if onRemove && !readOnly && !isLocked}
 					<button
 						onclick={onRemove}
 						class="inline-flex items-center px-2 py-1 text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"

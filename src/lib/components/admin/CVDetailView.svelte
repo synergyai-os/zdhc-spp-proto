@@ -492,10 +492,13 @@
 		<!-- CV CONTENT SECTION: Experience & Education -->
 		{#if currentCVData}
 			<CVContentDisplay 
+				cvId={currentCVData._id as any}
+				cvStatus={currentCVData.status}
 				experience={currentCVData.experience} 
 				education={currentCVData.education}
 				trainingQualifications={currentCVData.trainingQualifications}
 				otherApprovals={currentCVData.otherApprovals}
+				onItemsUpdated={onApprovalChange}
 			/>
 		{/if}
 

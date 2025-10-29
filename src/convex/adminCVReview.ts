@@ -661,6 +661,86 @@ async function sendAcademyWebhook(user: any, cv: any, approvedAssignments: any[]
 }
 
 // ==========================================
+// ITEM-LEVEL REVIEW LOCKING (ADMIN CONTROL)
+// ==========================================
+
+/**
+ * Set items under review - lock/unlock specific CV items for review
+ * Admin can select specific items to review, protecting them from edits
+ */
+export const setItemsUnderReview = mutation({
+	args: {
+		cvId: v.id('expertCVs'),
+		section: v.union(
+			v.literal('experience'),
+			v.literal('education'),
+			v.literal('training'),
+			v.literal('approvals')
+		),
+		itemIndices: v.array(v.number()), // Array of item indices to lock/unlock
+		lock: v.boolean() // true to lock, false to unlock
+	},
+	handler: async (ctx, args) => {
+		const cv = await ctx.db.get(args.cvId);
+		if (!cv) {
+			throw new Error('CV not found');
+		}
+
+		// Only allow this when CV is in review states
+		if (cv.status !== 'locked_for_review' && cv.status !== 'unlocked_for_edits') {
+			throw new Error('Can only set review locks when CV is locked_for_review or unlocked_for_edits');
+		}
+
+		const now = Date.now();
+		const sectionFieldMap: Record<string, keyof typeof cv> = {
+			experience: 'experience',
+			education: 'education',
+			training: 'trainingQualifications',
+			approvals: 'otherApprovals'
+		};
+
+		const fieldName = sectionFieldMap[args.section];
+		if (!fieldName) {
+			throw new Error(`Invalid section: ${args.section}`);
+		}
+
+		const sectionArray = cv[fieldName] as any[] | undefined;
+		if (!sectionArray) {
+			throw new Error(`Section ${args.section} not found or empty`);
+		}
+
+		// Validate indices
+		for (const index of args.itemIndices) {
+			if (index < 0 || index >= sectionArray.length) {
+				throw new Error(`Invalid index ${index} for section ${args.section}`);
+			}
+		}
+
+		// Create updated array with locked/unlocked items
+		const updatedArray = sectionArray.map((item, index) => {
+			if (args.itemIndices.includes(index)) {
+				return {
+					...item,
+					lockedForReviewAt: args.lock ? now : undefined
+				};
+			}
+			return item; // Keep unchanged
+		});
+
+		// Update the CV
+		await ctx.db.patch(args.cvId, {
+			[fieldName]: updatedArray
+		});
+
+		return {
+			success: true,
+			lockedCount: args.lock ? args.itemIndices.length : 0,
+			unlockedCount: args.lock ? 0 : args.itemIndices.length
+		};
+	}
+});
+
+// ==========================================
 // UTILITY QUERIES FOR ADMIN INTERFACE (UPDATED FOR NEW SCHEMA)
 // ==========================================
 

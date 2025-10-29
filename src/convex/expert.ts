@@ -410,7 +410,8 @@ export const updateCV = mutation({
 					total: v.number(),
 					last12m: v.number()
 				})
-			}))
+			})),
+			lockedForReviewAt: v.optional(v.number())
 		}))),
 		education: v.optional(v.array(v.object({
 			school: v.string(),
@@ -418,7 +419,8 @@ export const updateCV = mutation({
 			field: v.string(),
 			startDate: v.string(),
 			endDate: v.string(),
-			description: v.string()
+			description: v.string(),
+			lockedForReviewAt: v.optional(v.number())
 		}))),
 		trainingQualifications: v.optional(v.array(v.object({
 			qualificationName: v.string(),
@@ -426,12 +428,14 @@ export const updateCV = mutation({
 			trainingContent: v.string(),
 			dateIssued: v.string(),
 			expireDate: v.string(),
-			description: v.string()
+			description: v.string(),
+			lockedForReviewAt: v.optional(v.number())
 		}))),
 		otherApprovals: v.optional(v.array(v.object({
 			organisationName: v.string(),
 			role: v.string(),
-			dateIssued: v.string()
+			dateIssued: v.string(),
+			lockedForReviewAt: v.optional(v.number())
 		})))
 	},
 	handler: async (ctx, args) => {
@@ -446,19 +450,90 @@ export const updateCV = mutation({
 			throw new Error('Unauthorized: Wrong organization');
 		}
 
-		// Update CV data
+		// Validate that locked items are not being modified when status is unlocked_for_edits
+		// When CV is unlocked_for_edits, items with lockedForReviewAt cannot be changed
+		if (cv.status === 'unlocked_for_edits') {
+			const validateSectionNotModified = (originalItems: any[], newItems: any[], sectionName: string) => {
+				if (!newItems || !originalItems) return;
+				
+				// Check if any locked items were modified or removed
+				const originalLockedIndices = new Map<number, any>();
+				originalItems.forEach((item, index) => {
+					if (item.lockedForReviewAt) {
+						originalLockedIndices.set(index, item);
+					}
+				});
+
+				// Check if locked items still exist at same indices with same content
+				for (const [index, lockedItem] of originalLockedIndices) {
+					if (index >= newItems.length) {
+						throw new Error(`Cannot remove locked ${sectionName} item at index ${index}`);
+					}
+					
+					const newItem = newItems[index];
+					// Deep comparison of all fields except lockedForReviewAt
+					const { lockedForReviewAt: _, ...lockedFields } = lockedItem;
+					const { lockedForReviewAt: __, ...newFields } = newItem;
+					
+					if (JSON.stringify(lockedFields) !== JSON.stringify(newFields)) {
+						throw new Error(`Cannot modify locked ${sectionName} item at index ${index}`);
+					}
+					
+					// Ensure lockedForReviewAt is preserved
+					if (!newItem.lockedForReviewAt || newItem.lockedForReviewAt !== lockedItem.lockedForReviewAt) {
+						throw new Error(`Cannot change lock status of ${sectionName} item at index ${index}`);
+					}
+				}
+			};
+
+			validateSectionNotModified(cv.experience || [], args.experience || [], 'experience');
+			validateSectionNotModified(cv.education || [], args.education || [], 'education');
+			validateSectionNotModified(cv.trainingQualifications || [], args.trainingQualifications || [], 'training');
+			validateSectionNotModified(cv.otherApprovals || [], args.otherApprovals || [], 'approval');
+		}
+
+		// Update CV data - preserve lockedForReviewAt timestamps
 		const updateData: any = {};
 		if (args.experience !== undefined) {
-			updateData.experience = args.experience;
+			// Preserve lockedForReviewAt from existing items
+			const updatedExperience = args.experience.map((newItem, index) => {
+				const existingItem = cv.experience?.[index];
+				return {
+					...newItem,
+					lockedForReviewAt: existingItem?.lockedForReviewAt || newItem.lockedForReviewAt
+				};
+			});
+			updateData.experience = updatedExperience;
 		}
 		if (args.education !== undefined) {
-			updateData.education = args.education;
+			const updatedEducation = args.education.map((newItem, index) => {
+				const existingItem = cv.education?.[index];
+				return {
+					...newItem,
+					lockedForReviewAt: existingItem?.lockedForReviewAt || newItem.lockedForReviewAt
+				};
+			});
+			updateData.education = updatedEducation;
 		}
 		if (args.trainingQualifications !== undefined) {
-			updateData.trainingQualifications = args.trainingQualifications;
+			const updatedTraining = args.trainingQualifications.map((newItem, index) => {
+				const existingItem = cv.trainingQualifications?.[index];
+				return {
+					...newItem,
+					lockedForReviewAt: existingItem?.lockedForReviewAt || newItem.lockedForReviewAt
+				};
+			});
+			updateData.trainingQualifications = updatedTraining;
 		}
 		if (args.otherApprovals !== undefined) {
-			updateData.otherApprovals = args.otherApprovals;
+			const updatedApprovals = args.otherApprovals.map((newItem, index) => {
+				const existingItem = cv.otherApprovals?.[index];
+				return {
+					...newItem,
+					lockedForReviewAt: existingItem?.lockedForReviewAt || newItem.lockedForReviewAt
+				};
+			});
+			updateData.otherApprovals = updatedApprovals;
 		}
 
 		await ctx.db.patch(args.cvId, updateData);

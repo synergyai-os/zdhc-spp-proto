@@ -526,7 +526,7 @@
 </script>
 
 <!-- 5. Simple template -->
-<div class="bg-gray-50 min-h-screen">
+<div class="bg-gray-50 min-h-screen pb-32">
 	<div class="max-w-7xl mx-auto px-6 py-8">
 		{#if expertCV?.data}
 			<div class="flex gap-6">
@@ -701,9 +701,9 @@
 		{/if}
 	</div>
 
-	<!-- Save Buttons - Full width sticky at bottom -->
+	<!-- Save Buttons - Full width fixed at bottom -->
 	{#if expertCV?.data}
-		<div class="sticky bottom-0 w-full bg-white border-t border-gray-200 shadow-lg z-50">
+		<div class="fixed bottom-0 left-0 right-0 w-full bg-white border-t border-gray-200 shadow-lg z-50">
 			<div class="max-w-7xl mx-auto px-6 py-4">
 				{#if canEditCVContent(expertCV?.data?.status || 'draft')}
 					<div class="flex items-center justify-between">

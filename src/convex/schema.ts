@@ -127,7 +127,8 @@ export default defineSchema({
 						total: v.number(),
 						last12m: v.number()
 					})
-				}))
+				})),
+				lockedForReviewAt: v.optional(v.number()) // Timestamp when item was locked for review (admin control)
 			})
 		),
 		education: v.array(
@@ -137,7 +138,8 @@ export default defineSchema({
 				field: v.string(),
 				startDate: v.string(),
 				endDate: v.string(),
-				description: v.string()
+				description: v.string(),
+				lockedForReviewAt: v.optional(v.number()) // Timestamp when item was locked for review (admin control)
 			})
 		),
 		trainingQualifications: v.optional(v.array(
@@ -147,14 +149,16 @@ export default defineSchema({
 				trainingContent: v.string(),
 				dateIssued: v.string(),
 				expireDate: v.string(),
-				description: v.string()
+				description: v.string(),
+				lockedForReviewAt: v.optional(v.number()) // Timestamp when item was locked for review (admin control)
 			})
 		)),
 		otherApprovals: v.optional(v.array(
 			v.object({
 				organisationName: v.string(),
 				role: v.string(),
-				dateIssued: v.string()
+				dateIssued: v.string(),
+				lockedForReviewAt: v.optional(v.number()) // Timestamp when item was locked for review (admin control)
 			})
 		)),
 

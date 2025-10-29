@@ -89,9 +89,36 @@
 		}
 	});
 	
-	// Check if editing is allowed
-	let canEdit = $derived(canEditCVContent((!Array.isArray(expertCV?.data) && expertCV?.data?.status) || 'draft'));
-	
+	// Check if the item being edited is locked
+	let isItemLocked = $derived.by(() => {
+		if (!isEditing || !expertCV?.data || Array.isArray(expertCV.data)) return false;
+		const existing = expertCV.data.education?.[editIndex];
+		return existing?.lockedForReviewAt !== undefined;
+	});
+
+	// Check if editing is allowed (status check + locked item check)
+	let canEdit = $derived.by(() => {
+		const statusCheck = canEditCVContent((!Array.isArray(expertCV?.data) && expertCV?.data?.status) || 'draft');
+		if (!statusCheck) return false;
+		if (isItemLocked) return false;
+		return true;
+	});
+
+	// Redirect if trying to edit locked item
+	function goBack() {
+		goto(`/user-management/experts/${expertId}/edit?tab=education`);
+	}
+
+	$effect(() => {
+		if (isEditing && isItemLocked && expertCV?.data && !Array.isArray(expertCV.data)) {
+			const cvStatus = expertCV.data.status;
+			if (cvStatus === 'unlocked_for_edits') {
+				alert('This education entry is locked for review and cannot be edited. Contact your administrator if changes are needed.');
+				goBack();
+			}
+		}
+	});
+
 	// Save education
 	async function saveEducation() {
 		if (!expertCV?.data || Array.isArray(expertCV.data)) {
@@ -100,7 +127,17 @@
 		}
 		
 		if (!canEdit) {
-			console.error('CV is locked and cannot be edited');
+			if (isItemLocked) {
+				alert('This education entry is locked for review and cannot be edited. Contact your administrator if changes are needed.');
+			} else {
+				alert('CV is locked and cannot be edited');
+			}
+			return;
+		}
+
+		// Extra check before saving - prevent saving locked items
+		if (isEditing && isItemLocked) {
+			alert('This education entry is locked for review and cannot be edited. Contact your administrator if changes are needed.');
 			return;
 		}
 		
@@ -109,6 +146,7 @@
 			const education = [...(expertCV.data.education || [])];
 			
 			// Prepare data to save - field already contains the right value (dropdown selection or custom text)
+			const existingItem = isEditing ? education[editIndex] : null;
 			const educationData = {
 				field: formData.field,
 				school: formData.school,
@@ -119,8 +157,11 @@
 			};
 			
 			if (isEditing) {
-				// Update existing education
-				education[editIndex] = educationData;
+				// Update existing education - preserve lockedForReviewAt if it exists
+				education[editIndex] = {
+					...educationData,
+					lockedForReviewAt: existingItem?.lockedForReviewAt // Preserve lock status
+				};
 			} else {
 				// Add new education
 				education.push(educationData);
@@ -151,6 +192,23 @@
 
 <div class="bg-gray-50 min-h-screen">
 	<div class="max-w-4xl mx-auto px-6 py-8">
+		<!-- Locked Item Warning -->
+		{#if isItemLocked}
+			<div class="mb-6 bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg">
+				<div class="flex items-start">
+					<svg class="w-5 h-5 text-orange-400 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+					</svg>
+					<div class="flex-1">
+						<h3 class="text-sm font-semibold text-orange-800">Education Entry Locked for Review</h3>
+						<p class="text-sm text-orange-700 mt-1">
+							This education entry has been locked by an administrator for review and cannot be edited. Contact your administrator if changes are needed.
+						</p>
+					</div>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Back Button -->
 		<div class="mb-6">
 			<button
