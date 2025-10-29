@@ -3,12 +3,14 @@
 	import { api } from '../../../convex/_generated/api';
 	import type { ServiceStatus, CVStatus, ExpertRole } from '../../../convex/model/status';
 	import { getServiceStatusDisplayName, getServiceStatusColor, SERVICE_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName, getExpertRoleDisplayName, getExpertRoleColor } from '../../../convex/model/status';
+	import { formatDate, formatDateShort } from '../../utils/date';
 	import DevelopmentToolBar from './DevelopmentToolBar.svelte';
 	import AuditTrailSection from './AuditTrailSection.svelte';
 	import InternalNotesSection from './InternalNotesSection.svelte';
 	import CVContentDisplay from './CVContentDisplay.svelte';
 	import ActionBanners from './ActionBanners.svelte';
 	import ServiceAssignmentCard from './ServiceAssignmentCard.svelte';
+	import UserStatsCard from './UserStatsCard.svelte';
 
 	interface User {
 		_id: string;
@@ -111,9 +113,6 @@
 
 	const client = useConvexClient();
 
-	// Hardcoded example data for layout demonstration
-	const exampleCVStatus = 'locked_for_review'; // Current CV status
-	
 	// Real CV switching data - extracted from cvData.organizationGroups
 	const allUserCVs = $derived.by((): Array<{
 		id: string;
@@ -123,9 +122,6 @@
 		createdAt: number;
 		isCurrent: boolean;
 	}> => {
-		console.log('🔍 cvData:', cvData);
-		console.log('🔍 organizationGroups:', cvData.organizationGroups);
-		
 		const allCVs = cvData.organizationGroups.flatMap(orgGroup => 
 			orgGroup.cvs.map(cv => ({
 				id: cv._id,
@@ -137,11 +133,8 @@
 			}))
 		);
 		
-		console.log('🔍 allCVs:', allCVs);
-		
 		// If no real CVs found, use hardcoded data for testing
 		if (allCVs.length === 0) {
-			console.log('⚠️ No real CVs found, using hardcoded data');
 			return [
 				{
 					id: 'k570rpgsnm7c9j8wtnxb574mh57stw33',
@@ -184,31 +177,6 @@
 		}
 	});
 
-	const formatDate = (timestamp: number): string => {
-		return new Date(timestamp).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	};
-
-	const formatDateShort = (timestamp: number): string => {
-		return new Date(timestamp).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'short'
-		});
-	};
-
-	const canApprove = (assignment: ServiceAssignment): boolean => {
-		return assignment.status !== 'approved' && currentCVData?.status !== 'locked_final';
-	};
-
-	const canReject = (assignment: ServiceAssignment): boolean => {
-		return assignment.status !== 'rejected' && currentCVData?.status !== 'locked_final';
-	};
-
 	const canToggleStatus = (assignment: ServiceAssignment): boolean => {
 		return currentCVData?.status === 'locked_for_review';
 	};
@@ -249,7 +217,6 @@
 	// CV switching functions
 	const switchToCV = (cvId: string) => {
 		selectedCVId = cvId;
-		console.log('Switching to CV:', cvId);
 		// TODO: In real implementation, this would trigger a new query for the selected CV
 	};
 
@@ -426,44 +393,17 @@
 <div class="flex gap-6">
 	<!-- LEFT SIDEBAR: User Details & CV History -->
 	<div class="w-80 flex-shrink-0 space-y-4">
-		<!-- User Details Box -->
-		<div class="bg-white border border-gray-200 rounded-lg p-4">
-			<div class="flex items-center space-x-3 mb-3">
-				<div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
-					<span class="text-lg font-medium text-gray-700">
-						{cvData.user.firstName[0]}{cvData.user.lastName[0]}
-					</span>
-				</div>
-				<div>
-					<h1 class="text-lg font-bold text-gray-900">
-						{cvData.user.firstName} {cvData.user.lastName}
-					</h1>
-					<p class="text-sm text-gray-600">{cvData.user.email}</p>
-				</div>
-			</div>
-			<div class="space-y-1 text-sm text-gray-600">
-				<p>{cvData.user.country}</p>
-				{#if cvData.user.phone}<p>{cvData.user.phone}</p>{/if}
-			</div>
-			
-			<!-- Quick Stats -->
-			<div class="mt-4 pt-4 border-t border-gray-200">
-				<div class="grid grid-cols-3 gap-2 text-center">
-					<div>
-						<div class="text-lg font-bold text-yellow-600">{cvData.pendingAssignments}</div>
-						<div class="text-xs text-gray-500">Pending</div>
-					</div>
-					<div>
-						<div class="text-lg font-bold text-green-600">{cvData.totalAssignments - cvData.pendingAssignments}</div>
-						<div class="text-xs text-gray-500">Decided</div>
-					</div>
-					<div>
-						<div class="text-lg font-bold text-gray-600">{cvData.totalAssignments}</div>
-						<div class="text-xs text-gray-500">Total</div>
-					</div>
-				</div>
-			</div>
-		</div>
+		<!-- User Details Box with Stats -->
+		{#if cvData?.user}
+			<UserStatsCard
+				userFirstName={cvData.user.firstName}
+				userLastName={cvData.user.lastName}
+				userEmail={cvData.user.email}
+				userCountry={cvData.user.country}
+				userPhone={cvData.user.phone}
+				organizationGroups={cvData.organizationGroups}
+			/>
+		{/if}
 
 		<!-- CV History Box -->
 		<div class="bg-white border border-gray-200 rounded-lg p-4">

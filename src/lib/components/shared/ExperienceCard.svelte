@@ -1,4 +1,16 @@
 <script lang="ts">
+	interface FieldExperienceTypes {
+		assessment: boolean;
+		sampling: boolean;
+		training: boolean;
+	}
+
+	interface FieldExperienceCounts {
+		assessment: { total: number; last12m: number };
+		sampling: { total: number; last12m: number };
+		training: { total: number; last12m: number };
+	}
+
 	interface ExperienceEntry {
 		title: string;
 		company: string;
@@ -6,8 +18,9 @@
 		startDate: string;
 		endDate: string;
 		current: boolean;
-		onSiteAuditsCompleted?: number;
 		description?: string;
+		fieldExperienceTypes?: FieldExperienceTypes;
+		fieldExperienceCounts?: FieldExperienceCounts;
 	}
 
 	interface Props {
@@ -36,10 +49,27 @@
 			<p class="text-sm text-gray-500 mt-1">
 				{experience.startDate} - {experience.current ? 'Present' : experience.endDate}
 			</p>
-			{#if experience.onSiteAuditsCompleted !== undefined}
-				<p class="text-sm text-gray-500 mt-1">
-					On-site audits: {experience.onSiteAuditsCompleted}
-				</p>
+			{#if experience.fieldExperienceTypes && experience.fieldExperienceCounts}
+				<div class="mt-2 space-y-1">
+					{#if experience.fieldExperienceTypes.assessment && experience.fieldExperienceCounts.assessment}
+						<p class="text-xs text-gray-600">
+							Assessments: <span class="font-semibold">{experience.fieldExperienceCounts.assessment.total}</span> total, 
+							<span class="font-semibold text-blue-600">{experience.fieldExperienceCounts.assessment.last12m}</span> last 12m
+						</p>
+					{/if}
+					{#if experience.fieldExperienceTypes.sampling && experience.fieldExperienceCounts.sampling}
+						<p class="text-xs text-gray-600">
+							Samplings: <span class="font-semibold">{experience.fieldExperienceCounts.sampling.total}</span> total, 
+							<span class="font-semibold text-blue-600">{experience.fieldExperienceCounts.sampling.last12m}</span> last 12m
+						</p>
+					{/if}
+					{#if experience.fieldExperienceTypes.training && experience.fieldExperienceCounts.training}
+						<p class="text-xs text-gray-600">
+							Trainings: <span class="font-semibold">{experience.fieldExperienceCounts.training.total}</span> total, 
+							<span class="font-semibold text-blue-600">{experience.fieldExperienceCounts.training.last12m}</span> last 12m
+						</p>
+					{/if}
+				</div>
 			{/if}
 		</div>
 		{#if (showEditButton && !readOnly) || onRemove}

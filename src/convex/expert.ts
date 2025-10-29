@@ -367,8 +367,26 @@ export const updateCV = mutation({
 			startDate: v.string(),
 			endDate: v.optional(v.string()),
 			current: v.boolean(),
-			onSiteAuditsCompleted: v.optional(v.number()),
-			description: v.optional(v.string())
+			description: v.optional(v.string()),
+			fieldExperienceTypes: v.optional(v.object({
+				assessment: v.boolean(),
+				sampling: v.boolean(),
+				training: v.boolean()
+			})),
+			fieldExperienceCounts: v.optional(v.object({
+				assessment: v.object({
+					total: v.number(),
+					last12m: v.number()
+				}),
+				sampling: v.object({
+					total: v.number(),
+					last12m: v.number()
+				}),
+				training: v.object({
+					total: v.number(),
+					last12m: v.number()
+				})
+			}))
 		}))),
 		education: v.optional(v.array(v.object({
 			school: v.string(),

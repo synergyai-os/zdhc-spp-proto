@@ -1,10 +1,14 @@
 <script lang="ts">
+	import type { ServiceStatus, ExpertRole } from '../../../convex/model/status';
 	import { getExpertRoleColor, getExpertRoleDisplayName, getServiceStatusColor, getServiceStatusDisplayName } from '../../../convex/model/status';
 	
 	interface ServiceAssignment {
 		_id: string;
-		status: string;
-		role: string;
+		status: ServiceStatus;
+		role: ExpertRole;
+		organization: {
+			name: string;
+		};
 		serviceVersion: {
 			_id: string;
 			name: string;

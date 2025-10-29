@@ -14,8 +14,17 @@ export function generateExperienceTestData(): ExperienceEntry[] {
 			startDate: '2019-06-01',
 			endDate: '2025-01-15',
 			current: true,
-			onSiteAuditsCompleted: 125,
-			description: 'Conducted chemical management audits and assessments for major manufacturers.'
+			description: 'Conducted chemical management audits and assessments for major manufacturers.',
+			fieldExperienceTypes: {
+				assessment: true,
+				sampling: true,
+				training: false
+			},
+			fieldExperienceCounts: {
+				assessment: { total: 125, last12m: 18 },
+				sampling: { total: 45, last12m: 8 },
+				training: { total: 0, last12m: 0 }
+			}
 		},
 		{
 			title: 'Chemical Engineer',
@@ -24,8 +33,17 @@ export function generateExperienceTestData(): ExperienceEntry[] {
 			startDate: '2015-08-15',
 			endDate: '2019-05-31',
 			current: false,
-			onSiteAuditsCompleted: 80,
-			description: 'Performed chemical testing, certification, and quality assurance services.'
+			description: 'Performed chemical testing, certification, and quality assurance services.',
+			fieldExperienceTypes: {
+				assessment: true,
+				sampling: false,
+				training: false
+			},
+			fieldExperienceCounts: {
+				assessment: { total: 80, last12m: 12 },
+				sampling: { total: 0, last12m: 0 },
+				training: { total: 0, last12m: 0 }
+			}
 		}
 	];
 }

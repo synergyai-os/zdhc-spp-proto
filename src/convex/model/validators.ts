@@ -29,6 +29,63 @@ export function validateExperienceEntry(experience: ExperienceEntry): CVValidati
     errors.push('Invalid end date format');
   }
 
+  // Validate field experience types if provided
+  if (experience.fieldExperienceTypes) {
+    if (typeof experience.fieldExperienceTypes.assessment !== 'boolean') {
+      errors.push('Field experience type assessment must be boolean');
+    }
+    if (typeof experience.fieldExperienceTypes.sampling !== 'boolean') {
+      errors.push('Field experience type sampling must be boolean');
+    }
+    if (typeof experience.fieldExperienceTypes.training !== 'boolean') {
+      errors.push('Field experience type training must be boolean');
+    }
+  }
+
+  // Validate field experience counts if provided
+  if (experience.fieldExperienceCounts) {
+    const counts = experience.fieldExperienceCounts;
+    
+    // Validate assessment counts
+    if (counts.assessment) {
+      if (typeof counts.assessment.total !== 'number' || counts.assessment.total < 0) {
+        errors.push('Assessment total must be a non-negative number');
+      }
+      if (typeof counts.assessment.last12m !== 'number' || counts.assessment.last12m < 0) {
+        errors.push('Assessment last 12 months must be a non-negative number');
+      }
+      if (counts.assessment.last12m > counts.assessment.total) {
+        errors.push('Assessment last 12 months cannot exceed total');
+      }
+    }
+    
+    // Validate sampling counts
+    if (counts.sampling) {
+      if (typeof counts.sampling.total !== 'number' || counts.sampling.total < 0) {
+        errors.push('Sampling total must be a non-negative number');
+      }
+      if (typeof counts.sampling.last12m !== 'number' || counts.sampling.last12m < 0) {
+        errors.push('Sampling last 12 months must be a non-negative number');
+      }
+      if (counts.sampling.last12m > counts.sampling.total) {
+        errors.push('Sampling last 12 months cannot exceed total');
+      }
+    }
+    
+    // Validate training counts
+    if (counts.training) {
+      if (typeof counts.training.total !== 'number' || counts.training.total < 0) {
+        errors.push('Training total must be a non-negative number');
+      }
+      if (typeof counts.training.last12m !== 'number' || counts.training.last12m < 0) {
+        errors.push('Training last 12 months must be a non-negative number');
+      }
+      if (counts.training.last12m > counts.training.total) {
+        errors.push('Training last 12 months cannot exceed total');
+      }
+    }
+  }
+
   return {
     isValid: errors.length === 0,
     errors

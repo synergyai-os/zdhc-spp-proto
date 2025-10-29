@@ -482,13 +482,21 @@
 					
 					<!-- Completion Checklist -->
 					{#if expertCV?.data}
-						{@const totalAudits = expertCV.data.experience?.reduce((sum: number, exp: any) => sum + (exp.onSiteAuditsCompleted || 0), 0) || 0}
+						{@const totalAssessments = expertCV.data.experience?.reduce((sum: number, exp: any) => {
+							const assessmentCount = exp.fieldExperienceCounts?.assessment?.total || 0;
+							return sum + assessmentCount;
+						}, 0) || 0}
+						{@const totalAssessmentsLast12m = expertCV.data.experience?.reduce((sum: number, exp: any) => {
+							const assessmentCount = exp.fieldExperienceCounts?.assessment?.last12m || 0;
+							return sum + assessmentCount;
+						}, 0) || 0}
 						<CompletionChecklist 
 							userIsActive={userDetails?.data?.isActive || false}
 							experienceCount={expertCV.data.experience?.length || 0}
 							educationCount={expertCV.data.education?.length || 0}
 							serviceCount={assignedServices?.data?.length || 0}
-							{totalAudits}
+							totalAssessments={totalAssessments}
+							totalAssessmentsLast12m={totalAssessmentsLast12m}
 							cvStatus={expertCV.data.status}
 						/>
 					{/if}

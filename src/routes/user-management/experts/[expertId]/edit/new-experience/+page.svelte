@@ -29,7 +29,6 @@
 		startDate: '',
 		endDate: '',
 		current: false,
-		onSiteAuditsCompleted: 0,
 		fieldExperienceTypes: {
 			assessment: false,
 			sampling: false,
@@ -54,7 +53,6 @@
 				startDate: existing.startDate || '',
 				endDate: existing.endDate || '',
 				current: existing.current || false,
-				onSiteAuditsCompleted: existing.onSiteAuditsCompleted || 0,
 				fieldExperienceTypes: existing.fieldExperienceTypes || {
 					assessment: false,
 					sampling: false,

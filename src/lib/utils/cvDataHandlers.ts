@@ -13,8 +13,17 @@ export function createExperienceEntry(): ExperienceEntry {
 		startDate: '',
 		endDate: '',
 		current: false,
-		onSiteAuditsCompleted: 0,
-		description: ''
+		description: '',
+		fieldExperienceTypes: {
+			assessment: false,
+			sampling: false,
+			training: false
+		},
+		fieldExperienceCounts: {
+			assessment: { total: 0, last12m: 0 },
+			sampling: { total: 0, last12m: 0 },
+			training: { total: 0, last12m: 0 }
+		}
 	};
 }
 

@@ -1,10 +1,16 @@
 import type { Id } from '../_generated/dataModel';
 
 // Core CV data structures
-export interface FieldExperienceEntry {
-  type: 'assessment' | 'sampling' | 'training';
-  date: string;
-  organization?: string;
+export interface FieldExperienceTypes {
+  assessment: boolean;
+  sampling: boolean;
+  training: boolean;
+}
+
+export interface FieldExperienceCounts {
+  assessment: { total: number; last12m: number };
+  sampling: { total: number; last12m: number };
+  training: { total: number; last12m: number };
 }
 
 export interface ExperienceEntry {
@@ -15,7 +21,8 @@ export interface ExperienceEntry {
   endDate: string;
   current: boolean;
   description: string;
-  fieldExperience?: FieldExperienceEntry[];
+  fieldExperienceTypes?: FieldExperienceTypes;
+  fieldExperienceCounts?: FieldExperienceCounts;
 }
 
 export interface EducationEntry {

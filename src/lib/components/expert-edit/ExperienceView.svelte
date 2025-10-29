@@ -3,6 +3,18 @@
 	import { goto } from '$app/navigation';
 	import ExperienceCard from '$lib/components/shared/ExperienceCard.svelte';
 
+	interface FieldExperienceTypes {
+		assessment: boolean;
+		sampling: boolean;
+		training: boolean;
+	}
+
+	interface FieldExperienceCounts {
+		assessment: { total: number; last12m: number };
+		sampling: { total: number; last12m: number };
+		training: { total: number; last12m: number };
+	}
+
 	interface ExperienceEntry {
 		title: string;
 		company: string;
@@ -10,8 +22,9 @@
 		startDate: string;
 		endDate: string;
 		current: boolean;
-		onSiteAuditsCompleted: number;
 		description: string;
+		fieldExperienceTypes?: FieldExperienceTypes;
+		fieldExperienceCounts?: FieldExperienceCounts;
 	}
 
 	interface Props {

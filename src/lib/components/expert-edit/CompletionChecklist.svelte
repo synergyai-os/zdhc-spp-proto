@@ -11,7 +11,8 @@
 		experienceCount: number;
 		educationCount: number;
 		serviceCount: number;
-		totalAudits?: number; // Optional: total onsite audits
+		totalAssessments?: number; // Optional: total assessments
+		totalAssessmentsLast12m?: number; // Optional: assessments in last 12 months
 		cvStatus?: string;
 	}
 
@@ -20,7 +21,8 @@
 		experienceCount, 
 		educationCount, 
 		serviceCount, 
-		totalAudits,
+		totalAssessments,
+		totalAssessmentsLast12m,
 		cvStatus
 	}: Props = $props();
 
@@ -106,17 +108,20 @@
 
 	<!-- Informational Messages -->
 	<div class="mt-6 pt-6 border-t border-gray-200 space-y-3">
-		{#if totalAudits !== undefined}
+		{#if totalAssessments !== undefined}
 			<div class="flex items-start space-x-3">
 				<svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
 				</svg>
 				<div>
 					<p class="text-sm text-gray-900">
-						<strong>Onsite Audits:</strong> {totalAudits} total recorded
+						<strong>Assessments:</strong> {totalAssessments} total
+						{#if totalAssessmentsLast12m !== undefined}
+							, {totalAssessmentsLast12m} in last 12 months
+						{/if}
 					</p>
 					<p class="text-sm text-gray-600 mt-0.5">
-						ZDHC will review your audit history. Regular roles require 10+ audits in the last 12 months. Lead roles require 30+ total audits.
+						ZDHC will review your assessment history. Regular roles require 10+ assessments in the last 12 months. Lead roles require 30+ total assessments.
 					</p>
 				</div>
 			</div>
