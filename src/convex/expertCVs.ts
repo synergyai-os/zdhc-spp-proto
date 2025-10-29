@@ -2,6 +2,30 @@ import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 import * as ExpertCVs from './model/expertCVs';
 
+/**
+ * ============================================================================
+ * EXPERT CV API - Model Layer Wrapper (Legacy/Alternative)
+ * ============================================================================
+ * 
+ * This file provides an alternative API that uses the model layer
+ * (model/expertCVs.ts) for business logic and validation.
+ * 
+ * When to use this vs expert.ts:
+ * - Use expert.ts (primary API) for: CV updates, service management, 
+ *   status transitions, most queries
+ * - Use expertCVs.ts (this file) for: createExpertCV (add-expert page),
+ *   getExpertCVHistory (cv-history page), when you need model-layer validation
+ * 
+ * Key difference: Functions here use model/expertCVs.ts which includes:
+ * - Status validation (draft-only updates, submit/lock workflow checks)
+ * - Data validation (experience, education validation)
+ * - Auto-copying from locked CVs on create
+ * 
+ * Note: Most frontend code uses expert.ts. This file is maintained for
+ * specific use cases that need the model-layer validation.
+ * ============================================================================
+ */
+
 // ==========================================
 // EXPERT CV QUERIES
 // ==========================================
@@ -124,6 +148,7 @@ export const createExpertCV = mutation({
 				endDate: v.string(),
 				current: v.boolean(),
 				description: v.string(),
+				onSiteAuditsCompleted: v.optional(v.number()), // Legacy field - can be removed later after data migration
 				fieldExperienceTypes: v.optional(v.object({
 					assessment: v.boolean(),
 					sampling: v.boolean(),
@@ -194,6 +219,7 @@ export const updateExpertCV = mutation({
 					endDate: v.string(),
 					current: v.boolean(),
 					description: v.string(),
+					onSiteAuditsCompleted: v.optional(v.number()), // Legacy field - can be removed later after data migration
 					fieldExperienceTypes: v.optional(v.object({
 						assessment: v.boolean(),
 						sampling: v.boolean(),

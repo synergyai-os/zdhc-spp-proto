@@ -34,6 +34,7 @@
 		onAddExperience: () => void;
 		onRemoveExperience: (index: number) => void;
 		onUpdateExperience: (index: number, field: string, value: string | boolean | number) => void;
+		onSave?: () => Promise<void>;
 	}
 
 	let { 
@@ -42,19 +43,40 @@
 		localCVData,
 		onAddExperience, 
 		onRemoveExperience, 
-		onUpdateExperience
+		onUpdateExperience,
+		onSave
 	}: Props = $props();
 
 	// Component handles its own read-only state based on CV status
 	let readOnly = $derived(!canEditCVContent(cvStatus));
 	
 	// Navigate to add new experience page
-	function addNewExperience() {
+	async function addNewExperience() {
+		// Save any pending changes (e.g., deleted experiences) before navigating
+		if (onSave) {
+			try {
+				await onSave();
+			} catch (error) {
+				console.error('Failed to save before navigation:', error);
+				alert('Failed to save changes. Please try again.');
+				return; // Don't navigate if save failed
+			}
+		}
 		goto(`/user-management/experts/${expertId}/edit/new-experience`);
 	}
 	
 	// Navigate to edit experience page
-	function editExperience(index: number) {
+	async function editExperience(index: number) {
+		// Save any pending changes (e.g., deleted experiences) before navigating
+		if (onSave) {
+			try {
+				await onSave();
+			} catch (error) {
+				console.error('Failed to save before navigation:', error);
+				alert('Failed to save changes. Please try again.');
+				return; // Don't navigate if save failed
+			}
+		}
 		goto(`/user-management/experts/${expertId}/edit/new-experience?index=${index}`);
 	}
 </script>

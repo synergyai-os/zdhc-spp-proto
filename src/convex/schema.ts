@@ -108,6 +108,7 @@ export default defineSchema({
 				endDate: v.string(),
 				current: v.boolean(),
 				description: v.string(),
+				onSiteAuditsCompleted: v.optional(v.number()), // Legacy field - can be removed later after data migration
 				fieldExperienceTypes: v.optional(v.object({
 					assessment: v.boolean(),
 					sampling: v.boolean(),

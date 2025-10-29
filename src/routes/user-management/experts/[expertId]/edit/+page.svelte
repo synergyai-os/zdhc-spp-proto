@@ -304,6 +304,18 @@
 		});
 	}
 	
+	// Lightweight save function for CV data only (used before navigation)
+	async function saveCVData() {
+		if (!localCVData) return;
+		await client.mutation(api.expert.updateCV, {
+			cvId: localCVData._id,
+			organizationId: orgId as Id<'organizations'>,
+			experience: localCVData.experience,
+			education: localCVData.education,
+			trainingQualifications: localCVData.trainingQualifications
+		});
+	}
+
 	async function save() {
 		isSaving = true;
 		saveError = null;
@@ -593,6 +605,7 @@
 								onAddExperience={addExperience}
 								onRemoveExperience={removeExperience}
 								onUpdateExperience={updateExperience}
+								onSave={saveCVData}
 							/>
 						{/if}
 					{/if}

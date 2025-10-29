@@ -2,7 +2,30 @@ import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 import { CV_STATUS_VALIDATOR, TRAINING_STATUS_VALIDATOR } from './model/status';
 
-
+/**
+ * ============================================================================
+ * PRIMARY EXPERT API - Single Source of Truth for Frontend
+ * ============================================================================
+ * 
+ * This is the main API file for expert/CV operations. Most frontend code
+ * uses functions from this file.
+ * 
+ * Usage:
+ * - CV editing pages: Uses updateCV, getLatestCV, getServicesByCV
+ * - Service management: Uses addService, removeService, updateServiceRole
+ * - Status transitions: Uses updateCVStatus
+ * - Training lifecycle: Uses sendTrainingInvitation, startTraining, completeTraining
+ * - Qualifications: Uses qualification management functions
+ * 
+ * Note: expertCVs.ts exists but is primarily used for:
+ * - createExpertCV (add-expert page)
+ * - getExpertCVHistory (cv-history page)
+ * - Uses model layer for business logic validation
+ * 
+ * Best practice: Use expert.ts for new features unless you specifically
+ * need the model-layer validation from expertCVs.ts
+ * ============================================================================
+ */
 
 /**
  * Get expert CVs with optional filters
@@ -368,6 +391,7 @@ export const updateCV = mutation({
 			endDate: v.optional(v.string()),
 			current: v.boolean(),
 			description: v.optional(v.string()),
+			onSiteAuditsCompleted: v.optional(v.number()), // Legacy field - can be removed later after data migration
 			fieldExperienceTypes: v.optional(v.object({
 				assessment: v.boolean(),
 				sampling: v.boolean(),
