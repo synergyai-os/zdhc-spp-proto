@@ -427,6 +427,11 @@ export const updateCV = mutation({
 			dateIssued: v.string(),
 			expireDate: v.string(),
 			description: v.string()
+		}))),
+		otherApprovals: v.optional(v.array(v.object({
+			organisationName: v.string(),
+			role: v.string(),
+			dateIssued: v.string()
 		})))
 	},
 	handler: async (ctx, args) => {
@@ -451,6 +456,9 @@ export const updateCV = mutation({
 		}
 		if (args.trainingQualifications !== undefined) {
 			updateData.trainingQualifications = args.trainingQualifications;
+		}
+		if (args.otherApprovals !== undefined) {
+			updateData.otherApprovals = args.otherApprovals;
 		}
 
 		await ctx.db.patch(args.cvId, updateData);

@@ -3,7 +3,7 @@
  * Only used in development mode to quickly populate CV data for testing
  */
 
-import type { ExperienceEntry, EducationEntry, TrainingQualificationEntry } from '../../convex/model/types';
+import type { ExperienceEntry, EducationEntry, TrainingQualificationEntry, OtherApprovalEntry } from '../../convex/model/types';
 
 export function generateExperienceTestData(): ExperienceEntry[] {
 	return [
@@ -86,6 +86,21 @@ export function generateTrainingTestData(): TrainingQualificationEntry[] {
 			dateIssued: '2021-05-15',
 			expireDate: '2026-05-15',
 			description: 'Certified in Manufacturing Restricted Substances List testing and compliance.'
+		}
+	];
+}
+
+export function generateApprovalTestData(): OtherApprovalEntry[] {
+	return [
+		{
+			organisationName: 'SAC Higg 3.0 FEM',
+			role: 'verifier & chemical specialist',
+			dateIssued: '2025-10-16'
+		},
+		{
+			organisationName: 'Cascale',
+			role: 'environmental assessor',
+			dateIssued: '2024-08-20'
 		}
 	];
 }

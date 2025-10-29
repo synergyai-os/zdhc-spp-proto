@@ -23,25 +23,69 @@
 	
 	// Form state
 	let formData = $state({
+		field: '',
 		school: '',
 		degree: '',
-		field: '',
 		startDate: '',
 		endDate: '',
 		description: ''
 	});
+
+	// Field of Study options
+	const fieldOfStudyOptions = [
+		'Chemistry',
+		'Chemical Engineering',
+		'Environmental Science',
+		'Environmental Engineering',
+		'Textile or Leather Technology/Chemistry',
+		'Other'
+	];
+
+	// Track dropdown selection separately from the stored field value
+	let dropdownSelection = $state('');
+	
+	// Check if "Other" is selected in dropdown
+	const predefinedOptions = fieldOfStudyOptions.filter(opt => opt !== 'Other');
+	let isOtherSelected = $derived(dropdownSelection === 'Other');
+	
+	// Check if field of study is selected (dropdown selection OR custom text filled)
+	let fieldOfStudySelected = $derived(
+		(dropdownSelection !== '' && dropdownSelection !== 'Other') || 
+		(isOtherSelected && formData.field.trim() !== '')
+	);
 	
 	// Load existing data if editing
 	$effect(() => {
 		if (isEditing && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.education && expertCV.data.education[editIndex]) {
 			const existing: any = expertCV.data.education[editIndex];
 			// Update properties instead of reassigning to maintain reactivity
+			// Check if existing field is not in the predefined options, treat as "Other"
+			if (existing.field && !fieldOfStudyOptions.includes(existing.field)) {
+				dropdownSelection = 'Other';
+				formData.field = existing.field; // Store custom value
+			} else {
+				dropdownSelection = existing.field || '';
+				formData.field = existing.field || '';
+			}
 			formData.school = existing.school || '';
 			formData.degree = existing.degree || '';
-			formData.field = existing.field || '';
 			formData.startDate = existing.startDate || '';
 			formData.endDate = existing.endDate || '';
 			formData.description = existing.description || '';
+		}
+	});
+	
+	// Handle dropdown change - clear field when switching away from "Other"
+	$effect(() => {
+		if (dropdownSelection !== 'Other' && dropdownSelection !== '') {
+			// User selected a predefined option, store it directly
+			formData.field = dropdownSelection;
+		} else if (dropdownSelection === 'Other') {
+			// User selected "Other", keep current custom text or leave empty for them to type
+			// Don't clear formData.field - user might be editing existing custom value
+		} else if (dropdownSelection === '') {
+			// User cleared selection
+			formData.field = '';
 		}
 	});
 	
@@ -64,12 +108,22 @@
 			// Get current education array
 			const education = [...(expertCV.data.education || [])];
 			
+			// Prepare data to save - field already contains the right value (dropdown selection or custom text)
+			const educationData = {
+				field: formData.field,
+				school: formData.school,
+				degree: formData.degree,
+				startDate: formData.startDate,
+				endDate: formData.endDate,
+				description: formData.description
+			};
+			
 			if (isEditing) {
 				// Update existing education
-				education[editIndex] = formData;
+				education[editIndex] = educationData;
 			} else {
 				// Add new education
-				education.push(formData);
+				education.push(educationData);
 			}
 			
 			// Save to database
@@ -128,99 +182,132 @@
 			{/if}
 			
 			<form onsubmit={(e) => { e.preventDefault(); saveEducation(); }} class="space-y-6">
-				<!-- Institution and Degree -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<div>
-						<label for="school" class="block text-sm font-medium text-gray-700 mb-1">
-							Institution *
-						</label>
-						<input
-							id="school"
-							type="text"
-							bind:value={formData.school}
-							required
-							disabled={!canEdit}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-							placeholder="e.g., University of Amsterdam"
-						/>
-					</div>
-					
-					<div>
-						<label for="degree" class="block text-sm font-medium text-gray-700 mb-1">
-							Degree *
-						</label>
-						<input
-							id="degree"
-							type="text"
-							bind:value={formData.degree}
-							required
-							disabled={!canEdit}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-							placeholder="e.g., Master of Science"
-						/>
-					</div>
-				</div>
-				
-				<!-- Field of Study -->
+				<!-- Field of Study (First - Conditional Display Trigger) -->
 				<div>
 					<label for="field" class="block text-sm font-medium text-gray-700 mb-1">
-						Field of Study
+						Field of Study *
 					</label>
-					<input
-						id="field"
-						type="text"
-						bind:value={formData.field}
+					<p class="text-xs text-gray-500 mb-2">
+						Select the primary academic discipline for this education. This helps reviewers quickly assess your qualifications for specific services.
+					</p>
+					<!-- Dropdown for predefined options -->
+					<select
+						id="fieldDropdown"
+						bind:value={dropdownSelection}
+						required
 						disabled={!canEdit}
 						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-						placeholder="e.g., Environmental Science"
-					/>
+					>
+						<option value="">Select field of study...</option>
+						{#each fieldOfStudyOptions.filter(opt => opt !== 'Other') as option}
+							<option value={option}>{option}</option>
+						{/each}
+						<option value="Other">Other</option>
+					</select>
+					
+					<!-- Additional text input when "Other" is selected -->
+					{#if isOtherSelected}
+						<div class="mt-3">
+							<label for="fieldOther" class="block text-sm font-medium text-gray-700 mb-1">
+								Specify your field of study *
+							</label>
+							<p class="text-xs text-gray-500 mb-2">
+								Please enter the specific field of study that is not listed in the dropdown above.
+							</p>
+							<input
+								id="fieldOther"
+								type="text"
+								bind:value={formData.field}
+								required
+								disabled={!canEdit}
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+								placeholder="Enter your field of study"
+							/>
+						</div>
+					{/if}
 				</div>
 				
-				<!-- Dates -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<div>
-						<label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">
-							Start Date *
-						</label>
-						<input
-							id="startDate"
-							type="date"
-							bind:value={formData.startDate}
-							required
-							disabled={!canEdit}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-						/>
+				<!-- Conditional display: Show other fields only after field of study is selected -->
+				{#if fieldOfStudySelected}
+					<!-- Institution and Degree -->
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div>
+							<label for="school" class="block text-sm font-medium text-gray-700 mb-1">
+								Institution *
+							</label>
+							<input
+								id="school"
+								type="text"
+								bind:value={formData.school}
+								required={fieldOfStudySelected}
+								disabled={!canEdit}
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+								placeholder="e.g., University of Amsterdam"
+							/>
+						</div>
+						
+						<div>
+							<label for="degree" class="block text-sm font-medium text-gray-700 mb-1">
+								Degree *
+							</label>
+							<input
+								id="degree"
+								type="text"
+								bind:value={formData.degree}
+								required={fieldOfStudySelected}
+								disabled={!canEdit}
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+								placeholder="e.g., Master of Science"
+							/>
+						</div>
+					</div>
+				
+					<!-- Dates -->
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div>
+							<label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">
+								Start Date *
+							</label>
+							<input
+								id="startDate"
+								type="date"
+								bind:value={formData.startDate}
+								required={fieldOfStudySelected}
+								disabled={!canEdit}
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+							/>
+						</div>
+						
+						<div>
+							<label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">
+								End Date *
+							</label>
+							<input
+								id="endDate"
+								type="date"
+								bind:value={formData.endDate}
+								required={fieldOfStudySelected}
+								disabled={!canEdit}
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+							/>
+						</div>
 					</div>
 					
-					<div>
-						<label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">
-							End Date *
-						</label>
-						<input
-							id="endDate"
-							type="date"
-							bind:value={formData.endDate}
-							required
+					<!-- Description -->
+					<div class="border-t border-gray-200 pt-6">
+						<div class="mb-4">
+							<h2 class="text-lg font-semibold text-gray-900 mb-1">Description</h2>
+							<p class="text-sm text-gray-500">Provide additional context about your education, coursework, honors, or achievements to help ZDHC reviewers evaluate your qualifications.</p>
+						</div>
+						<textarea
+							id="description"
+							bind:value={formData.description}
 							disabled={!canEdit}
+							rows="6"
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-						/>
+						></textarea>
 					</div>
-				</div>
-				
-				<!-- Description -->
-				<div class="border-t border-gray-200 pt-6">
-					<div class="mb-4">
-						<h2 class="text-lg font-semibold text-gray-900 mb-1">Description</h2>
-						<p class="text-sm text-gray-500">Provide additional context about your education, coursework, honors, or achievements to help ZDHC reviewers evaluate your qualifications.</p>
-					</div>
-					<textarea
-						id="description"
-						bind:value={formData.description}
-						disabled={!canEdit}
-						rows="6"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-					></textarea>
-				</div>
+				{/if}
 				
 				<!-- Action Buttons -->
 				<div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">

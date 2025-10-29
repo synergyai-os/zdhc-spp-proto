@@ -43,6 +43,12 @@ export interface TrainingQualificationEntry {
   description: string;
 }
 
+export interface OtherApprovalEntry {
+  organisationName: string;
+  role: string;
+  dateIssued: string;
+}
+
 // CV update arguments
 export interface UpdateExpertCVArgs {
   id: Id<'expertCVs'>;

@@ -13,10 +13,11 @@
 	import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
 	import EducationView from '$lib/components/expert-edit/EducationView.svelte';
 	import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
+	import ApprovalView from '$lib/components/expert-edit/ApprovalView.svelte';
 	import DevelopmentToolBar from '$lib/components/admin/DevelopmentToolBar.svelte';
 	import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
 	import TestDataGenerator from '$lib/components/expert-edit/TestDataGenerator.svelte';
-	import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData } from '$lib/utils/testDataGenerators';
+	import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData, generateApprovalTestData } from '$lib/utils/testDataGenerators';
 	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
 	import { analyzeServiceChanges } from '$lib/utils/serviceChangeAnalyzer';
 	import { buildCVForValidation } from '$lib/utils/cvValidationBuilder';
@@ -192,6 +193,12 @@
 		localCVData.trainingQualifications = (localCVData.trainingQualifications || []).filter((_: any, i: number) => i !== index);
 	}
 
+	// Other Approvals management functions
+	function removeApproval(index: number) {
+		if (!localCVData) return;
+		localCVData.otherApprovals = (localCVData.otherApprovals || []).filter((_: any, i: number) => i !== index);
+	}
+
 	function updateTraining(index: number, field: string, value: string) {
 		if (!localCVData) return;
 		localCVData.trainingQualifications = [...(localCVData.trainingQualifications || [])];
@@ -212,6 +219,11 @@
 	function fillTrainingTestData() {
 		if (!localCVData) return;
 		localCVData.trainingQualifications = generateTrainingTestData();
+	}
+
+	function fillApprovalTestData() {
+		if (!localCVData) return;
+		localCVData.otherApprovals = generateApprovalTestData();
 	}
 	
 	// Helper functions for cleaner code
@@ -340,7 +352,8 @@
 			organizationId: orgId as Id<'organizations'>,
 			experience: localCVData.experience,
 			education: localCVData.education,
-			trainingQualifications: localCVData.trainingQualifications
+			trainingQualifications: localCVData.trainingQualifications,
+			otherApprovals: localCVData.otherApprovals
 		});
 	}
 
@@ -356,7 +369,8 @@
 					organizationId: orgId as Id<'organizations'>,
 					experience: localCVData.experience,
 					education: localCVData.education,
-					trainingQualifications: localCVData.trainingQualifications
+					trainingQualifications: localCVData.trainingQualifications,
+					otherApprovals: localCVData.otherApprovals
 				});
 			}
 			
@@ -668,9 +682,16 @@
 
 					<!-- Other Approvals Tab Content -->
 					{#if activeTab === 'approvals'}
-						<div class="py-8 text-center text-gray-500">
-							other approvals text comes here
-						</div>
+						<TestDataGenerator tabName="Other Approvals" onFillData={fillApprovalTestData} />
+						{#if expertId}
+							<ApprovalView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onRemoveApproval={removeApproval}
+								onSave={saveCVData}
+							/>
+						{/if}
 					{/if}
 					</div>
 				</div>

@@ -150,6 +150,13 @@ export default defineSchema({
 				description: v.string()
 			})
 		)),
+		otherApprovals: v.optional(v.array(
+			v.object({
+				organisationName: v.string(),
+				role: v.string(),
+				dateIssued: v.string()
+			})
+		)),
 
 		// Status Lifecycle: draft → completed → payment_pending → paid → locked_for_review → unlocked_for_edits → locked_final
 		status: CV_STATUS_VALIDATOR,
