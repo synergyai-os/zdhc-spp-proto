@@ -1,7 +1,17 @@
 <script lang="ts">
 	import type { ServiceStatus, ExpertRole } from '../../../convex/model/status';
 	import { getExpertRoleColor, getExpertRoleDisplayName, getServiceStatusColor, getServiceStatusDisplayName } from '../../../convex/model/status';
+	import type { Id } from '../../../convex/_generated/dataModel';
+	import RequirementChecklist from './RequirementChecklist.svelte';
 	
+	interface Requirement {
+		_id: Id<'serviceVersionRequirements'>;
+		title: string;
+		isChecked: boolean;
+		checkedAt?: number;
+		checkedBy?: string;
+	}
+
 	interface ServiceAssignment {
 		_id: string;
 		status: ServiceStatus;
@@ -25,6 +35,7 @@
 		rejectedBy?: string;
 		rejectionReason?: string;
 		reviewNotes?: string;
+		requirements?: Requirement[];
 	}
 
 	interface Props {
@@ -107,6 +118,16 @@
 		</div>
 	</div>
 	
+	<!-- Requirements Checklist -->
+	{#if assignment.requirements}
+		<RequirementChecklist
+			assignmentId={assignment._id as any}
+			requirements={assignment.requirements}
+			isEditable={canToggleStatus(assignment)}
+			checkedBy="admin-user"
+		/>
+	{/if}
+
 	<!-- Review History -->
 	{#if assignment.approvedAt || assignment.rejectedAt}
 		<div class="bg-gray-50 rounded-lg p-3 mt-3">

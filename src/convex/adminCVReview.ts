@@ -46,16 +46,54 @@ export const getExpertsForCVReview = query({
 					.filter((q) => q.eq(q.field('expertCVId'), cv._id))
 					.collect();
 
-				// Enrich assignments with service details
+				// Enrich assignments with service details and requirements
 				const enrichedAssignments = await Promise.all(
 					assignments.map(async (assignment) => {
 						const serviceVersion = await ctx.db.get(assignment.serviceVersionId);
 						const serviceParent = serviceVersion ? await ctx.db.get(serviceVersion.parentId) : null;
 
+						// Get requirements for this service version
+						const requirements = await ctx.db
+							.query('serviceVersionRequirements')
+							.withIndex('by_service_version', (q: any) =>
+								q.eq('serviceVersionId', assignment.serviceVersionId)
+							)
+							.collect();
+
+						// Filter to active requirements and sort
+						const activeRequirements = requirements
+							.filter((req) => !req.retiredAt)
+							.sort((a, b) => {
+								if (a.order !== undefined && b.order !== undefined) {
+									return a.order - b.order;
+								}
+								if (a.order !== undefined) return -1;
+								if (b.order !== undefined) return 1;
+								return a.createdAt - b.createdAt;
+							});
+
+						// Get check-offs from assignment
+						const checkoffs = assignment.requirementCheckoffs || [];
+						const checkoffMap = new Map(
+							checkoffs.map((co: any) => [co.requirementId, co])
+						);
+
+						// Merge requirements with check-off status
+						const requirementsWithStatus = activeRequirements.map((req) => {
+							const checkoff = checkoffMap.get(req._id);
+							return {
+								...req,
+								isChecked: checkoff?.isChecked || false,
+								checkedAt: checkoff?.checkedAt,
+								checkedBy: checkoff?.checkedBy
+							};
+						});
+
 						return {
 							...assignment,
 							serviceVersion,
-							serviceParent
+							serviceParent,
+							requirements: requirementsWithStatus
 						};
 					})
 				);
@@ -175,16 +213,54 @@ export const getExpertCVDetail = query({
 					.filter((q) => q.eq(q.field('expertCVId'), cv._id))
 					.collect();
 
-				// Enrich assignments with service details
+				// Enrich assignments with service details and requirements
 				const enrichedAssignments = await Promise.all(
 					assignments.map(async (assignment) => {
 						const serviceVersion = await ctx.db.get(assignment.serviceVersionId);
 						const serviceParent = serviceVersion ? await ctx.db.get(serviceVersion.parentId) : null;
 
+						// Get requirements for this service version
+						const requirements = await ctx.db
+							.query('serviceVersionRequirements')
+							.withIndex('by_service_version', (q: any) =>
+								q.eq('serviceVersionId', assignment.serviceVersionId)
+							)
+							.collect();
+
+						// Filter to active requirements and sort
+						const activeRequirements = requirements
+							.filter((req) => !req.retiredAt)
+							.sort((a, b) => {
+								if (a.order !== undefined && b.order !== undefined) {
+									return a.order - b.order;
+								}
+								if (a.order !== undefined) return -1;
+								if (b.order !== undefined) return 1;
+								return a.createdAt - b.createdAt;
+							});
+
+						// Get check-offs from assignment
+						const checkoffs = assignment.requirementCheckoffs || [];
+						const checkoffMap = new Map(
+							checkoffs.map((co: any) => [co.requirementId, co])
+						);
+
+						// Merge requirements with check-off status
+						const requirementsWithStatus = activeRequirements.map((req) => {
+							const checkoff = checkoffMap.get(req._id);
+							return {
+								...req,
+								isChecked: checkoff?.isChecked || false,
+								checkedAt: checkoff?.checkedAt,
+								checkedBy: checkoff?.checkedBy
+							};
+						});
+
 						return {
 							...assignment,
 							serviceVersion,
-							serviceParent
+							serviceParent,
+							requirements: requirementsWithStatus
 						};
 					})
 				);

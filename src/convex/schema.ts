@@ -47,6 +47,30 @@ export default defineSchema({
 		updatedAt: v.number()
 	}),
 
+	// Service Version Requirements table - Immutable requirements linked to service versions
+	// Requirements track what needs to be checked when reviewing CVs for a service
+	serviceVersionRequirements: defineTable({
+		serviceVersionId: v.id('serviceVersions'),
+		title: v.string(), // Requirement title/name
+		description: v.optional(v.string()), // Optional detailed description
+		order: v.optional(v.number()), // Display order within service version
+		isRequired: v.optional(v.boolean()), // Whether this must be checked to approve (for future use)
+		
+		// Creation metadata
+		createdAt: v.number(),
+		createdBy: v.string(), // Admin ID who created it
+		
+		// Retirement metadata (for immutable requirements - changes create new requirement)
+		retiredAt: v.optional(v.number()),
+		retiredBy: v.optional(v.string()), // Admin ID who retired it
+		retirementReason: v.optional(v.string()),
+		
+		// Replacement tracking - bidirectional linking for traceability
+		replacesRequirementId: v.optional(v.id('serviceVersionRequirements')), // Points to old requirement this replaces
+		replacedByRequirementId: v.optional(v.id('serviceVersionRequirements')) // Points to new requirement when retired
+	})
+		.index('by_service_version', ['serviceVersionId']),
+
 	// Organization Service Approvals table
 	organizationServiceApprovals: defineTable({
 		organizationId: v.id('organizations'),
@@ -213,6 +237,17 @@ export default defineSchema({
 		// Training metadata
 		trainingNotes: v.optional(v.string()),
 		academyTrainingId: v.optional(v.string()), // External Academy reference
+
+		// Requirement check-offs - Array of requirement IDs checked off by admin
+		// Each check-off tracks which requirement version was validated
+		requirementCheckoffs: v.optional(v.array(
+			v.object({
+				requirementId: v.id('serviceVersionRequirements'), // The specific requirement version checked
+				isChecked: v.boolean(),
+				checkedAt: v.number(),
+				checkedBy: v.string() // Admin ID who checked it
+			})
+		)),
 
 		// Metadata
 		createdAt: v.number(),

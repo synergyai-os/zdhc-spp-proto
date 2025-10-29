@@ -32,7 +32,7 @@
 		<!-- Admin Navigation -->
 		<nav class="hidden md:flex items-center space-x-6">
 			<a href="/admin" class="text-gray-700 hover:text-gray-900 font-medium">CV Review</a>
-			<!-- More admin pages can be added here in the future -->
+			<a href="/admin/services/requirements" class="text-gray-700 hover:text-gray-900 font-medium">Service Requirements</a>
 		</nav>
 
 		<!-- Back to Platform and User Info -->
