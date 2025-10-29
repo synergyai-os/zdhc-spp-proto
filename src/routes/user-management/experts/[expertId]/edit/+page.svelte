@@ -76,8 +76,36 @@
 	// Local mutable copy of CV data
 	let localCVData = $state<any>(null);
 	
-	// Toggle switcher state
-	let activeTab = $state<'services' | 'experience' | 'education' | 'training' | 'approvals'>('services');
+	// Sync activeTab with URL parameter
+	const validTabs = ['services', 'experience', 'education', 'training', 'approvals'] as const;
+	
+	// Get initial tab from URL or default to 'services'
+	const getInitialTab = () => {
+		const tab = $page.url.searchParams.get('tab');
+		return (tab && validTabs.includes(tab as any)) ? (tab as any) : 'services';
+	};
+	
+	let activeTab = $state<'services' | 'experience' | 'education' | 'training' | 'approvals'>(getInitialTab());
+	
+	// Sync activeTab when URL changes (e.g., back button, direct link)
+	$effect(() => {
+		const tab = $page.url.searchParams.get('tab');
+		if (tab && validTabs.includes(tab as any) && tab !== activeTab) {
+			activeTab = tab as any;
+		} else if (!tab && activeTab !== 'services') {
+			// If no tab param, default to services (only if not already services to avoid loop)
+			activeTab = 'services';
+		}
+	});
+	
+	// Sync URL when user clicks tab
+	function handleTabChange(tab: 'services' | 'experience' | 'education' | 'training' | 'approvals') {
+		activeTab = tab;
+		// Update URL without page reload
+		const url = new URL($page.url);
+		url.searchParams.set('tab', tab);
+		goto(url.pathname + url.search, { replaceState: true, noScroll: true });
+	}
 	
 	// Service selection state - derived from assigned services
 	let serviceSelection = $derived(getSelectedServiceIds());
@@ -572,7 +600,7 @@
 					<TabSwitcher 
 						tabs={['services', 'experience', 'education', 'training', 'approvals']} 
 						{activeTab} 
-						onTabChange={(tab: string) => activeTab = tab as 'services' | 'experience' | 'education' | 'training' | 'approvals'} 
+						onTabChange={(tab: string) => handleTabChange(tab as 'services' | 'experience' | 'education' | 'training' | 'approvals')} 
 					/>
 					
 					<!-- Main Content Card -->
@@ -613,25 +641,29 @@
 					<!-- Education Tab Content -->
 					{#if activeTab === 'education'}
 						<TestDataGenerator tabName="Education" onFillData={fillEducationTestData} />
-						<EducationView 
-							cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
-							{localCVData}
-							onAddEducation={addEducation}
-							onRemoveEducation={removeEducation}
-							onUpdateEducation={updateEducation}
-						/>
+						{#if expertId}
+							<EducationView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onRemoveEducation={removeEducation}
+								onSave={saveCVData}
+							/>
+						{/if}
 					{/if}
 
 					<!-- Training Qualification Tab Content -->
 					{#if activeTab === 'training'}
 						<TestDataGenerator tabName="Training Qualifications" onFillData={fillTrainingTestData} />
-						<TrainingQualificationView 
-							cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
-							{localCVData}
-							onAddTraining={addTraining}
-							onRemoveTraining={removeTraining}
-							onUpdateTraining={updateTraining}
-						/>
+						{#if expertId}
+							<TrainingQualificationView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onRemoveTraining={removeTraining}
+								onSave={saveCVData}
+							/>
+						{/if}
 					{/if}
 
 					<!-- Other Approvals Tab Content -->

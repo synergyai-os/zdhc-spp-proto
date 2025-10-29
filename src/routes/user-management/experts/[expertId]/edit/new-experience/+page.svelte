@@ -46,25 +46,24 @@
 	$effect(() => {
 		if (isEditing && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.experience && expertCV.data.experience[editIndex]) {
 			const existing: any = expertCV.data.experience[editIndex];
-			formData = {
-				title: existing.title || '',
-				company: existing.company || '',
-				location: existing.location || '',
-				startDate: existing.startDate || '',
-				endDate: existing.endDate || '',
-				current: existing.current || false,
-				fieldExperienceTypes: existing.fieldExperienceTypes || {
-					assessment: false,
-					sampling: false,
-					training: false
-				},
-				fieldExperienceCounts: existing.fieldExperienceCounts || {
-					assessment: { total: 0, last12m: 0 },
-					sampling: { total: 0, last12m: 0 },
-					training: { total: 0, last12m: 0 }
-				},
-				description: existing.description || ''
+			// Update properties instead of reassigning to maintain reactivity
+			formData.title = existing.title || '';
+			formData.company = existing.company || '';
+			formData.location = existing.location || '';
+			formData.startDate = existing.startDate || '';
+			formData.endDate = existing.endDate || '';
+			formData.current = existing.current || false;
+			formData.fieldExperienceTypes = existing.fieldExperienceTypes || {
+				assessment: false,
+				sampling: false,
+				training: false
 			};
+			formData.fieldExperienceCounts = existing.fieldExperienceCounts || {
+				assessment: { total: 0, last12m: 0 },
+				sampling: { total: 0, last12m: 0 },
+				training: { total: 0, last12m: 0 }
+			};
+			formData.description = existing.description || '';
 		}
 	});
 	
@@ -125,6 +124,36 @@
 	function goBack() {
 		goto(`/user-management/experts/${expertId}/edit?tab=experience`);
 	}
+	
+	// Check if all mandatory fields are filled
+	const allMandatoryFieldsFilled = $derived(
+		formData.title.trim() !== '' &&
+		formData.company.trim() !== '' &&
+		formData.location.trim() !== '' &&
+		formData.startDate !== ''
+	);
+	
+	// Reactive computed values for contextual text
+	const companyName = $derived(formData.company.trim() || 'the organization');
+	
+	function formatDate(date: string): string {
+		if (!date) return '';
+		const d = new Date(date);
+		return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+	}
+	
+	const dateRange = $derived.by(() => {
+		const start = formatDate(formData.startDate);
+		if (formData.current || !formData.endDate) {
+			return `since ${start}`;
+		}
+		const end = formatDate(formData.endDate);
+		return `between ${start} and ${end}`;
+	});
+	
+	const assessmentContext = $derived(`How many assessments did you perform at ${companyName} ${dateRange}?`);
+	const samplingContext = $derived(`How many samplings did you perform at ${companyName} ${dateRange}?`);
+	const trainingContext = $derived(`How many trainings did you give at ${companyName} ${dateRange}?`);
 </script>
 
 <div class="bg-gray-50 min-h-screen">
@@ -196,12 +225,13 @@
 				<!-- Location -->
 				<div>
 					<label for="location" class="block text-sm font-medium text-gray-700 mb-1">
-						Location
+						Location *
 					</label>
 					<input
 						id="location"
 						type="text"
 						bind:value={formData.location}
+						required
 						disabled={!canEdit}
 						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
 						placeholder="e.g., Amsterdam, Netherlands"
@@ -253,11 +283,12 @@
 					</label>
 				</div>
 				
-				<!-- Field Experience Section -->
+				<!-- Field Experience Section (only show when all mandatory fields are filled) -->
+				{#if allMandatoryFieldsFilled}
 				<div class="border-t border-gray-200 pt-6">
 					<div class="mb-4">
-						<h3 class="text-sm font-semibold text-gray-900 mb-1">Field Experience</h3>
-						<p class="text-xs text-gray-500">Select what applies to your experience at {formData.company || 'this organization'}</p>
+						<h2 class="text-lg font-semibold text-gray-900 mb-1">Field Experience</h2>
+						<p class="text-sm text-gray-500">Select what applies to your experience at {companyName}</p>
 					</div>
 					
 					<!-- Selection Checkboxes -->
@@ -306,7 +337,8 @@
 						<!-- Assessments -->
 						{#if formData.fieldExperienceTypes.assessment}
 						<div class="bg-white border border-gray-200 rounded-lg p-4">
-							<h4 class="text-sm font-semibold text-gray-900 mb-3">Assessments</h4>
+							<h4 class="text-sm font-semibold text-gray-900 mb-2">Assessments</h4>
+							<p class="text-sm text-gray-600 mb-3">{assessmentContext}</p>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 								<div>
 									<label class="block text-sm font-medium text-gray-700 mb-1">
@@ -341,7 +373,8 @@
 						<!-- Samplings -->
 						{#if formData.fieldExperienceTypes.sampling}
 						<div class="bg-white border border-gray-200 rounded-lg p-4">
-							<h4 class="text-sm font-semibold text-gray-900 mb-3">Samplings</h4>
+							<h4 class="text-sm font-semibold text-gray-900 mb-2">Samplings</h4>
+							<p class="text-sm text-gray-600 mb-3">{samplingContext}</p>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 								<div>
 									<label class="block text-sm font-medium text-gray-700 mb-1">
@@ -376,7 +409,8 @@
 						<!-- Trainings -->
 						{#if formData.fieldExperienceTypes.training}
 						<div class="bg-white border border-gray-200 rounded-lg p-4">
-							<h4 class="text-sm font-semibold text-gray-900 mb-3">Trainings Given</h4>
+							<h4 class="text-sm font-semibold text-gray-900 mb-2">Trainings Given</h4>
+							<p class="text-sm text-gray-600 mb-3">{trainingContext}</p>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 								<div>
 									<label class="block text-sm font-medium text-gray-700 mb-1">
@@ -409,19 +443,20 @@
 						{/if}
 					</div>
 				</div>
+				{/if}
 				
 				<!-- Description -->
-				<div>
-					<label for="description" class="block text-sm font-medium text-gray-700 mb-1">
-						Description
-					</label>
+				<div class="border-t border-gray-200 pt-6">
+					<div class="mb-4">
+						<h2 class="text-lg font-semibold text-gray-900 mb-1">Description</h2>
+						<p class="text-sm text-gray-500">Describe your role, key responsibilities, work completed, and achievements to help ZDHC reviewers evaluate your experience.</p>
+					</div>
 					<textarea
 						id="description"
 						bind:value={formData.description}
 						disabled={!canEdit}
-						rows="4"
+						rows="6"
 						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-						placeholder="Describe the role and key responsibilities..."
 					></textarea>
 				</div>
 				
