@@ -7,8 +7,12 @@
 	import { PUBLIC_CONVEX_URL } from '$env/static/public';
 	import { DEFAULT_ORG_ID } from '$lib/config';
 	import { setContext } from 'svelte';
+	import { page } from '$app/stores';
 
 	let { children }: LayoutProps = $props();
+
+	// Check if we're on an admin route to conditionally show header
+	let isAdminRoute = $derived($page.url.pathname.startsWith('/admin'));
 
 	// Set organization ID in context for all child components
 	setContext('orgId', DEFAULT_ORG_ID);
@@ -35,7 +39,9 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<Header />
+{#if !isAdminRoute}
+	<Header />
+{/if}
 
 <main>
 	{@render children()}

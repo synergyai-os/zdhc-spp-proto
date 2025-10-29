@@ -11,6 +11,7 @@
 	import ActionBanners from './ActionBanners.svelte';
 	import ServiceAssignmentCard from './ServiceAssignmentCard.svelte';
 	import UserStatsCard from './UserStatsCard.svelte';
+	import type { ExperienceEntry, EducationEntry, TrainingQualificationEntry, OtherApprovalEntry } from '../../../convex/model/types';
 
 	interface User {
 		_id: string;
@@ -21,41 +22,14 @@
 		phone?: string;
 	}
 
-	interface Experience {
-		title: string;
-		company: string;
-		location: string;
-		startDate: string;
-		endDate: string;
-		current: boolean;
-		description: string;
-	}
-
-	interface Education {
-		school: string;
-		degree: string;
-		field: string;
-		startDate: string;
-		endDate: string;
-		description: string;
-	}
-
-	interface TrainingQualification {
-		qualificationName: string;
-		trainingOrganisation: string;
-		trainingContent: string;
-		dateIssued: string;
-		expireDate: string;
-		description: string;
-	}
-
 	interface ExpertCV {
 		_id: string;
 		version: number;
 		status: CVStatus;
-		experience: Experience[];
-		education: Education[];
-		trainingQualifications?: TrainingQualification[];
+		experience: ExperienceEntry[];
+		education: EducationEntry[];
+		trainingQualifications?: TrainingQualificationEntry[];
+		otherApprovals?: OtherApprovalEntry[];
 		createdAt: number;
 		submittedAt?: number;
 		lockedAt?: number;
@@ -521,6 +495,7 @@
 				experience={currentCVData.experience} 
 				education={currentCVData.education}
 				trainingQualifications={currentCVData.trainingQualifications}
+				otherApprovals={currentCVData.otherApprovals}
 			/>
 		{/if}
 
