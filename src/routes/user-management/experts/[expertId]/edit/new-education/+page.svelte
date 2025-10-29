@@ -183,11 +183,6 @@
 			alert('Failed to save education: ' + error.message);
 		}
 	}
-	
-	// Navigate back
-	function goBack() {
-		goto(`/user-management/experts/${expertId}/edit?tab=education`);
-	}
 </script>
 
 <div class="bg-gray-50 min-h-screen">
