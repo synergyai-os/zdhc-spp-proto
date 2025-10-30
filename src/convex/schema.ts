@@ -55,6 +55,10 @@ export default defineSchema({
 		description: v.optional(v.string()), // Optional detailed description
 		order: v.optional(v.number()), // Display order within service version
 		isRequired: v.optional(v.boolean()), // Whether this must be checked to approve (for future use)
+		// Applicability to expert role: regular, lead, or both (default both)
+		roleApplicability: v.optional(
+			v.union(v.literal('regular'), v.literal('lead'), v.literal('both'))
+		),
 		
 		// Creation metadata
 		createdAt: v.number(),

@@ -17,6 +17,7 @@
 	let newRequirementTitle = $state('');
 	let newRequirementDescription = $state('');
 	let newRequirementOrder = $state<number | undefined>(undefined);
+	let newRequirementApplicability = $state<'regular' | 'lead' | 'both'>('both');
 	
 	let requirementToRetire = $state<Id<'serviceVersionRequirements'> | null>(null);
 	let retirementReason = $state('');
@@ -24,6 +25,7 @@
 	let requirementToReplace = $state<Id<'serviceVersionRequirements'> | null>(null);
 	let replacementTitle = $state('');
 	let replacementDescription = $state('');
+	let replacementApplicability = $state<'regular' | 'lead' | 'both'>('both');
 	
 	let isProcessing = $state(false);
 	let errorMessage = $state('');
@@ -100,6 +102,7 @@
 				title: newRequirementTitle.trim(),
 				description: newRequirementDescription.trim() || undefined,
 				order: newRequirementOrder,
+				roleApplicability: newRequirementApplicability,
 				createdBy: 'admin-user' // TODO: Get actual admin user ID
 			});
 
@@ -107,6 +110,7 @@
 			newRequirementTitle = '';
 			newRequirementDescription = '';
 			newRequirementOrder = undefined;
+			newRequirementApplicability = 'both';
 			showCreateModal = false;
 		} catch (error) {
 			errorMessage = `Failed to create requirement: ${error}`;
@@ -155,6 +159,7 @@
 				serviceVersionId: selectedServiceVersionId,
 				title: replacementTitle.trim(),
 				description: replacementDescription.trim() || undefined,
+				roleApplicability: replacementApplicability,
 				createdBy: 'admin-user',
 				replacesRequirementId: requirementToReplace
 			});
@@ -183,6 +188,7 @@
 		if (requirement) {
 			replacementTitle = requirement.title;
 			replacementDescription = requirement.description || '';
+			replacementApplicability = requirement.roleApplicability || 'both';
 		}
 		showReplaceModal = true;
 	};
@@ -307,6 +313,11 @@
 											{#if requirement.replacesRequirementId}
 												<span class="ml-4">Replaces requirement ID: {requirement.replacesRequirementId}</span>
 											{/if}
+						{#if requirement.roleApplicability}
+							<span class="ml-4 inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+								Role: {requirement.roleApplicability}
+							</span>
+						{/if}
 										</div>
 									</div>
 									<div class="flex items-center space-x-2">
@@ -388,6 +399,23 @@
 							placeholder="Lower numbers appear first"
 						/>
 					</div>
+				<div>
+					<span class="block text-sm font-medium text-gray-700 mb-1">Role Applicability</span>
+					<div class="flex items-center space-x-4 text-sm">
+						<label class="inline-flex items-center space-x-2">
+							<input type="radio" name="applicability" value="both" bind:group={newRequirementApplicability} />
+							<span>Both</span>
+						</label>
+						<label class="inline-flex items-center space-x-2">
+							<input type="radio" name="applicability" value="regular" bind:group={newRequirementApplicability} />
+							<span>Regular</span>
+						</label>
+						<label class="inline-flex items-center space-x-2">
+							<input type="radio" name="applicability" value="lead" bind:group={newRequirementApplicability} />
+							<span>Lead</span>
+						</label>
+					</div>
+				</div>
 				</div>
 				<div class="flex items-center justify-end space-x-3 mt-6">
 					<button
@@ -498,6 +526,23 @@
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 							placeholder="Updated requirement description"
 						></textarea>
+					</div>
+					<div>
+						<span class="block text-sm font-medium text-gray-700 mb-1">Role Applicability</span>
+						<div class="flex items-center space-x-4 text-sm">
+							<label class="inline-flex items-center space-x-2">
+								<input type="radio" name="replacementApplicability" value="both" bind:group={replacementApplicability} />
+								<span>Both</span>
+							</label>
+							<label class="inline-flex items-center space-x-2">
+								<input type="radio" name="replacementApplicability" value="regular" bind:group={replacementApplicability} />
+								<span>Regular</span>
+							</label>
+							<label class="inline-flex items-center space-x-2">
+								<input type="radio" name="replacementApplicability" value="lead" bind:group={replacementApplicability} />
+								<span>Lead</span>
+							</label>
+						</div>
 					</div>
 				</div>
 				<div class="flex items-center justify-end space-x-3 mt-6">

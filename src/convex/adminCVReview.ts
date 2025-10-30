@@ -60,9 +60,16 @@ export const getExpertsForCVReview = query({
 							)
 							.collect();
 
-						// Filter to active requirements and sort
+						// Filter to active requirements by role applicability and sort
 						const activeRequirements = requirements
-							.filter((req) => !req.retiredAt)
+							.filter((req) => {
+								if (req.retiredAt) return false;
+								const applicability = req.roleApplicability || 'both';
+								if (assignment.role === 'lead') {
+									return applicability === 'lead' || applicability === 'both';
+								}
+								return applicability === 'regular' || applicability === 'both';
+							})
 							.sort((a, b) => {
 								if (a.order !== undefined && b.order !== undefined) {
 									return a.order - b.order;

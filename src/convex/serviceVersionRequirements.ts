@@ -53,7 +53,7 @@ export const getRequirementsForAssignment = query({
 			throw new Error('Assignment not found');
 		}
 
-		// Get all active requirements for this service version
+    // Get all active requirements for this service version
 		const requirements = await ctx.db
 			.query('serviceVersionRequirements')
 			.withIndex('by_service_version', (q) =>
@@ -61,8 +61,16 @@ export const getRequirementsForAssignment = query({
 			)
 			.collect();
 
-		// Filter to only active requirements
-		const activeRequirements = requirements.filter((req) => !req.retiredAt);
+    // Filter to only active requirements and by role applicability
+    const activeRequirements = requirements.filter((req) => {
+      if (req.retiredAt) return false;
+      const applicability = req.roleApplicability || 'both';
+      if (assignment.role === 'lead') {
+        return applicability === 'lead' || applicability === 'both';
+      }
+      // regular
+      return applicability === 'regular' || applicability === 'both';
+    });
 
 		// Sort by order field
 		const sortedRequirements = activeRequirements.sort((a, b) => {
@@ -143,6 +151,7 @@ export const createRequirement = mutation({
 		description: v.optional(v.string()),
 		order: v.optional(v.number()),
 		isRequired: v.optional(v.boolean()),
+    roleApplicability: v.optional(v.union(v.literal('regular'), v.literal('lead'), v.literal('both'))),
 		createdBy: v.string(),
 		replacesRequirementId: v.optional(v.id('serviceVersionRequirements')) // If replacing an old requirement
 	},
@@ -169,6 +178,7 @@ export const createRequirement = mutation({
 			description: args.description,
 			order: args.order,
 			isRequired: args.isRequired,
+      roleApplicability: args.roleApplicability || 'both',
 			createdAt: now,
 			createdBy: args.createdBy,
 			replacesRequirementId: args.replacesRequirementId
