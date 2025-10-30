@@ -251,6 +251,11 @@
 
 	const confirmRejection = async () => {
 		if (!activeAssignment || !rejectionReason) return;
+		
+		if (rejectionReason === 'Other' && !rejectionNotes.trim()) {
+			errorMessage = 'Additional notes are required when "Other" is selected as the rejection reason.';
+			return;
+		}
 
 		isProcessing = true;
 		errorMessage = '';
@@ -596,13 +601,13 @@
 
 				<div class="mb-4">
 					<label for="rejection-notes" class="block text-sm font-medium text-gray-700 mb-2">
-						Additional Notes (Optional)
+						Additional Notes {rejectionReason === 'Other' ? '*' : '(Optional)'}
 					</label>
 					<textarea
 						id="rejection-notes"
 						bind:value={rejectionNotes}
 						rows="3"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+						class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 {rejectionReason === 'Other' && !rejectionNotes.trim() ? 'border-red-500' : 'border-gray-300'}"
 						placeholder="Provide additional details about the rejection..."
 					></textarea>
 				</div>
@@ -619,7 +624,7 @@
 					<button
 						type="button"
 						onclick={confirmRejection}
-						disabled={isProcessing || !rejectionReason}
+						disabled={isProcessing || !rejectionReason || (rejectionReason === 'Other' && !rejectionNotes.trim())}
 						class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
 					>
 						{#if isProcessing}
