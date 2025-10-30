@@ -2,6 +2,9 @@
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../../../convex/_generated/api';
 	import type { Id } from '../../../../convex/_generated/dataModel';
+import { DndContext } from '@dnd-kit-svelte/core';
+import { SortableContext } from '@dnd-kit-svelte/sortable';
+	import SortableRequirementRow from '$lib/components/admin/SortableRequirementRow.svelte';
 
 	const client = useConvexClient();
 
@@ -25,6 +28,7 @@
 	let requirementToReplace = $state<Id<'serviceVersionRequirements'> | null>(null);
 	let replacementTitle = $state('');
 	let replacementDescription = $state('');
+	let replacementOrder = $state<number | undefined>(undefined);
 	let replacementApplicability = $state<'regular' | 'lead' | 'both'>('both');
 	
 	let isProcessing = $state(false);
@@ -85,6 +89,36 @@
 			});
 		}
 	});
+
+	// Reorder helper used by drag-and-drop and buttons
+	async function moveRequirement(fromIndex: number, toIndex: number) {
+		if (!requirements?.data) return;
+		if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+		const list = [...requirements.data];
+		const [moved] = list.splice(fromIndex, 1);
+		list.splice(toIndex, 0, moved);
+		const payload = list.map((r, idx) => ({ requirementId: r._id, order: idx }));
+		try {
+			await client.mutation((api as any).serviceVersionRequirements.updateRequirementOrder, {
+				requirementOrders: payload
+			});
+		} catch (err) {
+			console.error('Failed to update order', err);
+		}
+	}
+
+	function onDragEnd(e: any) {
+		if (!requirements?.data) return;
+		const { active, over } = e;
+		if (!over || active.id === over.id) return;
+		const ids = requirements.data.map((r: any) => r._id);
+		const fromIndex = ids.indexOf(active.id);
+		const toIndex = ids.indexOf(over.id);
+		if (fromIndex === -1 || toIndex === -1) return;
+		moveRequirement(fromIndex, toIndex);
+	}
+
+// (removed inline SortableRow – using dedicated component)
 
 	const handleCreateRequirement = async () => {
 		if (!selectedServiceVersionId || !newRequirementTitle.trim()) {
@@ -159,6 +193,7 @@
 				serviceVersionId: selectedServiceVersionId,
 				title: replacementTitle.trim(),
 				description: replacementDescription.trim() || undefined,
+				order: replacementOrder,
 				roleApplicability: replacementApplicability,
 				createdBy: 'admin-user',
 				replacesRequirementId: requirementToReplace
@@ -188,6 +223,7 @@
 		if (requirement) {
 			replacementTitle = requirement.title;
 			replacementDescription = requirement.description || '';
+			replacementOrder = requirement.order;
 			replacementApplicability = requirement.roleApplicability || 'both';
 		}
 		showReplaceModal = true;
@@ -292,56 +328,23 @@
 						Error loading requirements: {requirements.error}
 					</div>
 				{:else if requirements?.data && requirements.data.length > 0}
-					<div class="divide-y divide-gray-200">
-						{#each requirements.data as requirement (requirement._id)}
-							<div class="p-6 hover:bg-gray-50">
-								<div class="flex items-start justify-between">
-									<div class="flex-1">
-										<div class="flex items-center space-x-3 mb-2">
-											<h3 class="text-base font-medium text-gray-900">
-												{requirement.title}
-											</h3>
-											{#if requirement.order !== undefined}
-												<span class="text-xs text-gray-500">Order: {requirement.order}</span>
-											{/if}
-										</div>
-										{#if requirement.description}
-											<p class="text-sm text-gray-600 mt-1">{requirement.description}</p>
-										{/if}
-										<div class="mt-2 text-xs text-gray-500">
-											Created: {new Date(requirement.createdAt).toLocaleDateString()}
-											{#if requirement.replacesRequirementId}
-												<span class="ml-4">Replaces requirement ID: {requirement.replacesRequirementId}</span>
-											{/if}
-						{#if requirement.roleApplicability}
-							<span class="ml-4 inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-								Role: {requirement.roleApplicability}
-							</span>
-						{/if}
-										</div>
-									</div>
-									<div class="flex items-center space-x-2">
-										<button
-											type="button"
-											onclick={() => openReplaceModal(requirement._id)}
-											class="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded border border-blue-200"
-											disabled={isProcessing}
-										>
-											Replace
-										</button>
-										<button
-											type="button"
-											onclick={() => openRetireModal(requirement._id)}
-											class="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded border border-red-200"
-											disabled={isProcessing}
-										>
-											Retire
-										</button>
-									</div>
-								</div>
+					<DndContext onDragEnd={onDragEnd}>
+						<SortableContext items={requirements.data.map((r: any) => String(r._id))}>
+							<div class="divide-y divide-gray-200">
+								{#each requirements.data as requirement, i (requirement._id)}
+									<SortableRequirementRow
+										requirement={requirement}
+										index={i}
+										total={requirements.data.length}
+										onMove={moveRequirement}
+										onReplace={(id) => openReplaceModal(id as any)}
+										onRetire={(id) => openRetireModal(id as any)}
+										disabled={isProcessing}
+									/>
+								{/each}
 							</div>
-						{/each}
-					</div>
+						</SortableContext>
+					</DndContext>
 				{:else}
 					<div class="p-8 text-center text-gray-500">
 						No requirements defined for this service version. Click "Add Requirement" to create one.
@@ -526,6 +529,18 @@
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 							placeholder="Updated requirement description"
 						></textarea>
+					</div>
+					<div>
+						<label for="replacementOrder" class="block text-sm font-medium text-gray-700 mb-1">
+							Display Order (Optional)
+						</label>
+						<input
+							type="number"
+							id="replacementOrder"
+							bind:value={replacementOrder}
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+							placeholder="Lower numbers appear first"
+						/>
 					</div>
 					<div>
 						<span class="block text-sm font-medium text-gray-700 mb-1">Role Applicability</span>
