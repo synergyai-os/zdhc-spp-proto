@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ServiceStatus, ExpertRole } from '../../../convex/model/status';
-	import { getExpertRoleColor, getExpertRoleDisplayName, getServiceStatusColor, getServiceStatusDisplayName } from '../../../convex/model/status';
+	import { getExpertRoleColor, getExpertRoleDisplayName } from '../../../convex/model/status';
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import RequirementChecklist from './RequirementChecklist.svelte';
 	
@@ -57,9 +57,6 @@
 				<h4 class="font-semibold text-gray-900">{assignment.serviceVersion.name}</h4>
 				<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getExpertRoleColor(assignment.role)}">
 					{getExpertRoleDisplayName(assignment.role)}
-				</span>
-				<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {getServiceStatusColor(assignment.status)}">
-					{getServiceStatusDisplayName(assignment.status)}
 				</span>
 			</div>
 			<p class="text-sm text-gray-600">{assignment.serviceParent.name} • {assignment.serviceVersion.version}</p>
