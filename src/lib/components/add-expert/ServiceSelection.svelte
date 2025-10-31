@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { calculateServicePricing } from '$lib/pricing';
+	import { calculateServicePricing } from '$lib';
 
 	interface Service {
 		_id: string;

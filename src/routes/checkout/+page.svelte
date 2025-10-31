@@ -6,7 +6,7 @@
 	import ExpertCheckoutCard from '$lib/components/ExpertCheckoutCard.svelte';
 	import PaymentMethodSelector from '$lib/components/PaymentMethodSelector.svelte';
 	import PaymentSummary from '$lib/components/PaymentSummary.svelte';
-	import { calculateServicePricing } from '$lib/pricing';
+	import { calculateServicePricing } from '$lib';
 	import { onMount } from 'svelte';
 
 

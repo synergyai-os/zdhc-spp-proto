@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { canEditServices, getCVStatusDisplayName, type CVStatus } from '../../../convex/model/status';
-	import { calculateServicePricing } from '$lib/pricing';
+	import { calculateServicePricing } from '$lib';
 
 	interface Service {
 		_id: string;

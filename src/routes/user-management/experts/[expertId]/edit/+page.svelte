@@ -4,7 +4,7 @@
 	import { useQuery, useConvexClient } from 'convex-svelte';
 	import { api, type Id } from '$lib';
 	import { DEFAULT_ORG_ID } from '$lib/config';
-	import { calculateServicePricing } from '$lib/pricing';
+	import { calculateServicePricing } from '$lib';
 	import { validateCVCompletion } from '$lib/cvValidation';
 	import { canEditServices, canEditCVContent, getCVStatusColor, type CVStatus } from '../../../../../convex/model/status';
 	import ServiceSelection from '$lib/components/expert-edit/ServiceSelection.svelte';
