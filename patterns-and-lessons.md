@@ -162,3 +162,27 @@ const processedData = $derived.by(() => {
 - **Error logging**: Log errors for debugging while preventing crashes
 - **Type guards**: Check for required properties before accessing them
 
+## Svelte 5 `{@const}` Placement Rules
+
+**When**: Using `{@const}` tags to define local constants in Svelte 5 templates.
+
+**Problem**: `{@const}` must be the immediate child of certain block constructs. Placing it inside nested elements causes compilation errors.
+
+**Solution**: Place `{@const}` declarations as the first statements after opening block tags:
+```svelte
+{#each items as item, index}
+  {@const dotColor = getColor(item)}
+  {@const icon = getIcon(item)}
+  <div class="relative pb-4">
+    <div class="absolute -left-[9px] w-3 h-3 {dotColor}"></div>
+    <span>{icon}</span>
+  </div>
+{/each}
+```
+
+**Key Principles**:
+- **Immediate child**: Must be first line after `{#if}`, `{#each}`, `{:else}`, `{#snippet}`, etc.
+- **Not inside elements**: Cannot be inside `<div>`, `<span>`, or other HTML tags
+- **Before usage**: Place before any template elements that use the constant
+- **Multiple declarations**: Can have multiple `{@const}` tags in sequence
+
