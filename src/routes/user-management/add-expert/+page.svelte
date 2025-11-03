@@ -243,7 +243,7 @@
 
 			if (result.success) {
 				// Redirect to expert edit page
-				await goto(`/user-management/experts/${result.userId}/edit`);
+				await goto(`/experts/${result.userId}/cv`);
 			} else {
 				submitError = 'Failed to create draft expert. Please try again.';
 			}
@@ -257,7 +257,7 @@
 
 	function handleEditCV() {
 		if (foundUser) {
-			goto(`/user-management/experts/${foundUser._id}/edit`);
+			goto(`/experts/${foundUser._id}/cv`);
 		}
 	}
 
@@ -326,7 +326,7 @@
 			}
 
 			// Redirect to edit page
-			await goto(`/user-management/experts/${foundUser._id}/edit`);
+			await goto(`/experts/${foundUser._id}/cv`);
 		} catch (error) {
 			console.error('Error creating new CV version:', error);
 			submitError = error instanceof Error ? error.message : 'An unexpected error occurred';

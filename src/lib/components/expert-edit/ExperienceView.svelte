@@ -62,7 +62,7 @@
 				return; // Don't navigate if save failed
 			}
 		}
-		goto(`/user-management/experts/${expertId}/edit/new-experience`);
+		goto(`/experts/${expertId}/cv/new-experience`);
 	}
 	
 	// Navigate to edit experience page
@@ -77,7 +77,7 @@
 				return; // Don't navigate if save failed
 			}
 		}
-		goto(`/user-management/experts/${expertId}/edit/new-experience?index=${index}`);
+		goto(`/experts/${expertId}/cv/new-experience?index=${index}`);
 	}
 </script>
 

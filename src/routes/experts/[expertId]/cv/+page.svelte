@@ -1,0 +1,785 @@
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { useQuery, useConvexClient } from 'convex-svelte';
+	import { api, type Id } from '$lib';
+	import { DEFAULT_ORG_ID } from '$lib/config';
+	import { calculateServicePricing } from '$lib';
+	import { validateCVCompletion } from '$lib/cvValidation';
+	import { canEditServices, canEditCVContent, getCVStatusColor, type CVStatus } from '../../../../convex/model/status';
+	import ServiceSelection from '$lib/components/expert-edit/ServiceSelection.svelte';
+	import ExpertHeader from '$lib/components/expert-edit/ExpertHeader.svelte';
+	import TabSwitcher from '$lib/components/expert-edit/TabSwitcher.svelte';
+	import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
+	import EducationView from '$lib/components/expert-edit/EducationView.svelte';
+	import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
+	import ApprovalView from '$lib/components/expert-edit/ApprovalView.svelte';
+	import DevelopmentToolBar from '$lib/components/admin/DevelopmentToolBar.svelte';
+	import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
+	import TestDataGenerator from '$lib/components/expert-edit/TestDataGenerator.svelte';
+	import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData, generateApprovalTestData } from '$lib/utils/testDataGenerators';
+	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
+	import { analyzeServiceChanges } from '$lib/utils/serviceChangeAnalyzer';
+	import { buildCVForValidation } from '$lib/utils/cvValidationBuilder';
+	import { shouldTransitionCVStatus } from '$lib/utils/cvStatusTransitionHandler';
+	import { executeServiceChanges } from '$lib/utils/serviceChangeExecutor';
+		
+	// ==========================================
+	// 1. SETUP & DATA
+	// ==========================================
+	const expertId = $derived($page.params.expertId);
+	const orgId = DEFAULT_ORG_ID;
+	const client = useConvexClient();
+
+	// Data queries
+	const userDetails = useQuery(api.expert.getUser, () => ({
+		userId: expertId as Id<'users'>
+	}));
+	const expertCV = useQuery(api.expert.getLatestCV, () => ({
+		userId: expertId as Id<'users'>,
+		organizationId: orgId as Id<'organizations'>
+	}));
+
+	const assignedServices = useQuery(api.expert.getServicesByCV, () => {
+		if (!expertCV?.data) return getDummyServiceQueryArgs();
+		return getRealServiceQueryArgs();
+	});
+
+	const availableServices = useQuery(api.services.getApprovedServices, () => ({
+		organizationId: orgId as Id<'organizations'>
+	}));
+
+	// Query all service assignments for the organization to check for existing leads
+	const orgAssignments = useQuery(api.expertServiceAssignments.getExpertServiceAssignments, () => ({
+		organizationId: orgId as Id<'organizations'>
+	}));
+
+	// Query all service assignments for THIS USER across ALL CVs - to filter out already-assigned services
+	const allUserAssignments = useQuery(api.expertServiceAssignments.getExpertServiceAssignments, () => ({
+		userId: expertId as Id<'users'>,
+		organizationId: orgId as Id<'organizations'>
+	}));
+
+	// ==========================================
+	// 2. STATE
+	// ==========================================
+	let selectedServices = $derived(getSelectedServiceIds());
+	let serviceRoles = $derived.by(() => {
+		if (!assignedServices?.data) return {};
+		return Object.fromEntries(
+			assignedServices.data.map((a: any) => [a.serviceVersionId, a.role])
+		);
+	});
+	let roleChanges = $state({}); // Track user role changes
+	let isSaving = $state(false);
+	let saveError = $state(null);
+	
+	// Local mutable copy of CV data
+	let localCVData = $state<any>(null);
+	
+	// Sync activeTab with URL parameter
+	const validTabs = ['services', 'experience', 'education', 'training', 'approvals'] as const;
+	
+	// Get initial tab from URL or default to 'services'
+	const getInitialTab = () => {
+		const tab = $page.url.searchParams.get('tab');
+		return (tab && validTabs.includes(tab as any)) ? (tab as any) : 'services';
+	};
+	
+	let activeTab = $state<'services' | 'experience' | 'education' | 'training' | 'approvals'>(getInitialTab());
+	
+	// Sync activeTab when URL changes (e.g., back button, direct link)
+	$effect(() => {
+		const tab = $page.url.searchParams.get('tab');
+		if (tab && validTabs.includes(tab as any) && tab !== activeTab) {
+			activeTab = tab as any;
+		} else if (!tab && activeTab !== 'services') {
+			// If no tab param, default to services (only if not already services to avoid loop)
+			activeTab = 'services';
+		}
+	});
+	
+	// Sync URL when user clicks tab
+	function handleTabChange(tab: 'services' | 'experience' | 'education' | 'training' | 'approvals') {
+		activeTab = tab;
+		// Update URL without page reload
+		const url = new URL($page.url);
+		url.searchParams.set('tab', tab);
+		goto(url.pathname + url.search, { replaceState: true, noScroll: true });
+	}
+	
+	// Service selection state - derived from assigned services
+	let serviceSelection = $derived(getSelectedServiceIds());
+	
+	// User's service selection changes (for UI interactions)
+	let userServiceChanges = $state<Set<string>>(new Set());
+	
+	// Combined service selection (assigned + user changes)
+	let effectiveServiceSelection = $derived.by(() => {
+		const assigned = getSelectedServiceIds();
+		const changes = Array.from(userServiceChanges);
+		
+		// Start with assigned services
+		const result = new Set(assigned);
+		
+		// Apply user changes
+		for (const serviceId of changes) {
+			if (result.has(serviceId)) {
+				result.delete(serviceId); // User unchecked
+			} else {
+				result.add(serviceId); // User checked
+			}
+		}
+		
+		return Array.from(result);
+	});
+	
+	// Sync CV data when it becomes available
+	$effect(() => {
+		if (expertCV?.data) {
+			localCVData = { ...expertCV.data };
+		}
+	});
+	
+	// Reactive pricing calculation using utility function
+	let pricing = $derived(calculateServicePricing(effectiveServiceSelection.length));
+	
+	// ==========================================
+	// 2. FUNCTIONS
+	// ==========================================
+	
+	// Experience management functions
+	function addExperience() {
+		if (!localCVData) return;
+		localCVData.experience = [...(localCVData.experience || []), createExperienceEntry()];
+	}
+
+	function removeExperience(index: number) {
+		if (!localCVData) return;
+		localCVData.experience = localCVData.experience.filter((_: any, i: number) => i !== index);
+	}
+
+	function updateExperience(index: number, field: string, value: any) {
+		if (!localCVData) return;
+		localCVData.experience = [...localCVData.experience];
+		localCVData.experience[index] = { ...localCVData.experience[index], [field]: value };
+	}
+
+	// Education management functions
+	function addEducation() {
+		if (!localCVData) return;
+		localCVData.education = [...(localCVData.education || []), createEducationEntry()];
+	}
+
+	function removeEducation(index: number) {
+		if (!localCVData) return;
+		localCVData.education = localCVData.education.filter((_: any, i: number) => i !== index);
+	}
+
+	function updateEducation(index: number, field: string, value: any) {
+		if (!localCVData) return;
+		localCVData.education = [...localCVData.education];
+		localCVData.education[index] = { ...localCVData.education[index], [field]: value };
+	}
+
+	// Training management functions
+	function addTraining() {
+		if (!localCVData) return;
+		localCVData.trainingQualifications = [...(localCVData.trainingQualifications || []), createTrainingEntry()];
+	}
+
+	function removeTraining(index: number) {
+		if (!localCVData) return;
+		localCVData.trainingQualifications = (localCVData.trainingQualifications || []).filter((_: any, i: number) => i !== index);
+	}
+
+	// Other Approvals management functions
+	function removeApproval(index: number) {
+		if (!localCVData) return;
+		localCVData.otherApprovals = (localCVData.otherApprovals || []).filter((_: any, i: number) => i !== index);
+	}
+
+	function updateTraining(index: number, field: string, value: string) {
+		if (!localCVData) return;
+		localCVData.trainingQualifications = [...(localCVData.trainingQualifications || [])];
+		localCVData.trainingQualifications[index] = { ...localCVData.trainingQualifications[index], [field]: value };
+	}
+
+	// Test data generation functions
+	function fillTestData() {
+		if (!localCVData) return;
+		localCVData.experience = generateExperienceTestData();
+	}
+
+	function fillEducationTestData() {
+		if (!localCVData) return;
+		localCVData.education = generateEducationTestData();
+	}
+
+	function fillTrainingTestData() {
+		if (!localCVData) return;
+		localCVData.trainingQualifications = generateTrainingTestData();
+	}
+
+	function fillApprovalTestData() {
+		if (!localCVData) return;
+		localCVData.otherApprovals = generateApprovalTestData();
+	}
+	
+	// Helper functions for cleaner code
+	function getDummyServiceQueryArgs() {
+		return {
+			cvId: 'dummy' as Id<'expertCVs'>,
+			userId: expertId as Id<'users'>,
+			organizationId: orgId as Id<'organizations'>
+		};
+	}
+	
+	function getRealServiceQueryArgs() {
+		return {
+			cvId: expertCV.data._id as Id<'expertCVs'>,
+			userId: expertId as Id<'users'>,
+			organizationId: orgId as Id<'organizations'>
+		};
+	}
+	
+	function getSelectedServiceIds() {
+		if (!assignedServices?.data) return [];
+		return assignedServices.data.map((assignment: any) => assignment.serviceVersionId);
+	}
+	
+	// Check if there's already a lead expert for a service
+	function hasLeadExpert(serviceId: string): boolean {
+		if (!orgAssignments?.data) return false;
+		
+		// Check for any lead assignment (approved or pending - excludes rejected and inactive)
+		const activeLeadAssignments = orgAssignments.data.filter(
+			(assignment: any) => 
+				assignment.serviceVersionId === serviceId &&
+				assignment.status !== 'inactive' && // Exclude inactive
+				assignment.status !== 'rejected' && // Exclude rejected
+				assignment.role === 'lead'
+		);
+		
+		return activeLeadAssignments.length > 0;
+	}
+	
+	// Get read-only services (only approved services from the CURRENT CV where CV is locked)
+	// Services from prior CVs are NOT read-only on a new CV unless they're also approved and locked on current CV
+	let readOnlyServices = $derived.by(() => {
+		const readOnlySet = new Set<string>();
+		
+		// Only mark as read-only if the CV is locked (approved services are final)
+		const isCVLocked = expertCV?.data?.status === 'locked_final';
+		
+		// Add approved services from current CV ONLY if CV is locked
+		if (assignedServices?.data && isCVLocked) {
+			assignedServices.data
+				.filter((assignment: any) => assignment.status === 'approved')
+				.forEach((assignment: any) => readOnlySet.add(assignment.serviceVersionId));
+		}
+		
+		// Do NOT include approved services from other CVs - they are specific to those CVs
+		// The expert is working on a new CV and can choose services independently
+		
+		return Array.from(readOnlySet);
+	});
+	
+	// Show available services in the select list
+	// Exclude services that are already approved on locked CVs (they're final and can't be re-selected)
+	let selectableServices = $derived.by(() => {
+		if (!availableServices?.data) return [];
+		
+		// Get service IDs that are approved and locked (final) - these cannot be selected
+		const lockedApprovedServiceIds = new Set<string>();
+		if (allUserAssignments?.data) {
+			allUserAssignments.data.forEach((assignment: any) => {
+				if (assignment.status === 'approved' && assignment.expertCV?.status === 'locked_final') {
+					lockedApprovedServiceIds.add(assignment.serviceVersionId);
+				}
+			});
+		}
+		
+		// Filter out services that are already locked and approved
+		return availableServices.data.filter(
+			(service: any) => !lockedApprovedServiceIds.has(service._id)
+		);
+	});
+	
+	// Action functions for save logic
+	async function addServiceAssignment(serviceId: string) {
+		if (!expertCV?.data) {
+			throw new Error('No CV data available');
+		}
+		
+		// Get the role from roleChanges or default to 'regular'
+		const role = (roleChanges as any)[serviceId] || 'regular';
+		
+		return client.mutation(api.expert.addService, {
+			cvId: expertCV.data._id as Id<'expertCVs'>,
+			userId: expertId as Id<'users'>,
+			organizationId: orgId as Id<'organizations'>,
+			serviceVersionId: serviceId as Id<'serviceVersions'>,
+			role: role as 'lead' | 'regular'
+		});
+	}
+	
+	async function removeServiceAssignment(serviceId: string) {
+		if (!expertCV?.data) {
+			throw new Error('No CV data available');
+		}
+		
+		return client.mutation(api.expert.removeService, {
+			cvId: expertCV.data._id as Id<'expertCVs'>,
+			userId: expertId as Id<'users'>,
+			organizationId: orgId as Id<'organizations'>,
+			serviceVersionId: serviceId as Id<'serviceVersions'>
+		});
+	}
+	
+	async function updateServiceRole(assignmentId: string, newRole: string) {
+		return client.mutation(api.expert.updateServiceRole, {
+			assignmentId: assignmentId as Id<'expertServiceAssignments'>,
+			newRole: newRole as 'lead' | 'regular'
+		});
+	}
+	
+	// Lightweight save function for CV data only (used before navigation)
+	async function saveCVData() {
+		if (!localCVData) return;
+		await client.mutation(api.expert.updateCV, {
+			cvId: localCVData._id,
+			organizationId: orgId as Id<'organizations'>,
+			experience: localCVData.experience,
+			education: localCVData.education,
+			trainingQualifications: localCVData.trainingQualifications,
+			otherApprovals: localCVData.otherApprovals
+		});
+	}
+
+	async function save() {
+		isSaving = true;
+		saveError = null;
+		
+		try {
+			// Step 1: Save CV data changes (experience/education/training)
+			if (localCVData) {
+				await client.mutation(api.expert.updateCV, {
+					cvId: localCVData._id,
+					organizationId: orgId as Id<'organizations'>,
+					experience: localCVData.experience,
+					education: localCVData.education,
+					trainingQualifications: localCVData.trainingQualifications,
+					otherApprovals: localCVData.otherApprovals
+				});
+			}
+			
+			// Step 2: Analyze and execute service changes FIRST
+			const changes = analyzeServiceChanges(
+				assignedServices?.data || [],
+				effectiveServiceSelection,
+				serviceRoles,
+				roleChanges as Record<string, 'lead' | 'regular'>
+			);
+			
+			// Check if service editing is allowed
+			const canEditServicesNow = canEditServices(expertCV?.data?.status || 'draft');
+			
+			// Execute service changes (only if service editing is allowed)
+			if (canEditServicesNow) {
+				await executeServiceChanges(changes, {
+					addServiceAssignment,
+					removeServiceAssignment,
+					updateServiceRole
+				});
+			}
+			
+			// Step 3: NOW validate and handle status transitions AFTER all data is saved
+			
+			if (localCVData) {
+				// Build CV object for validation by simulating service changes
+				const cvForValidation = buildCVForValidation(
+					localCVData,
+					assignedServices?.data || [],
+					changes,
+					roleChanges as Record<string, 'lead' | 'regular'>
+				);
+				
+				const validation = validateCVCompletion(cvForValidation);
+				
+				// Handle status transitions based on validation
+				const currentStatus = expertCV?.data?.status;
+				const targetStatus = shouldTransitionCVStatus(currentStatus || 'draft', validation.isValid);
+				
+				if (targetStatus) {
+					await client.mutation(api.expert.updateCVStatus, {
+						cvId: localCVData._id,
+						newStatus: targetStatus
+					});
+				}
+			}
+			
+			// Clear user changes to sync UI with database state
+			userServiceChanges = new Set();
+			roleChanges = {};
+			
+		} catch (error: any) {
+			saveError = error.message;
+			console.error('❌ Save failed:', error);
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	async function resubmitForReview() {
+		if (expertCV?.data?.status !== 'unlocked_for_edits') {
+			throw new Error('Can only resubmit from unlocked_for_edits status');
+		}
+		
+		isSaving = true;
+		saveError = null;
+		
+		try {
+			// First save any CV content changes (services will be skipped automatically)
+			await save();
+			
+			// Then update status to locked_for_review
+			await client.mutation(api.expert.updateCVStatus, {
+				cvId: expertCV.data._id,
+				newStatus: 'locked_for_review'
+			});
+			
+		} catch (error: any) {
+			saveError = error.message;
+			console.error('❌ Resubmit failed:', error);
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	function handleError(error: any) {
+		saveError = error.message;
+		console.error('❌ Error:', error);
+	}
+	
+	// Service toggle handler
+	function handleServiceToggle(serviceId: string) {
+		console.log('🔧 Service toggle:', { serviceId });
+		
+		// Toggle the service in user changes
+		const changes = new Set(userServiceChanges);
+		if (changes.has(serviceId)) {
+			changes.delete(serviceId); // Remove the change
+		} else {
+			changes.add(serviceId); // Add the change
+		}
+		userServiceChanges = changes;
+	}
+
+	// Role management handler - track user changes
+	function handleRoleChange(serviceId: string, newRole: string) {
+		console.log('🎭 Role change:', { serviceId, newRole });
+		// Track the role change for saving
+		(roleChanges as any)[serviceId] = newRole;
+		// Trigger reactivity
+		roleChanges = { ...roleChanges };
+	}
+
+
+	
+
+	// ==========================================
+	// 3. EFFECTS & REACTIVE LOGIC
+	// ==========================================
+	
+	// Debug: Log the data to see what we're getting
+	$effect(() => {
+		console.log('🔍 Expert CV:', {
+			isLoading: expertCV?.isLoading,
+			hasData: !!expertCV?.data,
+			data: expertCV?.data,
+			error: expertCV?.error
+		});
+		console.log('🔍 Assigned Services:', {
+			isLoading: assignedServices?.isLoading,
+			hasData: !!assignedServices?.data,
+			data: assignedServices?.data,
+			error: assignedServices?.error
+		});
+		console.log('🔍 Available Services:', {
+			isLoading: availableServices?.isLoading,
+			hasData: !!availableServices?.data,
+			data: availableServices?.data,
+			error: availableServices?.error
+		});
+		console.log('🔍 Selected Services:', selectedServices);
+		console.log('🎭 Service Roles (derived):', serviceRoles);
+		console.log('🔍 Assigned Services Data:', assignedServices?.data);
+		
+		// Debug: Check if roles are being set correctly
+		if (assignedServices?.data) {
+			assignedServices.data.forEach((assignment: any) => {
+				console.log(`🔍 Assignment: ${assignment.serviceVersionId} → Role: ${assignment.role}`);
+			});
+		}
+	});
+</script>
+
+<!-- 5. Simple template -->
+<div class="bg-gray-50 min-h-screen pb-32">
+	<div class="max-w-7xl mx-auto px-6 py-8">
+		{#if expertCV?.data}
+			<div class="flex gap-6">
+				<!-- LEFT SIDEBAR: Expert Header (Smaller, like admin page) -->
+				<div class="w-80 flex-shrink-0 space-y-4">
+					<ExpertHeader {userDetails} {expertCV} allUserAssignments={allUserAssignments} />
+					
+					<!-- Completion Checklist -->
+					{#if expertCV?.data}
+						{@const totalAssessments = expertCV.data.experience?.reduce((sum: number, exp: any) => {
+							const assessmentCount = exp.fieldExperienceCounts?.assessment?.total || 0;
+							return sum + assessmentCount;
+						}, 0) || 0}
+						{@const totalAssessmentsLast12m = expertCV.data.experience?.reduce((sum: number, exp: any) => {
+							const assessmentCount = exp.fieldExperienceCounts?.assessment?.last12m || 0;
+							return sum + assessmentCount;
+						}, 0) || 0}
+						<CompletionChecklist 
+							userIsActive={userDetails?.data?.isActive || false}
+							experienceCount={expertCV.data.experience?.length || 0}
+							educationCount={expertCV.data.education?.length || 0}
+							serviceCount={assignedServices?.data?.length || 0}
+							totalAssessments={totalAssessments}
+							totalAssessmentsLast12m={totalAssessmentsLast12m}
+							cvStatus={expertCV.data.status}
+						/>
+					{/if}
+					
+					<!-- Development Tools -->
+					{#if expertCV?.data}
+						<DevelopmentToolBar 
+							userId={expertId as Id<'users'>}
+							userIsActive={userDetails?.data?.isActive}
+							cvStatus={expertCV.data.status}
+							cvId={expertCV.data._id}
+							onActionCompleted={() => {
+								console.log('🔧 Development tool action completed - data will refresh automatically');
+								// Convex queries will automatically refetch after mutations
+							}}
+						/>
+					{/if}
+				</div>
+
+				<!-- MAIN CONTENT AREA: Tabs and Content (Wider) -->
+				<div class="flex-1 space-y-6">
+					<!-- Invite Expert Card -->
+					<div class="bg-blue-50 rounded-lg shadow-md border border-blue-200 p-6">
+						<div class="flex items-start justify-between">
+							<div class="flex items-start space-x-4">
+								<div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+									<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+									</svg>
+								</div>
+								<div class="flex-1">
+									<h3 class="text-lg font-semibold text-gray-900 mb-1">Invite Expert to Complete Profile</h3>
+									<p class="text-sm text-gray-600 mb-4">
+										Share this link with the expert to allow them to collaborate and input their CV details.
+									</p>
+									<div class="flex items-center space-x-2">
+										<input 
+											type="text" 
+											value="/expert-cv-completion/dummy-token-12345" 
+											readonly 
+											class="flex-1 px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-mono text-gray-700"
+										/>
+										<button 
+											onclick={() => {
+												navigator.clipboard.writeText('/expert-cv-completion/dummy-token-12345');
+											}}
+											class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+										>
+											<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+											</svg>
+											Copy Link
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Tab Switcher -->
+					<TabSwitcher 
+						tabs={['services', 'experience', 'education', 'training', 'approvals']} 
+						{activeTab} 
+						onTabChange={(tab: string) => handleTabChange(tab as 'services' | 'experience' | 'education' | 'training' | 'approvals')} 
+					/>
+					
+					<!-- Main Content Card -->
+					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+						<!-- Services Tab Content -->
+						{#if activeTab === 'services'}
+							<ServiceSelection 
+								cvStatus={expertCV?.data?.status || 'draft'}
+								availableServices={selectableServices}
+								selectedServices={effectiveServiceSelection}
+								serviceRoles={serviceRoles}
+								roleChanges={roleChanges}
+								onServiceToggle={handleServiceToggle}
+								onRoleChange={handleRoleChange}
+								isLoading={availableServices?.isLoading}
+								error={availableServices?.error?.message || ''}
+								hasLeadExpert={hasLeadExpert}
+								readOnlyServices={[]}
+							/>
+						{/if}
+
+					<!-- Experience Tab Content -->
+					{#if activeTab === 'experience'}
+						<TestDataGenerator tabName="Professional Experience" onFillData={fillTestData} />
+						{#if expertId}
+							<ExperienceView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onAddExperience={addExperience}
+								onRemoveExperience={removeExperience}
+								onUpdateExperience={updateExperience}
+								onSave={saveCVData}
+							/>
+						{/if}
+					{/if}
+
+					<!-- Education Tab Content -->
+					{#if activeTab === 'education'}
+						<TestDataGenerator tabName="Education" onFillData={fillEducationTestData} />
+						{#if expertId}
+							<EducationView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onRemoveEducation={removeEducation}
+								onSave={saveCVData}
+							/>
+						{/if}
+					{/if}
+
+					<!-- Training Qualification Tab Content -->
+					{#if activeTab === 'training'}
+						<TestDataGenerator tabName="Training Qualifications" onFillData={fillTrainingTestData} />
+						{#if expertId}
+							<TrainingQualificationView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onRemoveTraining={removeTraining}
+								onSave={saveCVData}
+							/>
+						{/if}
+					{/if}
+
+					<!-- Other Approvals Tab Content -->
+					{#if activeTab === 'approvals'}
+						<TestDataGenerator tabName="Other Approvals" onFillData={fillApprovalTestData} />
+						{#if expertId}
+							<ApprovalView 
+								{expertId}
+								cvStatus={expertCV?.data?.status as CVStatus || 'draft'}
+								{localCVData}
+								onRemoveApproval={removeApproval}
+								onSave={saveCVData}
+							/>
+						{/if}
+					{/if}
+					</div>
+				</div>
+			</div>
+		{:else if !expertCV?.data}
+			<ExpertHeader {userDetails} {expertCV} />
+		{/if}
+	</div>
+
+	<!-- Save Buttons - Full width fixed at bottom -->
+	{#if expertCV?.data}
+		<div class="fixed bottom-0 left-0 right-0 w-full bg-white border-t border-gray-200 shadow-lg z-50">
+			<div class="max-w-7xl mx-auto px-6 py-4">
+				{#if canEditCVContent(expertCV?.data?.status || 'draft')}
+					<div class="flex items-center justify-between">
+						<div class="flex items-center space-x-2 text-sm text-gray-600">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							</svg>
+							<span>
+								{#if expertCV?.data?.status === 'unlocked_for_edits'}
+									Make your changes, then resubmit for review.
+								{:else}
+									Don't forget to save your changes.
+								{/if}
+							</span>
+						</div>
+						<div class="flex gap-3">
+							<button 
+								onclick={save} 
+								disabled={isSaving} 
+								class="inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
+							>
+								{#if isSaving}
+									<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+									</svg>
+									Saving...
+								{:else}
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+									</svg>
+									Save Changes
+								{/if}
+							</button>
+							
+							{#if expertCV?.data?.status === 'completed'}
+								<button 
+									onclick={() => goto('/checkout')} 
+									class="inline-flex items-center px-6 py-3 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md"
+								>
+									<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+									</svg>
+									Submit for Review
+								</button>
+							{/if}
+							
+							{#if expertCV?.data?.status === 'unlocked_for_edits'}
+								<button 
+									onclick={resubmitForReview} 
+									disabled={isSaving} 
+									class="inline-flex items-center px-6 py-3 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-sm"
+								>
+									{#if isSaving}
+										<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+										</svg>
+										Submitting...
+									{:else}
+										<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+										</svg>
+										Resubmit for Review
+									{/if}
+								</button>
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<div class="flex items-center space-x-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">
+						<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+						</svg>
+						<span>CV is locked and cannot be edited. Contact your administrator if changes are needed.</span>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+</div>

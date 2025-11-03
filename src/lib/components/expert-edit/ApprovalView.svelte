@@ -40,7 +40,7 @@
 				return; // Don't navigate if save failed
 			}
 		}
-		goto(`/user-management/experts/${expertId}/edit/new-approval`);
+		goto(`/experts/${expertId}/cv/new-approval`);
 	}
 
 	// Navigate to edit approval page
@@ -55,7 +55,7 @@
 				return; // Don't navigate if save failed
 			}
 		}
-		goto(`/user-management/experts/${expertId}/edit/new-approval?index=${index}`);
+		goto(`/experts/${expertId}/cv/new-approval?index=${index}`);
 	}
 </script>
 

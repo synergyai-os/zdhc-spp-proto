@@ -134,7 +134,7 @@
 								</div>
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-								<a href="/user-management/experts/{expert.userId}/edit" 
+								<a href="/experts/{expert.userId}/cv" 
 								   class="text-blue-600 hover:text-blue-900">
 									Edit CV
 								</a>

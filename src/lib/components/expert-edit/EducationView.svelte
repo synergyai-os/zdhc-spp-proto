@@ -43,7 +43,7 @@
 				return; // Don't navigate if save failed
 			}
 		}
-		goto(`/user-management/experts/${expertId}/edit/new-education`);
+		goto(`/experts/${expertId}/cv/new-education`);
 	}
 
 	// Navigate to edit education page
@@ -58,7 +58,7 @@
 				return; // Don't navigate if save failed
 			}
 		}
-		goto(`/user-management/experts/${expertId}/edit/new-education?index=${index}`);
+		goto(`/experts/${expertId}/cv/new-education?index=${index}`);
 	}
 </script>
 
