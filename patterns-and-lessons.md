@@ -2,6 +2,8 @@
 
 This document captures reusable patterns, techniques, and lessons learned during development to help maintain consistency and avoid repeating mistakes.
 
+**Important**: Context7 documentation is always the leading and most accurate source for framework-specific patterns (e.g., Svelte 5 runes, React hooks, etc.). This document is continuously updated and improved as we learn while building, but Context7 should be consulted first when validating framework patterns or when confidence is below 95%.
+
 ## Data Table Design for Complex Status Display
 
 **When**: Building tables with multiple status indicators, badges, or complex state information.
@@ -97,6 +99,12 @@ const shouldShowTracker = $derived.by(() => {
 - **Conditional rendering**: Check both mapped status and visibility before rendering
 - **Graceful degradation**: Return `null` for states that don't need tracker
 
+**Important Restrictions** (validated with Context7):
+- **No state mutations**: Cannot update `$state` variables inside `$derived.by()` - use `$effect()` for side effects
+- **No recursive references**: A derived value cannot reference itself recursively
+- **No async outside effects**: `$derived` with `await` must be created within an effect tree
+- **Cannot export**: Derived state cannot be exported directly from modules - export a function that returns the value instead
+
 ## Timeline/Activity Feed Pattern
 
 **When**: Displaying chronological history of events with user-friendly formatting.
@@ -181,8 +189,11 @@ const processedData = $derived.by(() => {
 ```
 
 **Key Principles**:
-- **Immediate child**: Must be first line after `{#if}`, `{#each}`, `{:else}`, `{#snippet}`, etc.
+- **Immediate child**: Must be first line after supported block types (see complete list below)
 - **Not inside elements**: Cannot be inside `<div>`, `<span>`, or other HTML tags
 - **Before usage**: Place before any template elements that use the constant
 - **Multiple declarations**: Can have multiple `{@const}` tags in sequence
+
+**Supported Block Types** (validated with Context7):
+`{@const}` must be the immediate child of: `{#snippet}`, `{#if}`, `{:else if}`, `{:else}`, `{#each}`, `{:then}`, `{:catch}`, `<svelte:fragment>`, `<svelte:boundary>`, or `<Component>` tags.
 
