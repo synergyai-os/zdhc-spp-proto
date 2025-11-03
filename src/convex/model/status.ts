@@ -417,3 +417,140 @@ export function getServiceApprovalStatusColor(status: ServiceApprovalStatus): st
 		default: return 'bg-gray-100 text-gray-800';
 	}
 }
+
+// ==========================================
+// SERVICE ASSIGNMENT STATUS DISPLAY (Unified)
+// ==========================================
+
+/**
+ * Service Assignment Display Status - Single source of truth for UI
+ * 
+ * This type represents the high-level display status shown to users
+ * in tables and lists. It combines assignment status, CV status, and training status.
+ */
+export type ServiceAssignmentDisplayStatus = 
+	| 'active' 
+	| 'rejected' 
+	| 'pending' 
+	| 'training_needed' 
+	| 'training_failed' 
+	| 'payment_needed' 
+	| 'in_review';
+
+/**
+ * Service Assignment Display Status Info
+ */
+export interface ServiceAssignmentDisplayInfo {
+	type: ServiceAssignmentDisplayStatus;
+	icon: string;
+	color: string;
+	label: string;
+}
+
+/**
+ * Calculate display status for a service assignment
+ * 
+ * Priority order (most specific first):
+ * 1. Rejected (if assignment rejected + CV locked_final)
+ * 2. Training failed (if approved + training failed)
+ * 3. Active (if approved + CV locked + training qualified)
+ * 4. Payment Needed (if CV status is 'completed' - regardless of assignment status)
+ * 5. Training needed (if approved + needs training)
+ * 6. In review (if approved + CV in review state)
+ * 7. Pending review (if assignment pending_review AND CV not completed)
+ * 
+ * @param assignment - Service assignment with enriched CV data
+ * @returns Display info with type, icon, color, and label
+ */
+export function getServiceAssignmentDisplayStatus(assignment: {
+	status: ServiceStatus;
+	trainingStatus?: TrainingStatus;
+	expertCV?: {
+		status: CVStatus;
+	};
+}): ServiceAssignmentDisplayInfo {
+	const cvStatus = assignment.expertCV?.status;
+	const assignmentStatus = assignment.status;
+	const trainingStatus = assignment.trainingStatus;
+
+	// 1. Rejected services (only show if CV is locked_final - definitive rejection)
+	if (assignmentStatus === 'rejected' && cvStatus === 'locked_final') {
+		return {
+			type: 'rejected',
+			icon: '❌',
+			color: 'bg-red-100 text-red-800 border-red-300',
+			label: 'Rejected'
+		};
+	}
+
+	// 2. Training failed (approved but training failed)
+	if (assignmentStatus === 'approved' && trainingStatus === 'failed') {
+		return {
+			type: 'training_failed',
+			icon: '❌',
+			color: 'bg-red-100 text-red-800 border-red-300',
+			label: 'Training Failed'
+		};
+	}
+
+	// 3. Active/Qualified (approved + CV locked + training qualified)
+	const isCVLocked = cvStatus === 'locked_final';
+	const isTrainingQualified = trainingStatus && isQualified(trainingStatus);
+	if (assignmentStatus === 'approved' && isCVLocked && isTrainingQualified) {
+		return {
+			type: 'active',
+			icon: '✅',
+			color: 'bg-green-100 text-green-800 border-green-300',
+			label: 'Active'
+		};
+	}
+
+	// 4. Payment Needed (CRITICAL: Check CV status FIRST - regardless of assignment status)
+	// If CV is completed, payment is needed before anything else can happen
+	if (cvStatus === 'completed') {
+		return {
+			type: 'payment_needed',
+			icon: '💳',
+			color: 'bg-amber-100 text-amber-800 border-amber-300',
+			label: 'Pending Payment'
+		};
+	}
+
+	// 5. Training needed (approved but needs training)
+	if (assignmentStatus === 'approved' && trainingStatus && ['required', 'invited', 'in_progress'].includes(trainingStatus)) {
+		return {
+			type: 'training_needed',
+			icon: '🎓',
+			color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+			label: 'Training Needed'
+		};
+	}
+
+	// 6. In review (approved but CV in review state)
+	if (assignmentStatus === 'approved' && cvStatus && ['locked_for_review', 'unlocked_for_edits'].includes(cvStatus)) {
+		return {
+			type: 'in_review',
+			icon: '👀',
+			color: 'bg-blue-100 text-blue-800 border-blue-300',
+			label: 'In Review'
+		};
+	}
+
+	// 7. Pending review (assignment pending - only if CV is not completed)
+	if (assignmentStatus === 'pending_review') {
+		return {
+			type: 'pending',
+			icon: '⏳',
+			color: 'bg-gray-100 text-gray-800 border-gray-300',
+			label: 'Pending Review'
+		};
+	}
+
+	// Default
+	return {
+		type: 'pending',
+		icon: '⏳',
+		color: 'bg-gray-100 text-gray-800 border-gray-300',
+		label: 'Pending'
+	};
+}

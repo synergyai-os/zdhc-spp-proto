@@ -4,12 +4,37 @@ alwaysApply: true
 - **CRITICAL**: In agent chat mode, NEVER make changes without the human reviewing the work and making changes
 - **MANDATORY WORKFLOW**: Always follow this exact sequence:
   1. INVESTIGATE first - understand the problem completely
-  2. VALIDATE the issue - confirm what's wrong with evidence.
-  3. ASK FOR CONFIRMATION - get explicit approval before any changes
-  4. IMPLEMENT ONE MICRO STEP - make only one small change at a time
-  5. STOP AND VALIDATE - confirm each step works before proceeding
-- **NEVER**: Jump to implementation, make multiple changes, or assume what needs to be done
-- **ALWAYS**: Ask "Should I [specific action]?" before making any changes
+     - Search for existing similar functions/patterns before creating new ones
+     - Check for naming conflicts (function names, type names, exports)
+     - Identify where similar logic exists and how it differs
+     - Understand data structures and dependencies
+  2. VALIDATE the issue - confirm what's wrong with evidence
+     - Show concrete examples (screenshots, code snippets, errors)
+     - Demonstrate the problem clearly
+  3. PRESENT FINDINGS - share investigation results and proposed solution
+     - Explain what you found (conflicts, similar patterns, dependencies)
+     - Propose the approach with rationale
+     - Highlight potential issues or considerations
+  4. ASK FOR CONFIRMATION - get explicit approval before any changes
+     - Ask "Should I [specific action]?" with clear description
+     - Wait for explicit "yes" or approval
+  5. IMPLEMENT ONE MICRO STEP - make only one small change at a time
+     - One function, one component update, one file change per step
+     - Never batch multiple changes together
+  6. STOP AND VALIDATE - confirm each step works before proceeding
+     - Show what changed
+     - Ask for confirmation before next step
+- **NEVER**: 
+  - Jump to implementation without investigation
+  - Make multiple changes in one step
+  - Assume what needs to be done
+  - Create new functions/types without checking for conflicts first
+  - Skip asking for confirmation
+- **ALWAYS**: 
+  - Ask "Should I [specific action]?" before making any changes
+  - Investigate conflicts before creating new functions/types
+  - Present findings and proposed solution before implementing
+  - Make one small change at a time
 - **STRICT ENFORCEMENT**: If I violate this workflow, call me out immediately
 - **CONTEXT7 REQUIREMENT**: When validating issues and not 95% sure about patterns, ALWAYS use Context7 MCP to get latest documentation before proposing solutions
 - minimize the amount of tokens used and write simple clean svelte 5 patterns with clear variables
@@ -24,3 +49,15 @@ alwaysApply: true
 - **Maintainability**: When files get complex (e.g., >500 lines), proactively propose refactoring BEFORE adding new features
 - **Refactor vs Build**: Default to refactoring existing code into utilities/modules first, then building on clean code
 - **Code usability**: Make code maintainable and readable for both developer and AI - avoid over-engineering but also avoid accumulating technical debt
+
+## 🔍 Investigation Checklist (When Adding New Code)
+
+Before creating new functions, types, or patterns, always check:
+1. **Naming conflicts**: Search for existing functions/types with similar names
+2. **Similar patterns**: Find where similar logic already exists
+3. **Integration points**: Identify components that might use/conflict with new code
+4. **Dependencies**: Understand required data structures and imports
+5. **Export conflicts**: Check if type/function names conflict with existing exports
+6. **Use cases**: Document where and why the new code will be used
+
+**Example investigation output**: "Found existing function `getServiceStatusDisplayName()` that takes raw status enum. New function `getServiceAssignmentDisplayStatus()` serves different purpose (takes assignment object). No conflicts identified. Similar logic exists in ServicesView but uses different pattern."

@@ -4,6 +4,7 @@
 	import type { Id } from '$lib';
 	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
+	import { getServiceAssignmentDisplayStatus } from '../../convex/model/status';
 
 	const orgId = getContext('orgId');
 	const client = useConvexClient();
@@ -30,93 +31,6 @@
 	// Track expanded rows (expert userId -> expanded state)
 	let expandedRows = $state<Set<string>>(new Set());
 
-	// Calculate per-service status
-	function getServiceStatus(assignment: any): {
-		type: 'qualified' | 'rejected' | 'pending' | 'training_needed' | 'training_failed' | 'payment_needed' | 'in_review';
-		icon: string;
-		color: string;
-		label: string;
-	} {
-		// Rejected services
-		if (assignment.status === 'rejected' && assignment.expertCV?.status === 'locked_final') {
-			return {
-				type: 'rejected',
-				icon: '❌',
-				color: 'bg-red-100 text-red-800 border-red-300',
-				label: 'Rejected'
-			};
-		}
-
-		// Training failed
-		if (assignment.trainingStatus === 'failed' && assignment.status === 'approved') {
-			return {
-				type: 'training_failed',
-				icon: '❌',
-				color: 'bg-red-100 text-red-800 border-red-300',
-				label: 'Training Failed'
-			};
-		}
-
-		// Qualified - approved + CV locked + training passed/not_required
-		const isCVLocked = assignment.expertCV?.status === 'locked_final';
-		const isTrainingQualified = ['passed', 'not_required'].includes(assignment.trainingStatus || '');
-		if (assignment.status === 'approved' && isCVLocked && isTrainingQualified) {
-			return {
-				type: 'qualified',
-				icon: '✅',
-				color: 'bg-green-100 text-green-800 border-green-300',
-				label: 'Qualified'
-			};
-		}
-
-		// Training needed - approved but needs training
-		if (assignment.status === 'approved' && ['required', 'invited', 'in_progress'].includes(assignment.trainingStatus || '')) {
-			return {
-				type: 'training_needed',
-				icon: '🎓',
-				color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-				label: 'Training Needed'
-			};
-		}
-
-		// Payment needed - approved but CV not paid
-		if (assignment.status === 'approved' && !isCVLocked && assignment.expertCV?.status === 'completed') {
-			return {
-				type: 'payment_needed',
-				icon: '💳',
-				color: 'bg-amber-100 text-amber-800 border-amber-300',
-				label: 'Payment Needed'
-			};
-		}
-
-		// In review - CV locked for review
-		if (assignment.status === 'approved' && ['locked_for_review', 'unlocked_for_edits'].includes(assignment.expertCV?.status || '')) {
-			return {
-				type: 'in_review',
-				icon: '👀',
-				color: 'bg-blue-100 text-blue-800 border-blue-300',
-				label: 'In Review'
-			};
-		}
-
-		// Pending review
-		if (assignment.status === 'pending_review') {
-			return {
-				type: 'pending',
-				icon: '⏳',
-				color: 'bg-gray-100 text-gray-800 border-gray-300',
-				label: 'Pending'
-			};
-		}
-
-		// Default
-		return {
-			type: 'pending',
-			icon: '⏳',
-			color: 'bg-gray-100 text-gray-800 border-gray-300',
-			label: 'Pending'
-		};
-	}
 
 	// Process experts with enriched data
 	const processedExperts = $derived.by(() => {
@@ -145,7 +59,7 @@
 			const services = expertAssignments
 				.filter((a: any) => a.status !== 'inactive')
 				.map((a: any) => {
-					const serviceStatus = getServiceStatus(a);
+					const serviceStatus = getServiceAssignmentDisplayStatus(a);
 					return {
 						name: a.serviceVersion?.name || 'Unknown',
 						assignmentStatus: a.status, // pending_review, approved, rejected
@@ -296,7 +210,7 @@
 	function getServiceSummary(services: any[]) {
 		if (services.length === 0) return { text: 'No services', counts: {} };
 
-		const qualifiedCount = services.filter((s: any) => s.serviceStatus.type === 'qualified').length;
+		const qualifiedCount = services.filter((s: any) => s.serviceStatus.type === 'active').length;
 		const rejectedCount = services.filter((s: any) => s.serviceStatus.type === 'rejected').length;
 		const trainingCount = services.filter((s: any) => ['training_needed', 'training_failed'].includes(s.serviceStatus.type)).length;
 		const pendingCount = services.filter((s: any) => s.serviceStatus.type === 'pending').length;
