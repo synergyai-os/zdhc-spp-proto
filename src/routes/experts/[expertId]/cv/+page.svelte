@@ -143,6 +143,12 @@
 	
 	// Reactive pricing calculation using utility function
 	let pricing = $derived(calculateServicePricing(effectiveServiceSelection.length));
+
+	// Full URL for expert CV completion invitation
+	const inviteUrl = $derived.by(() => {
+		const baseUrl = $page.url.origin;
+		return `${baseUrl}/experts/cv-completion/${expertId}`;
+	});
 	
 	// ==========================================
 	// 2. FUNCTIONS
@@ -589,13 +595,13 @@
 									<div class="flex items-center space-x-2">
 										<input 
 											type="text" 
-											value="/expert-cv-completion/dummy-token-12345" 
+											value={inviteUrl} 
 											readonly 
 											class="flex-1 px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-mono text-gray-700"
 										/>
 										<button 
 											onclick={() => {
-												navigator.clipboard.writeText('/expert-cv-completion/dummy-token-12345');
+												navigator.clipboard.writeText(inviteUrl);
 											}}
 											class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
 										>
