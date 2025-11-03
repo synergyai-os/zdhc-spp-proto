@@ -3,11 +3,13 @@
 	import { useQuery, useConvexClient } from 'convex-svelte';
 	import { api, type Id } from '$lib';
 	import { DEFAULT_ORG_ID } from '$lib/config';
-	import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
-	import EducationView from '$lib/components/expert-edit/EducationView.svelte';
-	import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
-	import ApprovalView from '$lib/components/expert-edit/ApprovalView.svelte';
-	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
+import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
+import EducationView from '$lib/components/expert-edit/EducationView.svelte';
+import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
+import ApprovalView from '$lib/components/expert-edit/ApprovalView.svelte';
+import ExpertHeader from '$lib/components/expert-edit/ExpertHeader.svelte';
+import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
+import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
 import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../../../../convex/model/status';
 
 	const userId = $derived($page.params.cvId);
@@ -46,6 +48,23 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 		if (expertCV?.data) {
 			localCVData = { ...expertCV.data };
 		}
+	});
+
+	// Computed assessment counts for CompletionChecklist
+	const totalAssessments = $derived.by(() => {
+		if (!expertCV?.data || Array.isArray(expertCV.data) || !expertCV.data.experience) return 0;
+		return expertCV.data.experience.reduce((sum: number, exp: any) => {
+			const assessmentCount = exp.fieldExperienceCounts?.assessment?.total || 0;
+			return sum + assessmentCount;
+		}, 0);
+	});
+
+	const totalAssessmentsLast12m = $derived.by(() => {
+		if (!expertCV?.data || Array.isArray(expertCV.data) || !expertCV.data.experience) return 0;
+		return expertCV.data.experience.reduce((sum: number, exp: any) => {
+			const assessmentCount = exp.fieldExperienceCounts?.assessment?.last12m || 0;
+			return sum + assessmentCount;
+		}, 0);
 	});
 
 	function handleLogin() {
@@ -176,103 +195,121 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 	</div>
 {:else}
 	<div class="bg-gray-50 min-h-screen pb-32">
-		<div class="max-w-4xl mx-auto px-6 py-8">
-			<div class="space-y-8">
-				<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-					<h1 class="text-2xl font-bold text-gray-900 mb-2">Complete Your Expert CV</h1>
-					<p class="text-gray-600">Please fill in the following sections to complete your expert profile.</p>
-				</div>
+		<div class="max-w-7xl mx-auto px-6 py-8">
+			{#if localCVData && userId && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.status}
+				{@const cvStatus = expertCV.data.status as any}
+				{@const isLocked = !canEditCVContent(cvStatus)}
+				
+				<div class="flex gap-6">
+					<!-- LEFT SIDEBAR -->
+					<div class="w-80 flex-shrink-0 space-y-4">
+						<ExpertHeader userDetails={userData} {expertCV} />
+						
+						<CompletionChecklist 
+							userIsActive={userData?.data?.isActive || false}
+							experienceCount={expertCV.data.experience?.length || 0}
+							educationCount={expertCV.data.education?.length || 0}
+							serviceCount={assignedServices?.data?.length || 0}
+							{totalAssessments}
+							{totalAssessmentsLast12m}
+							cvStatus={expertCV.data.status}
+						/>
+					</div>
 
-				{#if localCVData && userId && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.status}
-					{@const cvStatus = expertCV.data.status as any}
-					{@const isLocked = !canEditCVContent(cvStatus)}
-					
-					{#if isLocked}
-						<div class="bg-amber-50 border-l-4 border-amber-400 p-6 rounded-lg">
-							<div class="flex items-start">
-								<svg class="w-6 h-6 text-amber-400 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-								</svg>
-								<div class="flex-1">
-									<h3 class="text-lg font-semibold text-amber-800">CV Locked</h3>
-									<p class="text-sm text-amber-700 mt-1">
-										Your CV is currently <span class="font-semibold">{getCVStatusDisplayName(cvStatus)}</span> and cannot be edited. 
-										{#if orgName}
-											Contact your administrator at {orgName} if changes are needed.
-										{:else}
-											Contact your administrator if changes are needed.
-										{/if}
-									</p>
+					<!-- MAIN CONTENT AREA -->
+					<div class="flex-1 space-y-6">
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+							<h1 class="text-2xl font-bold text-gray-900 mb-2">Complete Your Expert CV</h1>
+							<p class="text-gray-600">Please fill in the following sections to complete your expert profile.</p>
+						</div>
+						
+						{#if isLocked}
+							<div class="bg-amber-50 border-l-4 border-amber-400 p-6 rounded-lg">
+								<div class="flex items-start">
+									<svg class="w-6 h-6 text-amber-400 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+									</svg>
+									<div class="flex-1">
+										<h3 class="text-lg font-semibold text-amber-800">CV Locked</h3>
+										<p class="text-sm text-amber-700 mt-1">
+											Your CV is currently <span class="font-semibold">{getCVStatusDisplayName(cvStatus)}</span> and cannot be edited. 
+											{#if orgName}
+												Contact your administrator at {orgName} if changes are needed.
+											{:else}
+												Contact your administrator if changes are needed.
+											{/if}
+										</p>
+									</div>
 								</div>
 							</div>
-						</div>
-					{/if}
-					
-					<!-- Services Section -->
-					{#if assignedServices?.data && assignedServices.data.length > 0}
-						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-							<div class="mb-6">
-								<h3 class="text-lg font-semibold text-gray-800">Services</h3>
-								<p class="text-sm text-gray-500">Services you are applying for</p>
+						{/if}
+						
+						<!-- Services Section -->
+						{#if assignedServices?.data && assignedServices.data.length > 0}
+							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+								<div class="mb-6">
+									<h3 class="text-lg font-semibold text-gray-800">Services</h3>
+									<p class="text-sm text-gray-500">Services you are applying for</p>
+								</div>
+								<div class="flex flex-wrap gap-3">
+									{#each assignedServices.data as assignment}
+										{#if assignment.serviceVersion}
+											<div class="inline-flex items-center px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+												<span class="text-sm font-medium text-blue-700">{assignment.serviceVersion.name}</span>
+											</div>
+										{/if}
+									{/each}
+								</div>
 							</div>
-							<div class="flex flex-wrap gap-3">
-								{#each assignedServices.data as assignment}
-									{#if assignment.serviceVersion}
-										<div class="inline-flex items-center px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-											<span class="text-sm font-medium text-blue-700">{assignment.serviceVersion.name}</span>
-										</div>
-									{/if}
-								{/each}
-							</div>
-						</div>
-					{/if}
+						{/if}
 
-					<!-- Experience Section -->
-					<ExperienceView 
-						expertId={userId}
-						cvStatus={cvStatus}
-						{localCVData}
-						onAddExperience={addExperience}
-						onRemoveExperience={removeExperience}
-						onUpdateExperience={updateExperience}
-						onSave={saveCVData}
-					/>
+						<!-- Experience Section -->
+						<ExperienceView 
+							expertId={userId}
+							cvStatus={cvStatus}
+							{localCVData}
+							onAddExperience={addExperience}
+							onRemoveExperience={removeExperience}
+							onUpdateExperience={updateExperience}
+							onSave={saveCVData}
+						/>
 
-					<!-- Education Section -->
-					<EducationView 
-						expertId={userId}
-						cvStatus={cvStatus}
-						{localCVData}
-						onRemoveEducation={removeEducation}
-						onSave={saveCVData}
-					/>
+						<!-- Education Section -->
+						<EducationView 
+							expertId={userId}
+							cvStatus={cvStatus}
+							{localCVData}
+							onRemoveEducation={removeEducation}
+							onSave={saveCVData}
+						/>
 
-					<!-- Training Section -->
-					<TrainingQualificationView 
-						expertId={userId}
-						cvStatus={cvStatus}
-						{localCVData}
-						onRemoveTraining={removeTraining}
-						onSave={saveCVData}
-					/>
+						<!-- Training Section -->
+						<TrainingQualificationView 
+							expertId={userId}
+							cvStatus={cvStatus}
+							{localCVData}
+							onRemoveTraining={removeTraining}
+							onSave={saveCVData}
+						/>
 
-					<!-- Other Approvals Section -->
-					<ApprovalView 
-						expertId={userId}
-						cvStatus={cvStatus}
-						{localCVData}
-						onRemoveApproval={removeApproval}
-						onSave={saveCVData}
-					/>
-				{/if}
-			</div>
+						<!-- Other Approvals Section -->
+						<ApprovalView 
+							expertId={userId}
+							cvStatus={cvStatus}
+							{localCVData}
+							onRemoveApproval={removeApproval}
+							onSave={saveCVData}
+						/>
+					</div>
+				</div>
+			{/if}
 		</div>
 	</div>
 
 	<!-- Save Button - Fixed at bottom -->
 	{#if localCVData}
 		<div class="fixed bottom-0 left-0 right-0 w-full bg-white border-t border-gray-200 shadow-lg z-50">
-			<div class="max-w-4xl mx-auto px-6 py-4">
+			<div class="max-w-7xl mx-auto px-6 py-4">
 				<div class="flex items-center justify-end gap-3">
 					<button 
 						type="button"
