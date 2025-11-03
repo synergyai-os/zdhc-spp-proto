@@ -9,7 +9,10 @@ import TrainingQualificationView from '$lib/components/expert-edit/TrainingQuali
 import ApprovalView from '$lib/components/expert-edit/ApprovalView.svelte';
 import ExpertHeader from '$lib/components/expert-edit/ExpertHeader.svelte';
 import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
+import DevelopmentToolBar from '$lib/components/admin/DevelopmentToolBar.svelte';
+import TestDataGenerator from '$lib/components/expert-edit/TestDataGenerator.svelte';
 import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
+import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData, generateApprovalTestData } from '$lib/utils/testDataGenerators';
 import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../../../../convex/model/status';
 
 	const userId = $derived($page.params.cvId);
@@ -134,6 +137,27 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 		localCVData.otherApprovals = (localCVData.otherApprovals || []).filter((_: any, i: number) => i !== index);
 	}
 
+	// Test data generation functions
+	function fillTestData() {
+		if (!localCVData) return;
+		localCVData.experience = generateExperienceTestData();
+	}
+
+	function fillEducationTestData() {
+		if (!localCVData) return;
+		localCVData.education = generateEducationTestData();
+	}
+
+	function fillTrainingTestData() {
+		if (!localCVData) return;
+		localCVData.trainingQualifications = generateTrainingTestData();
+	}
+
+	function fillApprovalTestData() {
+		if (!localCVData) return;
+		localCVData.otherApprovals = generateApprovalTestData();
+	}
+
 	async function saveCVData() {
 		if (!localCVData) return;
 		await client.mutation(api.expert.updateCV, {
@@ -205,16 +229,27 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 					<div class="w-80 flex-shrink-0 space-y-4">
 						<ExpertHeader userDetails={userData} {expertCV} />
 						
-						<CompletionChecklist 
-							userIsActive={userData?.data?.isActive || false}
-							experienceCount={expertCV.data.experience?.length || 0}
-							educationCount={expertCV.data.education?.length || 0}
-							serviceCount={assignedServices?.data?.length || 0}
-							{totalAssessments}
-							{totalAssessmentsLast12m}
-							cvStatus={expertCV.data.status}
-						/>
-					</div>
+					<CompletionChecklist 
+						userIsActive={userData?.data?.isActive || false}
+						experienceCount={expertCV.data.experience?.length || 0}
+						educationCount={expertCV.data.education?.length || 0}
+						serviceCount={assignedServices?.data?.length || 0}
+						{totalAssessments}
+						{totalAssessmentsLast12m}
+						cvStatus={expertCV.data.status}
+					/>
+					
+					<!-- Development Tools -->
+					<DevelopmentToolBar 
+						userId={userId as Id<'users'>}
+						userIsActive={userData?.data?.isActive}
+						cvStatus={expertCV.data.status}
+						cvId={expertCV.data._id}
+						onActionCompleted={() => {
+							console.log('🔧 Development tool action completed - data will refresh automatically');
+						}}
+					/>
+				</div>
 
 					<!-- MAIN CONTENT AREA -->
 					<div class="flex-1 space-y-6">
@@ -264,6 +299,7 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 						{/if}
 
 						<!-- Experience Section -->
+						<TestDataGenerator tabName="Professional Experience" onFillData={fillTestData} />
 						<ExperienceView 
 							expertId={userId}
 							cvStatus={cvStatus}
@@ -275,6 +311,7 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 						/>
 
 						<!-- Education Section -->
+						<TestDataGenerator tabName="Education" onFillData={fillEducationTestData} />
 						<EducationView 
 							expertId={userId}
 							cvStatus={cvStatus}
@@ -284,6 +321,7 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 						/>
 
 						<!-- Training Section -->
+						<TestDataGenerator tabName="Training Qualifications" onFillData={fillTrainingTestData} />
 						<TrainingQualificationView 
 							expertId={userId}
 							cvStatus={cvStatus}
@@ -293,6 +331,7 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 						/>
 
 						<!-- Other Approvals Section -->
+						<TestDataGenerator tabName="Other Approvals" onFillData={fillApprovalTestData} />
 						<ApprovalView 
 							expertId={userId}
 							cvStatus={cvStatus}
