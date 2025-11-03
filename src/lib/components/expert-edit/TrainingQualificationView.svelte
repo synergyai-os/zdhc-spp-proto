@@ -18,6 +18,7 @@
 		localCVData: { trainingQualifications?: TrainingQualificationEntry[] } | null;
 		onRemoveTraining: (index: number) => void;
 		onSave?: () => Promise<void>;
+		headerAction?: any;
 	}
 
 	let { 
@@ -25,7 +26,8 @@
 		cvStatus,
 		localCVData,
 		onRemoveTraining,
-		onSave
+		onSave,
+		headerAction
 	}: Props = $props();
 
 	// Component handles its own read-only state based on CV status
@@ -84,6 +86,10 @@
 			</button>
 		{/if}
 	</div>
+
+	{#if headerAction}
+		{@render headerAction()}
+	{/if}
 
 	{#if !localCVData?.trainingQualifications || localCVData.trainingQualifications.length === 0}
 		<div class="text-center py-8">

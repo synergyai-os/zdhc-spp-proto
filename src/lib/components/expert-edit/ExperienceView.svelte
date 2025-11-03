@@ -35,6 +35,7 @@
 		onRemoveExperience: (index: number) => void;
 		onUpdateExperience: (index: number, field: string, value: string | boolean | number) => void;
 		onSave?: () => Promise<void>;
+		headerAction?: any;
 	}
 
 	let { 
@@ -44,7 +45,8 @@
 		onAddExperience, 
 		onRemoveExperience, 
 		onUpdateExperience,
-		onSave
+		onSave,
+		headerAction
 	}: Props = $props();
 
 	// Component handles its own read-only state based on CV status
@@ -103,6 +105,10 @@
 			</button>
 		{/if}
 	</div>
+
+	{#if headerAction}
+		{@render headerAction()}
+	{/if}
 
 	{#if !localCVData?.experience || localCVData.experience.length === 0}
 		<div class="text-center py-8">

@@ -15,6 +15,7 @@
 		localCVData: { otherApprovals?: OtherApprovalEntry[] } | null;
 		onRemoveApproval: (index: number) => void;
 		onSave?: () => Promise<void>;
+		headerAction?: any;
 	}
 
 	let { 
@@ -22,7 +23,8 @@
 		cvStatus,
 		localCVData,
 		onRemoveApproval,
-		onSave
+		onSave,
+		headerAction
 	}: Props = $props();
 
 	// Component handles its own read-only state based on CV status
@@ -81,6 +83,10 @@
 			</button>
 		{/if}
 	</div>
+
+	{#if headerAction}
+		{@render headerAction()}
+	{/if}
 
 	<div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
 		<p class="text-sm text-gray-700">

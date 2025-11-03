@@ -299,7 +299,6 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 						{/if}
 
 						<!-- Experience Section -->
-						<TestDataGenerator tabName="Professional Experience" onFillData={fillTestData} />
 						<ExperienceView 
 							expertId={userId}
 							cvStatus={cvStatus}
@@ -308,37 +307,50 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 							onRemoveExperience={removeExperience}
 							onUpdateExperience={updateExperience}
 							onSave={saveCVData}
-						/>
+						>
+							{#snippet headerAction()}
+								<TestDataGenerator tabName="Professional Experience" onFillData={fillTestData} />
+							{/snippet}
+						</ExperienceView>
 
 						<!-- Education Section -->
-						<TestDataGenerator tabName="Education" onFillData={fillEducationTestData} />
 						<EducationView 
 							expertId={userId}
 							cvStatus={cvStatus}
 							{localCVData}
 							onRemoveEducation={removeEducation}
 							onSave={saveCVData}
-						/>
+						>
+							{#snippet headerAction()}
+								<TestDataGenerator tabName="Education" onFillData={fillEducationTestData} />
+							{/snippet}
+						</EducationView>
 
 						<!-- Training Section -->
-						<TestDataGenerator tabName="Training Qualifications" onFillData={fillTrainingTestData} />
 						<TrainingQualificationView 
 							expertId={userId}
 							cvStatus={cvStatus}
 							{localCVData}
 							onRemoveTraining={removeTraining}
 							onSave={saveCVData}
-						/>
+						>
+							{#snippet headerAction()}
+								<TestDataGenerator tabName="Training Qualifications" onFillData={fillTrainingTestData} />
+							{/snippet}
+						</TrainingQualificationView>
 
 						<!-- Other Approvals Section -->
-						<TestDataGenerator tabName="Other Approvals" onFillData={fillApprovalTestData} />
 						<ApprovalView 
 							expertId={userId}
 							cvStatus={cvStatus}
 							{localCVData}
 							onRemoveApproval={removeApproval}
 							onSave={saveCVData}
-						/>
+						>
+							{#snippet headerAction()}
+								<TestDataGenerator tabName="Other Approvals" onFillData={fillApprovalTestData} />
+							{/snippet}
+						</ApprovalView>
 					</div>
 				</div>
 			{/if}
