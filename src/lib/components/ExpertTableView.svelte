@@ -27,6 +27,9 @@
 	let selectedServiceFilter = $state<string>('all');
 	let showInactive = $state(true);
 
+	// Track expanded rows (expert userId -> expanded state)
+	let expandedRows = $state<Set<string>>(new Set());
+
 	// Calculate per-service status
 	function getServiceStatus(assignment: any): {
 		type: 'qualified' | 'rejected' | 'pending' | 'training_needed' | 'training_failed' | 'payment_needed' | 'in_review';
@@ -279,6 +282,42 @@
 		// Navigate to CV page where they can add services
 		goto(`/experts/${expert.userId}/cv?tab=services`);
 	}
+
+	function toggleRow(expertId: string) {
+		if (expandedRows.has(expertId)) {
+			expandedRows.delete(expertId);
+		} else {
+			expandedRows.add(expertId);
+		}
+		expandedRows = new Set(expandedRows);
+	}
+
+	// Calculate service summary for display
+	function getServiceSummary(services: any[]) {
+		if (services.length === 0) return { text: 'No services', counts: {} };
+
+		const qualifiedCount = services.filter((s: any) => s.serviceStatus.type === 'qualified').length;
+		const rejectedCount = services.filter((s: any) => s.serviceStatus.type === 'rejected').length;
+		const trainingCount = services.filter((s: any) => ['training_needed', 'training_failed'].includes(s.serviceStatus.type)).length;
+		const pendingCount = services.filter((s: any) => s.serviceStatus.type === 'pending').length;
+		const inReviewCount = services.filter((s: any) => s.serviceStatus.type === 'in_review').length;
+		const paymentCount = services.filter((s: any) => s.serviceStatus.type === 'payment_needed').length;
+
+		const parts = [];
+		if (qualifiedCount > 0) parts.push(`${qualifiedCount} ✅`);
+		if (rejectedCount > 0) parts.push(`${rejectedCount} ❌`);
+		if (trainingCount > 0) parts.push(`${trainingCount} 🎓`);
+		if (paymentCount > 0) parts.push(`${paymentCount} 💳`);
+		if (inReviewCount > 0) parts.push(`${inReviewCount} 👀`);
+		if (pendingCount > 0) parts.push(`${pendingCount} ⏳`);
+
+		const summaryText = parts.length > 0 ? parts.join(', ') : `${services.length} services`;
+
+		return {
+			text: `${services.length} service${services.length !== 1 ? 's' : ''}: ${summaryText}`,
+			counts: { qualifiedCount, rejectedCount, trainingCount, pendingCount, inReviewCount, paymentCount }
+		};
+	}
 </script>
 
 {#if expertCVs?.isLoading || serviceAssignments?.isLoading}
@@ -452,6 +491,8 @@
 					</thead>
 					<tbody class="bg-white divide-y divide-gray-200">
 						{#each activeExperts as expert}
+							{@const isExpanded = expandedRows.has(expert.userId)}
+							{@const serviceSummary = getServiceSummary(expert.services)}
 							<tr class="hover:bg-gray-50">
 								<td class="px-6 py-4">
 									<div class="flex items-center">
@@ -474,19 +515,17 @@
 								</td>
 								<td class="px-6 py-4">
 									{#if expert.services.length > 0}
-										<div class="flex flex-wrap gap-2">
-											{#each expert.services as service}
-												<span
-													class="inline-flex items-center px-2 py-1 rounded border text-xs font-medium {service.serviceStatus.color}"
-													title="{service.serviceStatus.label}"
-												>
-													<span class="mr-1">{service.serviceStatus.icon}</span>
-													<span class="font-semibold">{service.name}</span>
-													{#if service.role === 'lead'}
-														<span class="ml-1 font-bold">(Lead)</span>
-													{/if}
-												</span>
-											{/each}
+										<div class="flex items-center space-x-2">
+											<button
+												onclick={() => toggleRow(expert.userId)}
+												class="text-gray-400 hover:text-gray-600 transition-transform {isExpanded ? 'rotate-90' : ''}"
+												title={isExpanded ? 'Collapse services' : 'Expand services'}
+											>
+												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+												</svg>
+											</button>
+											<span class="text-sm text-gray-700">{serviceSummary.text}</span>
 										</div>
 									{:else}
 										<span class="text-sm text-gray-400">No services assigned</span>
@@ -510,23 +549,6 @@
 										{/if}
 										<span class="ml-1">{expert.status.message}</span>
 									</span>
-									<!-- Show summary counts -->
-									{#if expert.services.length > 0}
-										{@const qualifiedCount = expert.services.filter((s: any) => s.serviceStatus.type === 'qualified').length}
-										{@const rejectedCount = expert.services.filter((s: any) => s.serviceStatus.type === 'rejected').length}
-										{@const trainingCount = expert.services.filter((s: any) => ['training_needed', 'training_failed'].includes(s.serviceStatus.type)).length}
-										<div class="mt-1 text-xs text-gray-600">
-											{#if qualifiedCount > 0}
-												<span class="text-green-700">{qualifiedCount} qualified</span>
-											{/if}
-											{#if rejectedCount > 0}
-												<span class="text-red-700 ml-2">{rejectedCount} rejected</span>
-											{/if}
-											{#if trainingCount > 0}
-												<span class="text-yellow-700 ml-2">{trainingCount} training</span>
-											{/if}
-										</div>
-									{/if}
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
 									<div class="flex items-center space-x-3">
@@ -546,6 +568,30 @@
 									</div>
 								</td>
 							</tr>
+							<!-- Expanded Services Detail Row -->
+							{#if isExpanded && expert.services.length > 0}
+								<tr class="bg-gray-50">
+									<td colspan="4" class="px-6 py-4">
+										<div class="space-y-2">
+											<div class="text-xs font-semibold text-gray-700 mb-2">Services:</div>
+											<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+												{#each expert.services as service}
+													<div class="flex items-center space-x-2 p-2 bg-white rounded border border-gray-200">
+														<span class="text-sm">{service.serviceStatus.icon}</span>
+														<span class="text-sm font-medium text-gray-900 flex-1">{service.name}</span>
+														{#if service.role === 'lead'}
+															<span class="text-xs font-semibold text-blue-700">Lead</span>
+														{/if}
+														<span class="text-xs px-2 py-0.5 rounded {service.serviceStatus.color}">
+															{service.serviceStatus.label}
+														</span>
+													</div>
+												{/each}
+											</div>
+										</div>
+									</td>
+								</tr>
+							{/if}
 						{/each}
 					</tbody>
 				</table>

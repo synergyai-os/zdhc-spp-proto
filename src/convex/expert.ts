@@ -154,6 +154,60 @@ export const getLatestCV = query({
 });
 
 /**
+ * Get unique users for an organization (from their CVs)
+ * 
+ * What it does:
+ * 1. Gets all CVs for the organization
+ * 2. Extracts unique users
+ * 3. Returns user data with isActive status
+ * 
+ * Usage: Used by simple user management view to show active/inactive users
+ */
+export const getUsersByOrganization = query({
+	args: {
+		organizationId: v.id('organizations')
+	},
+	handler: async (ctx, args) => {
+		// Get all CVs for this organization
+		const cvs = await ctx.db
+			.query('expertCVs')
+			.filter((q) => q.eq(q.field('organizationId'), args.organizationId))
+			.collect();
+
+		// Extract unique users
+		const userIds = new Set(cvs.map(cv => cv.userId));
+		const users = await Promise.all(
+			Array.from(userIds).map(async (userId) => {
+				const user = await ctx.db.get(userId);
+				return user;
+			})
+		);
+
+		// Filter out null users and return unique users with their data
+		const uniqueUsers = users
+			.filter(user => user !== null)
+			.map(user => ({
+				_id: user!._id,
+				firstName: user!.firstName,
+				lastName: user!.lastName,
+				email: user!.email,
+				isActive: user!.isActive,
+				country: user!.country,
+				phone: user!.phone
+			}));
+
+		// Sort by name
+		uniqueUsers.sort((a, b) => {
+			const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+			const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+			return nameA.localeCompare(nameB);
+		});
+
+		return uniqueUsers;
+	}
+});
+
+/**
  * Get all service assignments for a specific CV
  * 
  * What it does:

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import TabSwitcher from '$lib/components/expert-edit/TabSwitcher.svelte';
 	import ExpertTableView from '$lib/components/ExpertTableView.svelte';
+	import ExpertSimpleView from '$lib/components/ExpertSimpleView.svelte';
+	import ExpertServiceView from '$lib/components/ExpertServiceView.svelte';
 	import ServicesView from '$lib/components/ServicesView.svelte';
 
 	let activeTab = $state('experts');
@@ -28,7 +30,7 @@
 	<!-- Tab Switcher -->
 	<div class="mt-8">
 		<TabSwitcher 
-			tabs={['Platform Users', 'experts', 'services']} 
+			tabs={['Platform Users', 'experts', 'Experts 2', 'Experts 3', 'services']} 
 			{activeTab} 
 			onTabChange={handleTabChange} 
 		/>
@@ -42,6 +44,10 @@
 			</div>
 		{:else if activeTab === 'experts'}
 			<ExpertTableView />
+		{:else if activeTab === 'Experts 2'}
+			<ExpertSimpleView />
+		{:else if activeTab === 'Experts 3'}
+			<ExpertServiceView />
 		{:else if activeTab === 'services'}
 			<ServicesView />
 		{/if}
