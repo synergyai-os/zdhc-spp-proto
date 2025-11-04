@@ -14,7 +14,7 @@
  * Change this value to switch to a different organization
  */
 // Test Org 1: export const DEFAULT_ORG_ID = 'j975t878dn66x7br1076wb7ey17skxyg';
-export const DEFAULT_ORG_ID = 'j97b4b01nyqmntkwyskrdgnc517sjbp7';
+export const DEFAULT_ORG_ID = 'j976fbg8vke3pqx9pgxb440m3x7skgy6';
 /**
  * Default expert ID for testing (if needed)
  */

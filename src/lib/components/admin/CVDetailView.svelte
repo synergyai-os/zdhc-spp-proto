@@ -151,6 +151,9 @@
 		}
 	});
 
+	// Check if user has CVs for multiple organizations
+	const hasMultipleOrganizations = $derived(cvData.organizationGroups.length > 1);
+
 	const canToggleStatus = (assignment: ServiceAssignment): boolean => {
 		return currentCVData?.status === 'locked_for_review';
 	};
@@ -389,30 +392,69 @@
 			<div class="mb-3">
 				<h3 class="text-sm font-semibold text-gray-900">CV History</h3>
 			</div>
-			<div class="space-y-2">
-				{#each allUserCVs as cv}
-					<button 
-						type="button"
-						class="w-full p-2 rounded-lg transition-colors text-left {cv.id === selectedCVId ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'}" 
-						onclick={() => switchToCV(cv.id)}
-					>
-						<div class="flex items-center justify-between">
-							<div class="flex items-center space-x-2">
-								<span class="text-xs font-medium text-gray-900">v{cv.version}</span>
-								{#if cv.isCurrent}
-									<span class="text-xs bg-green-100 text-green-800 px-1 py-0.5 rounded">Current</span>
-								{/if}
+			{#if hasMultipleOrganizations}
+				<!-- Grouped by Organization -->
+				<div class="space-y-6">
+					{#each cvData.organizationGroups as orgGroup}
+						<div>
+							<div class="mb-2">
+								<h4 class="text-xs font-medium text-gray-400 uppercase tracking-wide">
+									{orgGroup.organization.name}
+								</h4>
 							</div>
-							<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium {getCVStatusColor(cv.status)}">
-								{getCVStatusDisplayName(cv.status)}
-							</span>
+							<ul class="space-y-2 ml-4">
+								{#each orgGroup.cvs as cv}
+									<li>
+										<button 
+											type="button"
+											class="w-full p-2 rounded-lg transition-colors text-left {cv._id === selectedCVId ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'}" 
+											onclick={() => switchToCV(cv._id)}
+										>
+											<div class="flex items-center justify-between">
+												<div class="flex items-center space-x-2">
+													<span class="text-xs font-medium text-gray-900">CV v{cv.version}</span>
+												</div>
+												<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium {getCVStatusColor(cv.status)}">
+													{getCVStatusDisplayName(cv.status)}
+												</span>
+											</div>
+											<div class="text-xs text-gray-500 mt-1">
+												{formatDateShort(cv.createdAt)}
+											</div>
+										</button>
+									</li>
+								{/each}
+							</ul>
 						</div>
-						<div class="text-xs text-gray-500 mt-1">
-							{cv.organization} • {formatDateShort(cv.createdAt)}
-						</div>
-					</button>
-				{/each}
-			</div>
+					{/each}
+				</div>
+			{:else}
+				<!-- Single Organization - Flat List -->
+				<div class="space-y-2">
+					{#each allUserCVs as cv}
+						<button 
+							type="button"
+							class="w-full p-2 rounded-lg transition-colors text-left {cv.id === selectedCVId ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'}" 
+							onclick={() => switchToCV(cv.id)}
+						>
+							<div class="flex items-center justify-between">
+								<div class="flex items-center space-x-2">
+									<span class="text-xs font-medium text-gray-900">v{cv.version}</span>
+									{#if cv.isCurrent}
+										<span class="text-xs bg-green-100 text-green-800 px-1 py-0.5 rounded">Current</span>
+									{/if}
+								</div>
+								<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium {getCVStatusColor(cv.status)}">
+									{getCVStatusDisplayName(cv.status)}
+								</span>
+							</div>
+							<div class="text-xs text-gray-500 mt-1">
+								{cv.organization} • {formatDateShort(cv.createdAt)}
+							</div>
+						</button>
+					{/each}
+				</div>
+			{/if}
 		</div>
 
 		<!-- Development Toolbar -->

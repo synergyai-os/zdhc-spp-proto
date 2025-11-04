@@ -11,8 +11,10 @@
 
 	let { children }: LayoutProps = $props();
 
-	// Check if we're on an admin route to conditionally show header
+	// Check if we're on an admin route or CV completion page to conditionally show header
 	let isAdminRoute = $derived($page.url.pathname.startsWith('/admin'));
+	let isCVCompletionRoute = $derived($page.url.pathname.startsWith('/experts/cv-completion'));
+	let shouldShowHeader = $derived(!isAdminRoute && !isCVCompletionRoute);
 
 	// Set organization ID in context for all child components
 	setContext('orgId', DEFAULT_ORG_ID);
@@ -39,7 +41,7 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-{#if !isAdminRoute}
+{#if shouldShowHeader}
 	<Header />
 {/if}
 

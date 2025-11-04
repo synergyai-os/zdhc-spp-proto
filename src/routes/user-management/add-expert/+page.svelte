@@ -31,6 +31,7 @@
 	let checked = $state(false);
 	let inDraftMode = $state(false);
 	let creatingNewCVVersion = $state(false);
+	let creatingNewCV = $state(false);
 	let selectedServices = $state<string[]>([]);
 	let serviceRoles = $state<Record<string, 'regular' | 'lead'>>({});
 	let isSubmitting = $state(false);
@@ -137,6 +138,7 @@
 		checked = false;
 		inDraftMode = false;
 		creatingNewCVVersion = false;
+		creatingNewCV = false;
 		selectedServices = [];
 		serviceRoles = {};
 	}
@@ -150,6 +152,14 @@
 		
 		// Clear selected services - approved services are shown separately
 		// Only new services should be selectable
+		selectedServices = [];
+		serviceRoles = {};
+	}
+
+	function startCreatingNewCV() {
+		creatingNewCV = true;
+		
+		// Clear selected services
 		selectedServices = [];
 		serviceRoles = {};
 	}
@@ -429,6 +439,51 @@
 			isSubmitting = false;
 		}
 	}
+
+	async function handleCreateNewCV() {
+		if (selectedServices.length === 0 || !foundUser) return;
+
+		isSubmitting = true;
+		submitError = null;
+
+		try {
+			// Convert selected services to the format needed for the mutation
+			const serviceAssignments = selectedServices.map((serviceId) => ({
+				serviceVersionId: serviceId as Id<'serviceVersions'>,
+				role: serviceRoles[serviceId] || 'regular'
+			}));
+
+			// Create new CV with empty experience/education (will be filled in later)
+			const cvId = await client.mutation(api.expertCVs.createExpertCV, {
+				userId: foundUser._id as Id<'users'>,
+				organizationId: currentOrgId as Id<'organizations'>,
+				experience: [], // Empty - expert will fill this in later
+				education: [], // Empty - expert will fill this in later
+				createdBy: 'system',
+				notes: `New CV created for existing expert via add-expert flow`
+			});
+
+			// Create service assignments
+			for (const assignment of serviceAssignments) {
+				await client.mutation(api.expertServiceAssignments.createExpertServiceAssignment, {
+					userId: foundUser._id as Id<'users'>,
+					organizationId: currentOrgId as Id<'organizations'>,
+					expertCVId: cvId as Id<'expertCVs'>,
+					serviceVersionId: assignment.serviceVersionId,
+					role: assignment.role,
+					assignedBy: 'system'
+				});
+			}
+
+			// Redirect to edit page
+			await goto(`/experts/${foundUser._id}/cv`);
+		} catch (error) {
+			console.error('Error creating new CV:', error);
+			submitError = error instanceof Error ? error.message : 'An unexpected error occurred';
+		} finally {
+			isSubmitting = false;
+		}
+	}
 </script>
 
 <div class="bg-gray-50 min-h-screen py-8">
@@ -571,21 +626,83 @@
 					</div>
 
 				{:else if scenario() === 'user_no_cv'}
-					<AddExpertStatusCard
-						variant="green"
-						icon="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-						title="Expert Found"
-						subtitle="{foundUser.firstName} {foundUser.lastName} ({foundUser.email})"
-						statusInfo="Status: New Expert"
-						description="This expert is new to your organization."
-						nextSteps={[
-							'Create a new CV for this expert',
-							'Select services to assign',
-							'Add experience and education information',
-							'Submit for review'
-						]}
-						buttonText="Create New CV →"
-					/>
+					{#if creatingNewCV}
+						<!-- Service Selection for New CV -->
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+							<div class="mb-6">
+								<h2 class="text-xl font-bold text-gray-800 mb-2">Select Services</h2>
+								<p class="text-gray-600">
+									Choose which services this expert will provide. Select whether they are a LEAD or regular expert
+									for each service.
+								</p>
+								<p class="text-sm text-gray-500 mt-2">
+									Creating CV for: <strong>{foundUser.firstName} {foundUser.lastName} ({foundUser.email})</strong>
+								</p>
+							</div>
+
+							<ServiceSelection
+								availableServices={availableServices}
+								selectedServices={selectedServices}
+								serviceRoles={serviceRoles}
+								onServiceToggle={toggleService}
+								onServiceRoleToggle={toggleServiceRole}
+								isLoading={serviceVersions?.isLoading || organizationApprovals?.isLoading}
+								hasLeadExpert={hasLeadExpert}
+							/>
+
+							<div class="mt-6">
+								<!-- Error Message -->
+								{#if submitError}
+									<div class="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+										<p class="text-sm text-red-700">{submitError}</p>
+									</div>
+								{/if}
+
+								<div class="flex gap-3">
+									<button
+										type="button"
+										onclick={() => (creatingNewCV = false)}
+										disabled={isSubmitting}
+										class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+										← Back
+									</button>
+									<button
+										type="button"
+										onclick={handleCreateNewCV}
+										disabled={selectedServices.length === 0 || isSubmitting}
+										class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+									>
+										{#if isSubmitting}
+											<span class="flex items-center gap-2">
+												<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+												Creating...
+											</span>
+										{:else}
+											Create New CV →
+										{/if}
+									</button>
+								</div>
+							</div>
+						</div>
+					{:else}
+						<AddExpertStatusCard
+							variant="green"
+							icon="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+							title="Expert Found"
+							subtitle="{foundUser.firstName} {foundUser.lastName} ({foundUser.email})"
+							statusInfo="Status: New Expert"
+							description="This expert is new to your organization."
+							nextSteps={[
+								'Create a new CV for this expert',
+								'Select services to assign',
+								'Add experience and education information',
+								'Submit for review'
+							]}
+							buttonText="Create New CV →"
+							buttonAction={startCreatingNewCV}
+						/>
+					{/if}
 
 				{:else if scenario() === 'cv_editable'}
 					<AddExpertStatusCard

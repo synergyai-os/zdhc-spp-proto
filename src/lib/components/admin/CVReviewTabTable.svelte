@@ -2,7 +2,7 @@
 	import { useConvexClient, useQuery } from 'convex-svelte';
 	import { api } from '../../../convex/_generated/api';
 	import type { CVStatus } from '../../../convex/model/status';
-	import { getCVStatusColor, getCVStatusDisplayName } from '../../../convex/model/status';
+	import { CV_STATUS_VALUES, getCVStatusColor, getCVStatusDisplayName } from '../../../convex/model/status';
 	import PaymentConfirmationButton from './PaymentConfirmationButton.svelte';
 	import CVStageAdvancer from './CVStageAdvancer.svelte';
 
@@ -54,21 +54,75 @@
 
 	const client = useConvexClient();
 
-	// Query data - filter by status if provided
-	const expertsData = useQuery(api.adminCVReview.getExpertsForCVReview, () => ({}));
+	// Filter state (only used when statusFilter is not provided - i.e., "All CVs" tab)
+	let localStatusFilter = $state<CVStatus | ''>('');
+	let organizationFilter = $state<string>('');
+	let searchTerm = $state<string>('');
+
+	// Query data - pass filters to backend when on "All CVs" tab
+	const expertsData = useQuery(api.adminCVReview.getExpertsForCVReview, () => {
+		// If statusFilter prop is provided (from parent), don't use local filters
+		// Otherwise, use local filters for "All CVs" tab
+		if (statusFilter) {
+			return {};
+		}
+		return {
+			status: localStatusFilter || undefined,
+			organizationId: organizationFilter ? (organizationFilter as any) : undefined,
+			searchTerm: searchTerm || undefined
+		};
+	});
 
 	console.log(`🔍 ${tabName} experts data:`, expertsData?.data);
 
+	// Get organizations for filter dropdown
+	const organizationsData = useQuery(api.adminCVReview.getOrganizationsForFilter, {});
+
+	const organizations = $derived(organizationsData?.data || []);
+
+	// Clear filters function
+	const clearFilters = () => {
+		localStatusFilter = '';
+		organizationFilter = '';
+		searchTerm = '';
+	};
+
 	// Filter experts based on status
+	// Backend already returns one row per user-organization combination
+	// When filtering, we show the matching CV (not necessarily the latest)
 	let experts = $derived(() => {
 		const allExperts = expertsData?.data || [];
 		if (!statusFilter) return allExperts;
 		
 		const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
-		return allExperts.filter(expert => {
-			const latestCVStatus = expert.latestCV?.status;
-			return latestCVStatus && statusArray.includes(latestCVStatus);
-		});
+		
+		// Filter and update latestCV to show the matching CV
+		return allExperts
+			.filter(expert => {
+				// Check if any CV matches the status filter
+				return expert.cvs.some((cv: any) => statusArray.includes(cv.status));
+			})
+			.map(expert => {
+				// Find the matching CVs and use the latest matching CV as the display CV
+				const matchingCVs = expert.cvs.filter((cv: any) => statusArray.includes(cv.status));
+				if (matchingCVs.length > 0) {
+					const latestMatchingCV = matchingCVs.sort((a: any, b: any) => b.version - a.version)[0];
+					return {
+						...expert,
+						latestCV: latestMatchingCV,
+						// Update pending count for the matching CV
+						pendingCount: latestMatchingCV.pendingAssignments?.length || 0,
+						// Update lastUpdated to matching CV's timestamp
+						lastUpdated: Math.max(
+							latestMatchingCV.createdAt || 0,
+							latestMatchingCV.submittedAt || 0,
+							latestMatchingCV.paidAt || 0,
+							latestMatchingCV.lockedAt || 0
+						)
+					};
+				}
+				return expert;
+			});
 	});
 
 	const formatDate = (timestamp: number): string => {
@@ -93,6 +147,110 @@
 </script>
 
 <div class="space-y-6">
+	<!-- Filters (only show on "All CVs" tab when no statusFilter prop) -->
+	{#if !statusFilter}
+		<div class="bg-white border border-gray-200 rounded-lg p-6">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="text-lg font-semibold text-gray-900">Filters</h3>
+				{#if localStatusFilter || organizationFilter || searchTerm}
+					<button
+						type="button"
+						onclick={clearFilters}
+						class="text-sm text-gray-500 hover:text-gray-700 underline"
+					>
+						Clear All Filters
+					</button>
+				{/if}
+			</div>
+			<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+				<!-- Status Filter -->
+				<div>
+					<label for="status-filter" class="block text-sm font-medium text-gray-700 mb-2">
+						Status
+					</label>
+					<select
+						id="status-filter"
+						bind:value={localStatusFilter}
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+					>
+						<option value="">All Statuses</option>
+						{#each CV_STATUS_VALUES as status}
+							<option value={status}>{getCVStatusDisplayName(status)}</option>
+						{/each}
+					</select>
+				</div>
+
+				<!-- Organization Filter -->
+				<div>
+					<label for="org-filter" class="block text-sm font-medium text-gray-700 mb-2">
+						Organization
+					</label>
+					<select
+						id="org-filter"
+						bind:value={organizationFilter}
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+					>
+						<option value="">All Organizations</option>
+						{#each organizations as org}
+							<option value={org._id}>{org.name}</option>
+						{/each}
+					</select>
+				</div>
+
+				<!-- Search -->
+				<div>
+					<label for="search" class="block text-sm font-medium text-gray-700 mb-2">
+						Search Expert
+					</label>
+					<input
+						id="search"
+						type="text"
+						bind:value={searchTerm}
+						placeholder="Name or email..."
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+					/>
+				</div>
+
+				<!-- Clear Filters Button -->
+				<div class="flex items-end">
+					{#if localStatusFilter || organizationFilter || searchTerm}
+						<button
+							type="button"
+							onclick={clearFilters}
+							class="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						>
+							Clear Filters
+						</button>
+					{/if}
+				</div>
+			</div>
+
+			<!-- Active Filter Indicator -->
+			{#if localStatusFilter || organizationFilter || searchTerm}
+				<div class="mt-4 flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+					</svg>
+					<span>
+						Filtered by:
+						{#if localStatusFilter}
+							<strong>Status: {getCVStatusDisplayName(localStatusFilter)}</strong>
+						{/if}
+						{#if organizationFilter}
+							{localStatusFilter ? ', ' : ''}
+							<strong>Organization: {organizations.find(o => o._id === organizationFilter)?.name || 'Unknown'}</strong>
+						{/if}
+						{#if searchTerm}
+							{(localStatusFilter || organizationFilter) ? ', ' : ''}
+							<strong>Search: "{searchTerm}"</strong>
+						{/if}
+					</span>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Loading State -->
 	{#if expertsData?.isLoading}
 		<div class="text-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -174,7 +332,7 @@
 						</tr>
 					</thead>
 					<tbody class="bg-white divide-y divide-gray-200">
-						{#each experts() as expert (expert.userId)}
+						{#each experts() as expert (expert.userId + '-' + (expert.latestCV?._id || 'no-cv'))}
 							<tr
 								class="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
 								onclick={() => handleRowClick(expert.userId)}

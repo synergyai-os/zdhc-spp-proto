@@ -2,39 +2,72 @@
 	import { page } from '$app/stores';
 	import { useQuery, useConvexClient } from 'convex-svelte';
 	import { api, type Id } from '$lib';
-	import { DEFAULT_ORG_ID } from '$lib/config';
-import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
-import EducationView from '$lib/components/expert-edit/EducationView.svelte';
-import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
-import ApprovalView from '$lib/components/expert-edit/ApprovalView.svelte';
-import ExpertHeader from '$lib/components/expert-edit/ExpertHeader.svelte';
-import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
-import DevelopmentToolBar from '$lib/components/admin/DevelopmentToolBar.svelte';
-import TestDataGenerator from '$lib/components/expert-edit/TestDataGenerator.svelte';
-import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
-import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData, generateApprovalTestData } from '$lib/utils/testDataGenerators';
-import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../../../../convex/model/status';
+	// NOTE: In prototype, expert ID comes from URL. In production, it will come from authenticated user session.
+	import ExperienceView from '$lib/components/expert-edit/ExperienceView.svelte';
+	import EducationView from '$lib/components/expert-edit/EducationView.svelte';
+	import TrainingQualificationView from '$lib/components/expert-edit/TrainingQualificationView.svelte';
+	import ApprovalView from '$lib/components/expert-edit/ApprovalView.svelte';
+	import ExpertHeader from '$lib/components/expert-edit/ExpertHeader.svelte';
+	import CompletionChecklist from '$lib/components/expert-edit/CompletionChecklist.svelte';
+	import DevelopmentToolBar from '$lib/components/admin/DevelopmentToolBar.svelte';
+	import TestDataGenerator from '$lib/components/expert-edit/TestDataGenerator.svelte';
+	import { createExperienceEntry, createEducationEntry, createTrainingEntry } from '$lib/utils/cvDataHandlers';
+	import { generateExperienceTestData, generateEducationTestData, generateTrainingTestData, generateApprovalTestData } from '$lib/utils/testDataGenerators';
+	import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../../../../convex/model/status';
+	import { validateCVCompletion } from '$lib/cvValidation';
+	import { shouldTransitionCVStatus } from '$lib/utils/cvStatusTransitionHandler';
 
+	// NOTE: In prototype, expert ID comes from URL. In production, it will come from authenticated user session.
 	const userId = $derived($page.params.cvId);
-	const orgId = DEFAULT_ORG_ID;
 	const client = useConvexClient();
 	let isAuthenticated = $state(false);
 	let password = $state('password');
+	
+	// Organization selection state
+	// Query all organizations this user has CVs for
+	const userOrganizations = useQuery(api.expert.getLinkedOrganisationsByCV, () => ({
+		userId: userId as Id<'users'>
+	}));
+	
+	// Selected organization - defaults to first one if available
+	let selectedOrgId = $state<string | null>(null);
+	
+	// Auto-select first organization when data loads
+	$effect(() => {
+		if (userOrganizations?.data && userOrganizations.data.length > 0 && !selectedOrgId) {
+			selectedOrgId = userOrganizations.data[0].organizationId;
+		}
+	});
+	
+	// Get selected organization name
+	const selectedOrgName = $derived.by(() => {
+		if (!selectedOrgId || !userOrganizations?.data) return '';
+		const org = userOrganizations.data.find(o => o.organizationId === selectedOrgId);
+		return org?.organization.name || '';
+	});
+	
+	// Save state
+	let isSaving = $state(false);
+	let successMessage = $state('');
+	let errorMessage = $state('');
 
 	const userData = useQuery(api.utilities.getUserById, () => ({
 		id: userId as Id<'users'>
 	}));
 
-	const expertCV = useQuery(api.expert.getLatestCV, () => ({
-		userId: userId as Id<'users'>,
-		organizationId: orgId as Id<'organizations'>
-	}));
-
-	const organization = useQuery(api.utilities.getOrganizations, () => ({}));
-	const orgName = $derived.by(() => {
-		if (!organization?.data) return '';
-		const org = organization.data.find(o => o._id === orgId);
-		return org?.name || '';
+	// Query latest CV for selected organization
+	const expertCV = useQuery(api.expert.getLatestCV, () => {
+		if (!selectedOrgId) {
+			// Return dummy query to prevent errors
+			return {
+				userId: 'j1j1j1j1j1j1j1j1j1j1j1j1j1' as Id<'users'>,
+				organizationId: 'j1j1j1j1j1j1j1j1j1j1j1j1j1' as Id<'organizations'>
+			};
+		}
+		return {
+			userId: userId as Id<'users'>,
+			organizationId: selectedOrgId as Id<'organizations'>
+		};
 	});
 
 	const assignedServices = useQuery(api.expertServiceAssignments.getExpertServiceAssignments, () => {
@@ -44,12 +77,23 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 		return { expertCVId: expertCV.data._id };
 	});
 
+	// Query latest CV for importing data (any status - if it has content, it can be imported)
+	// Exclude current organization to avoid importing from the CV being edited
+	const latestCVForImport = useQuery(api.expert.getLatestCVForImport, () => ({
+		userId: userId as Id<'users'>,
+		excludeOrganizationId: selectedOrgId ? selectedOrgId as Id<'organizations'> : undefined
+	}));
+
 	const email = $derived(userData?.data?.email || '');
 	let localCVData = $state<any>(null);
+	let importMessage = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 
+	// Reset and reload CV data when organization changes or CV data updates
 	$effect(() => {
-		if (expertCV?.data) {
+		if (selectedOrgId && expertCV?.data && !Array.isArray(expertCV.data)) {
 			localCVData = { ...expertCV.data };
+		} else {
+			localCVData = null;
 		}
 	});
 
@@ -137,6 +181,79 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 		localCVData.otherApprovals = (localCVData.otherApprovals || []).filter((_: any, i: number) => i !== index);
 	}
 
+	// Import functions - append data from latest CV (any status)
+	function importExperience() {
+		if (!localCVData || !latestCVForImport?.data) return;
+		
+		const sourceExperience = latestCVForImport.data.experience || [];
+		if (sourceExperience.length === 0) {
+			importMessage = { type: 'error', text: 'No experience found in your previous CV.' };
+			setTimeout(() => importMessage = null, 3000);
+			return;
+		}
+
+		const existingExperience = localCVData.experience || [];
+		localCVData.experience = [...existingExperience, ...sourceExperience];
+		
+		const orgName = latestCVForImport.data.organization?.name || 'previous organization';
+		importMessage = { type: 'success', text: `${sourceExperience.length} experience ${sourceExperience.length === 1 ? 'entry' : 'entries'} imported from ${orgName} CV.` };
+		setTimeout(() => importMessage = null, 5000);
+	}
+
+	function importEducation() {
+		if (!localCVData || !latestCVForImport?.data) return;
+		
+		const sourceEducation = latestCVForImport.data.education || [];
+		if (sourceEducation.length === 0) {
+			importMessage = { type: 'error', text: 'No education found in your previous CV.' };
+			setTimeout(() => importMessage = null, 3000);
+			return;
+		}
+
+		const existingEducation = localCVData.education || [];
+		localCVData.education = [...existingEducation, ...sourceEducation];
+		
+		const orgName = latestCVForImport.data.organization?.name || 'previous organization';
+		importMessage = { type: 'success', text: `${sourceEducation.length} education ${sourceEducation.length === 1 ? 'entry' : 'entries'} imported from ${orgName} CV.` };
+		setTimeout(() => importMessage = null, 5000);
+	}
+
+	function importTraining() {
+		if (!localCVData || !latestCVForImport?.data) return;
+		
+		const sourceTraining = latestCVForImport.data.trainingQualifications || [];
+		if (sourceTraining.length === 0) {
+			importMessage = { type: 'error', text: 'No training qualifications found in your previous CV.' };
+			setTimeout(() => importMessage = null, 3000);
+			return;
+		}
+
+		const existingTraining = localCVData.trainingQualifications || [];
+		localCVData.trainingQualifications = [...existingTraining, ...sourceTraining];
+		
+		const orgName = latestCVForImport.data.organization?.name || 'previous organization';
+		importMessage = { type: 'success', text: `${sourceTraining.length} training qualification${sourceTraining.length === 1 ? '' : 's'} imported from ${orgName} CV.` };
+		setTimeout(() => importMessage = null, 5000);
+	}
+
+	function importApprovals() {
+		if (!localCVData || !latestCVForImport?.data) return;
+		
+		const sourceApprovals = latestCVForImport.data.otherApprovals || [];
+		if (sourceApprovals.length === 0) {
+			importMessage = { type: 'error', text: 'No approvals found in your previous CV.' };
+			setTimeout(() => importMessage = null, 3000);
+			return;
+		}
+
+		const existingApprovals = localCVData.otherApprovals || [];
+		localCVData.otherApprovals = [...existingApprovals, ...sourceApprovals];
+		
+		const orgName = latestCVForImport.data.organization?.name || 'previous organization';
+		importMessage = { type: 'success', text: `${sourceApprovals.length} approval${sourceApprovals.length === 1 ? '' : 's'} imported from ${orgName} CV.` };
+		setTimeout(() => importMessage = null, 5000);
+	}
+
 	// Test data generation functions
 	function fillTestData() {
 		if (!localCVData) return;
@@ -160,15 +277,73 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 
 	async function saveCVData() {
 		if (!localCVData) return;
-		await client.mutation(api.expert.updateCV, {
-			cvId: localCVData._id,
-			organizationId: orgId as Id<'organizations'>,
-			experience: localCVData.experience,
-			education: localCVData.education,
-			trainingQualifications: localCVData.trainingQualifications,
-			otherApprovals: localCVData.otherApprovals
-		});
+		
+		isSaving = true;
+		errorMessage = '';
+		successMessage = '';
+		
+		if (!selectedOrgId) {
+			errorMessage = 'Please select an organization';
+			isSaving = false;
+			return;
+		}
+		
+		try {
+			// Step 1: Save CV data first
+			await client.mutation(api.expert.updateCV, {
+				cvId: localCVData._id,
+				organizationId: selectedOrgId as Id<'organizations'>,
+				experience: localCVData.experience,
+				education: localCVData.education,
+				trainingQualifications: localCVData.trainingQualifications,
+				otherApprovals: localCVData.otherApprovals
+			});
+			
+			// Step 2: Validate CV completion and handle status transitions
+			// Build CV object for validation (including service assignments)
+			const cvForValidation = {
+				...localCVData,
+				serviceAssignments: assignedServices?.data || []
+			};
+			
+			const validation = validateCVCompletion(cvForValidation);
+			
+			// Handle status transitions based on validation
+			const currentStatus = expertCV?.data?.status || 'draft';
+			const targetStatus = shouldTransitionCVStatus(currentStatus, validation.isValid);
+			
+			if (targetStatus) {
+				await client.mutation(api.expert.updateCVStatus, {
+					cvId: localCVData._id,
+					newStatus: targetStatus
+				});
+				
+				if (targetStatus === 'completed') {
+					successMessage = 'CV saved and marked as complete! You can now submit for review.';
+				} else {
+					successMessage = 'CV saved successfully!';
+				}
+			} else {
+				successMessage = 'CV saved successfully!';
+			}
+		} catch (error) {
+			console.error('Error saving CV:', error);
+			errorMessage = error instanceof Error ? error.message : 'Failed to save CV. Please try again.';
+		} finally {
+			isSaving = false;
+		}
 	}
+	
+	// Auto-dismiss success/error messages after 3 seconds
+	$effect(() => {
+		if (successMessage || errorMessage) {
+			const timer = setTimeout(() => {
+				successMessage = '';
+				errorMessage = '';
+			}, 3000);
+			return () => clearTimeout(timer);
+		}
+	});
 </script>
 
 <svelte:head>
@@ -219,8 +394,52 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 	</div>
 {:else}
 	<div class="bg-gray-50 min-h-screen pb-32">
-		<div class="max-w-7xl mx-auto px-6 py-8">
-			{#if localCVData && userId && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.status}
+		<div class="max-w-7xl mx-auto px-6">
+			<!-- Organization Tabs - Show only if user has multiple organizations -->
+			{#if userOrganizations?.data && userOrganizations.data.length > 1}
+				<div class="py-12 flex flex-col items-center">
+					<!-- Helper text -->
+					<p class="text-sm text-gray-600 mb-4 text-center">
+						You have CVs for multiple organizations. Select one to view and edit.
+					</p>
+					
+					<!-- TabSwitcher-style organization tabs -->
+					<div class="bg-white border border-gray-200 rounded-lg p-1 inline-flex shadow-sm">
+						{#each userOrganizations.data as orgData}
+							{@const isSelected = selectedOrgId === orgData.organizationId}
+							<button
+								type="button"
+								onclick={() => selectedOrgId = orgData.organizationId}
+								class="px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200 flex items-center space-x-2 {isSelected
+									? 'bg-blue-600 text-white shadow-sm'
+									: 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}"
+							>
+								<span>{orgData.organization.name}</span>
+								{#if orgData.latestCV}
+									<span class="text-xs opacity-75">v{orgData.latestCV.version}</span>
+								{/if}
+								{#if isSelected}
+									<span class="w-1.5 h-1.5 bg-white rounded-full"></span>
+								{/if}
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
+			
+			{#if !selectedOrgId}
+				<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+					<p class="text-yellow-800">
+						{#if userOrganizations?.isLoading}
+							Loading organizations...
+						{:else if !userOrganizations?.data || userOrganizations.data.length === 0}
+							No CVs found for this expert.
+						{:else}
+							Please select an organization above.
+						{/if}
+					</p>
+				</div>
+			{:else if localCVData && userId && expertCV?.data && !Array.isArray(expertCV.data) && expertCV.data.status}
 				{@const cvStatus = expertCV.data.status as any}
 				{@const isLocked = !canEditCVContent(cvStatus)}
 				
@@ -254,7 +473,12 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 					<!-- MAIN CONTENT AREA -->
 					<div class="flex-1 space-y-6">
 						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-							<h1 class="text-2xl font-bold text-gray-900 mb-2">Complete Your Expert CV</h1>
+							<h1 class="text-2xl font-bold text-gray-900 mb-2">
+								Complete Your Expert CV
+								{#if selectedOrgName}
+									<span class="text-gray-600 font-normal">for {selectedOrgName}</span>
+								{/if}
+							</h1>
 							<p class="text-gray-600">Please fill in the following sections to complete your expert profile.</p>
 						</div>
 						
@@ -268,8 +492,8 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 										<h3 class="text-lg font-semibold text-amber-800">CV Locked</h3>
 										<p class="text-sm text-amber-700 mt-1">
 											Your CV is currently <span class="font-semibold">{getCVStatusDisplayName(cvStatus)}</span> and cannot be edited. 
-											{#if orgName}
-												Contact your administrator at {orgName} if changes are needed.
+											{#if selectedOrgName}
+												Contact your administrator at {selectedOrgName} if changes are needed.
 											{:else}
 												Contact your administrator if changes are needed.
 											{/if}
@@ -307,6 +531,9 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 							onRemoveExperience={removeExperience}
 							onUpdateExperience={updateExperience}
 							onSave={saveCVData}
+							onImportFromPreviousCV={importExperience}
+							hasPreviousCV={!!latestCVForImport?.data && (latestCVForImport.data.experience?.length || 0) > 0}
+							previousCVOrgName={latestCVForImport?.data?.organization?.name}
 						>
 							{#snippet headerAction()}
 								<TestDataGenerator tabName="Professional Experience" onFillData={fillTestData} />
@@ -320,6 +547,9 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 							{localCVData}
 							onRemoveEducation={removeEducation}
 							onSave={saveCVData}
+							onImportFromPreviousCV={importEducation}
+							hasPreviousCV={!!latestCVForImport?.data && (latestCVForImport.data.education?.length || 0) > 0}
+							previousCVOrgName={latestCVForImport?.data?.organization?.name}
 						>
 							{#snippet headerAction()}
 								<TestDataGenerator tabName="Education" onFillData={fillEducationTestData} />
@@ -333,6 +563,9 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 							{localCVData}
 							onRemoveTraining={removeTraining}
 							onSave={saveCVData}
+							onImportFromPreviousCV={importTraining}
+							hasPreviousCV={!!latestCVForImport?.data && (latestCVForImport.data.trainingQualifications?.length || 0) > 0}
+							previousCVOrgName={latestCVForImport?.data?.organization?.name}
 						>
 							{#snippet headerAction()}
 								<TestDataGenerator tabName="Training Qualifications" onFillData={fillTrainingTestData} />
@@ -346,6 +579,9 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 							{localCVData}
 							onRemoveApproval={removeApproval}
 							onSave={saveCVData}
+							onImportFromPreviousCV={importApprovals}
+							hasPreviousCV={!!latestCVForImport?.data && (latestCVForImport.data.otherApprovals?.length || 0) > 0}
+							previousCVOrgName={latestCVForImport?.data?.organization?.name}
 						>
 							{#snippet headerAction()}
 								<TestDataGenerator tabName="Other Approvals" onFillData={fillApprovalTestData} />
@@ -361,16 +597,66 @@ import { canEditCVContent, getCVStatusDisplayName, getCVStatusColor } from '../.
 	{#if localCVData}
 		<div class="fixed bottom-0 left-0 right-0 w-full bg-white border-t border-gray-200 shadow-lg z-50">
 			<div class="max-w-7xl mx-auto px-6 py-4">
+				<!-- Success/Error Messages -->
+				{#if successMessage}
+					<div class="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
+						<div class="flex items-center space-x-3">
+							<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+							</svg>
+							<p class="text-green-700 font-medium">{successMessage}</p>
+						</div>
+					</div>
+				{/if}
+				
+				{#if errorMessage}
+					<div class="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+						<div class="flex items-center space-x-3">
+							<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+							</svg>
+							<p class="text-red-700 font-medium">{errorMessage}</p>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Import Messages -->
+				{#if importMessage}
+					<div class="mb-4 {importMessage.type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'} rounded-lg p-4">
+						<div class="flex items-center space-x-3">
+							{#if importMessage.type === 'success'}
+								<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+								</svg>
+								<p class="text-green-700 font-medium">{importMessage.text}</p>
+							{:else}
+								<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+								</svg>
+								<p class="text-red-700 font-medium">{importMessage.text}</p>
+							{/if}
+						</div>
+					</div>
+				{/if}
+				
 				<div class="flex items-center justify-end gap-3">
 					<button 
 						type="button"
 						onclick={saveCVData} 
-						class="inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
+						disabled={isSaving}
+						class="inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400"
 					>
-						<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-						</svg>
-						Save Changes
+						{#if isSaving}
+							<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+							</svg>
+							Saving...
+						{:else}
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+							</svg>
+							Save Changes
+						{/if}
 					</button>
 				</div>
 			</div>

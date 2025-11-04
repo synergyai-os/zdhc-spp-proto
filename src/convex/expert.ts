@@ -208,6 +208,120 @@ export const getUsersByOrganization = query({
 });
 
 /**
+ * Get the latest CV for a user from OTHER organizations (excludes current organization)
+ * 
+ * What it does:
+ * 1. Gets all CVs for the user across all organizations
+ * 2. Excludes CVs from the current organization (to avoid importing from the CV being edited)
+ * 3. Returns the most recent one (by creation date) regardless of status
+ * 4. Includes organization details
+ * 
+ * Usage: Used by CV completion page to allow importing data from previous CVs
+ * Note: Returns latest CV in any status (draft, locked_final, etc.) from OTHER organizations - if it has content, it can be imported
+ */
+export const getLatestCVForImport = query({
+	args: {
+		userId: v.id('users'),
+		excludeOrganizationId: v.optional(v.id('organizations'))
+	},
+	handler: async (ctx, args) => {
+		// Get all CVs for this user across all organizations
+		let allCVs = await ctx.db
+			.query('expertCVs')
+			.filter((q) => q.eq(q.field('userId'), args.userId))
+			.collect();
+
+		// Exclude CVs from the current organization (to avoid importing from the CV being edited)
+		if (args.excludeOrganizationId) {
+			allCVs = allCVs.filter(cv => cv.organizationId !== args.excludeOrganizationId);
+		}
+
+		if (allCVs.length === 0) {
+			return null;
+		}
+
+		// Sort by creation date (most recent first) and get the latest (any status)
+		const latestCV = allCVs.sort((a, b) => b.createdAt - a.createdAt)[0];
+
+		// Enrich with organization details
+		const organization = await ctx.db.get(latestCV.organizationId);
+
+		return {
+			...latestCV,
+			organization: organization ? {
+				_id: organization._id,
+				name: organization.name,
+				type: organization.type
+			} : null
+		};
+	}
+});
+
+/**
+ * Get all organizations that a user has CVs for
+ * 
+ * What it does:
+ * 1. Gets all CVs for the user (across all organizations)
+ * 2. Extracts unique organization IDs
+ * 3. Returns organization IDs with organization details
+ * 
+ * Usage: Used by CV completion page to show organization tabs for users with multiple org CVs
+ */
+export const getLinkedOrganisationsByCV = query({
+	args: {
+		userId: v.id('users')
+	},
+	handler: async (ctx, args) => {
+		// Get all CVs for this user (across all organizations)
+		const cvs = await ctx.db
+			.query('expertCVs')
+			.filter((q) => q.eq(q.field('userId'), args.userId))
+			.collect();
+
+		// Extract unique organization IDs
+		const orgIds = new Set(cvs.map(cv => cv.organizationId));
+		
+		// Get organization details and latest CV for each organization
+		const orgData = await Promise.all(
+			Array.from(orgIds).map(async (orgId) => {
+				const organization = await ctx.db.get(orgId);
+				if (!organization) return null;
+				
+				// Get latest CV for this user in this organization
+				const orgCVs = cvs
+					.filter(cv => cv.organizationId === orgId)
+					.sort((a, b) => b.version - a.version);
+				
+				const latestCV = orgCVs.length > 0 ? orgCVs[0] : null;
+				
+				return {
+					organizationId: orgId,
+					organization: {
+						_id: organization._id,
+						name: organization.name,
+						type: organization.type
+					},
+					latestCV: latestCV ? {
+						_id: latestCV._id,
+						version: latestCV.version,
+						status: latestCV.status
+					} : null
+				};
+			})
+		);
+
+		// Filter out null organizations and sort by organization name
+		return orgData
+			.filter(org => org !== null)
+			.sort((a, b) => {
+				const nameA = a!.organization.name.toLowerCase();
+				const nameB = b!.organization.name.toLowerCase();
+				return nameA.localeCompare(nameB);
+			});
+	}
+});
+
+/**
  * Get all service assignments for a specific CV
  * 
  * What it does:

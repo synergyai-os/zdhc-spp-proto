@@ -132,25 +132,35 @@ export const getExpertsForCVReview = query({
 			);
 		}
 
-		// Group CVs by userId
-		const userGroups = new Map<string, any>();
+		// Group CVs by organization first, then by user within each organization
+		// This allows users to appear multiple times (once per organization)
+		// Structure: Map<orgId, Map<userId, userGroup>>
+		const orgGroups = new Map<string, Map<string, any>>();
 
 		for (const cv of filteredCVs) {
+			const orgId = cv.organizationId || cv.organization?._id || 'unknown';
 			const userId = cv.userId;
 
-			if (!userGroups.has(userId)) {
-				userGroups.set(userId, {
+			// Get or create organization group
+			if (!orgGroups.has(orgId)) {
+				orgGroups.set(orgId, new Map());
+			}
+			const orgGroup = orgGroups.get(orgId)!;
+
+			// Get or create user group within this organization
+			if (!orgGroup.has(userId)) {
+				orgGroup.set(userId, {
 					user: cv.user,
+					organization: cv.organization,
+					organizationId: orgId,
 					cvs: [],
-					organizations: new Set(),
 					pendingCount: 0,
 					lastUpdated: cv.createdAt
 				});
 			}
 
-			const userGroup = userGroups.get(userId);
+			const userGroup = orgGroup.get(userId)!;
 			userGroup.cvs.push(cv);
-			userGroup.organizations.add(cv.organization?.name || 'Unknown');
 
 			// Count pending reviews (CVs that need admin attention)
 			// This includes: payment_pending, paid, locked_for_review, unlocked_for_edits
@@ -168,25 +178,35 @@ export const getExpertsForCVReview = query({
 			userGroup.lastUpdated = Math.max(userGroup.lastUpdated, updateTime);
 		}
 
-		// Convert to array format for display
-		const result = Array.from(userGroups.values()).map((userGroup: any) => ({
-			userId: userGroup.user._id,
-			user: userGroup.user,
-			cvs: userGroup.cvs,
-			organizations: Array.from(userGroup.organizations),
-			pendingCount: userGroup.pendingCount,
-			lastUpdated: userGroup.lastUpdated,
-			totalCVs: userGroup.cvs.length,
-			latestCV: userGroup.cvs.sort((a: any, b: any) => b.version - a.version)[0]
-		}));
+		// Flatten to one row per user-organization combination
+		const result: any[] = [];
+		for (const orgGroup of orgGroups.values()) {
+			for (const userGroup of orgGroup.values()) {
+				// Get the latest CV for this user-organization combination
+				const latestCV = userGroup.cvs.sort((a: any, b: any) => b.version - a.version)[0];
+				
+				result.push({
+					userId: userGroup.user._id,
+					user: userGroup.user,
+					cvs: userGroup.cvs,
+					organizations: [userGroup.organization?.name || 'Unknown'],
+					organizationId: userGroup.organizationId,
+					pendingCount: userGroup.pendingCount,
+					lastUpdated: userGroup.lastUpdated,
+					totalCVs: userGroup.cvs.length,
+					latestCV: latestCV
+				});
+			}
+		}
 
 		// Sort by last updated (most recent first)
 		const finalResult = result.sort((a, b) => b.lastUpdated - a.lastUpdated);
-		console.log('🎯 Final result:', finalResult.length, 'users');
-		console.log('🎯 User CV statuses:', finalResult.map((user: any) => ({ 
-			userId: user.userId, 
-			userName: user.user.firstName + ' ' + user.user.lastName,
-			cvStatuses: user.cvs.map((cv: any) => cv.status)
+		console.log('🎯 Final result:', finalResult.length, 'user-organization combinations');
+		console.log('🎯 User-Org combinations:', finalResult.map((row: any) => ({ 
+			userId: row.userId, 
+			userName: row.user.firstName + ' ' + row.user.lastName,
+			orgName: row.organizations[0],
+			cvStatuses: row.cvs.map((cv: any) => cv.status)
 		})));
 		
 		return finalResult;
@@ -833,15 +853,82 @@ export const getAdminStats = query({
 		const allCVs = await ctx.db.query('expertCVs').collect();
 		const allAssignments = await ctx.db.query('expertServiceAssignments').collect();
 
+		// Group CVs by organization first, then by user within each organization
+		// This matches the table logic where users appear once per organization
+		// Structure: Map<orgId, Map<userId, cvs[]>>
+		const orgGroups = new Map<string, Map<string, any[]>>();
+
+		for (const cv of allCVs) {
+			const orgId = cv.organizationId || 'unknown';
+			const userId = cv.userId;
+
+			// Get or create organization group
+			if (!orgGroups.has(orgId)) {
+				orgGroups.set(orgId, new Map());
+			}
+			const orgGroup = orgGroups.get(orgId)!;
+
+			// Get or create user group within this organization
+			if (!orgGroup.has(userId)) {
+				orgGroup.set(userId, []);
+			}
+			orgGroup.get(userId)!.push(cv);
+		}
+
+		// Count user-organization combinations where ANY CV matches each status
+		// This matches the table filtering logic which checks if any CV matches
+		const draftCount = Array.from(orgGroups.values()).reduce((count, orgGroup) => {
+			return count + Array.from(orgGroup.values()).filter((userCVs) =>
+				userCVs.some((cv) => cv.status === 'draft')
+			).length;
+		}, 0);
+
+		const completedCount = Array.from(orgGroups.values()).reduce((count, orgGroup) => {
+			return count + Array.from(orgGroup.values()).filter((userCVs) =>
+				userCVs.some((cv) => cv.status === 'completed')
+			).length;
+		}, 0);
+
+		const paymentPendingCount = Array.from(orgGroups.values()).reduce((count, orgGroup) => {
+			return count + Array.from(orgGroup.values()).filter((userCVs) =>
+				userCVs.some((cv) => cv.status === 'payment_pending')
+			).length;
+		}, 0);
+
+		const paidCount = Array.from(orgGroups.values()).reduce((count, orgGroup) => {
+			return count + Array.from(orgGroup.values()).filter((userCVs) =>
+				userCVs.some((cv) => cv.status === 'paid')
+			).length;
+		}, 0);
+
+		const lockedForReviewCount = Array.from(orgGroups.values()).reduce((count, orgGroup) => {
+			return count + Array.from(orgGroup.values()).filter((userCVs) =>
+				userCVs.some((cv) => cv.status === 'locked_for_review')
+			).length;
+		}, 0);
+
+		const unlockedForEditsCount = Array.from(orgGroups.values()).reduce((count, orgGroup) => {
+			return count + Array.from(orgGroup.values()).filter((userCVs) =>
+				userCVs.some((cv) => cv.status === 'unlocked_for_edits')
+			).length;
+		}, 0);
+
+		const lockedFinalCount = Array.from(orgGroups.values()).reduce((count, orgGroup) => {
+			return count + Array.from(orgGroup.values()).filter((userCVs) =>
+				userCVs.some((cv) => cv.status === 'locked_final')
+			).length;
+		}, 0);
+
+		// Count stats matching table display logic
 		const stats = {
 			totalCVs: allCVs.length,
-			draftCVs: allCVs.filter((cv) => cv.status === 'draft').length,
-			completedCVs: allCVs.filter((cv) => cv.status === 'completed').length,
-			paymentPendingCVs: allCVs.filter((cv) => cv.status === 'payment_pending').length,
-			paidCVs: allCVs.filter((cv) => cv.status === 'paid').length,
-			lockedForReviewCVs: allCVs.filter((cv) => cv.status === 'locked_for_review').length,
-			unlockedForEditsCVs: allCVs.filter((cv) => cv.status === 'unlocked_for_edits').length,
-			lockedFinalCVs: allCVs.filter((cv) => cv.status === 'locked_final').length,
+			draftCVs: draftCount,
+			completedCVs: completedCount,
+			paymentPendingCVs: paymentPendingCount,
+			paidCVs: paidCount,
+			lockedForReviewCVs: lockedForReviewCount,
+			unlockedForEditsCVs: unlockedForEditsCount,
+			lockedFinalCVs: lockedFinalCount,
 			totalAssignments: allAssignments.length,
 			pendingAssignments: allAssignments.filter((a) => a.status === 'pending_review').length,
 			approvedAssignments: allAssignments.filter((a) => a.status === 'approved').length,
