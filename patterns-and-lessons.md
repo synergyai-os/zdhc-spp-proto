@@ -246,6 +246,81 @@ const userData = useQuery(api.utilities.getUserById, () => ({
 - The query will return `null` or empty when the ID is invalid
 - Check `query?.data` before using the result
 
+### Querying Across Multiple Entities (User + Organization Scope)
+
+**Problem**: When you need to show all approved services for an expert, querying by a single CV ID (`expertCVId`) only returns services from that specific CV. If an expert has multiple CV versions with approved services, you'll miss some.
+
+**Solution**: Query by `userId + organizationId` to get ALL related data, then filter client-side for what you need:
+
+```svelte
+// ❌ Limited: Only gets assignments from one CV
+const existingAssignments = useQuery(
+  api.expertServiceAssignments.getExpertServiceAssignments,
+  () => ({ expertCVId: cvData._id })
+);
+
+// ✅ Complete: Gets all assignments for expert in organization
+const existingAssignments = useQuery(
+  api.expertServiceAssignments.getExpertServiceAssignments,
+  () => ({
+    userId: foundUser._id,
+    organizationId: currentOrgId
+  })
+);
+
+// Then filter client-side for what you need
+const approvedFromLockedCVs = $derived.by(() => {
+  return existingAssignments.data?.filter(
+    (assignment: any) => 
+      assignment.status === 'approved' && 
+      assignment.expertCV?.status === 'locked_final'
+  ) || [];
+});
+```
+
+**Key Principles**:
+- Query by entity relationships (userId + organizationId) when you need cross-entity data
+- Filter client-side for specific conditions (status, CV status, etc.)
+- Always scope by organizationId to prevent cross-organization data leakage
+- Use `$derived.by()` for complex filtering logic
+
+### Deduplication Patterns for Multi-Version Data
+
+**Problem**: When an expert has multiple CV versions, the same service might be approved in multiple CVs, causing duplicates in the UI.
+
+**Solution**: Deduplicate using a Map, preferring the most relevant record:
+
+```svelte
+const deduplicatedServices = $derived.by(() => {
+  const serviceMap = new Map<string, any>();
+  
+  approvedAssignments.forEach((assignment: any) => {
+    const serviceId = assignment.serviceVersionId;
+    const existing = serviceMap.get(serviceId);
+    
+    if (!existing) {
+      serviceMap.set(serviceId, assignment);
+    } else {
+      // Prefer lead role over regular
+      if (assignment.role === 'lead' && existing.role !== 'lead') {
+        serviceMap.set(serviceId, assignment);
+      }
+      // If same role, prefer more recent
+      else if (assignment.expertCV?.createdAt > existing.expertCV?.createdAt) {
+        serviceMap.set(serviceId, assignment);
+      }
+    }
+  });
+  
+  return Array.from(serviceMap.values());
+});
+```
+
+**Key Principles**:
+- Use Map for O(1) lookup during deduplication
+- Define clear priority rules (role > recency, etc.)
+- Apply deduplication in `$derived.by()` for reactive updates
+
 ### Mutations with `useConvexClient()`
 
 **Pattern**: Get client once, call mutations as needed:

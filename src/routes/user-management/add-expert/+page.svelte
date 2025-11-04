@@ -5,6 +5,7 @@
 	import { DEFAULT_ORG_ID } from '$lib/config';
 	import ServiceSelection from '$lib/components/add-expert/ServiceSelection.svelte';
 	import AddExpertStatusCard from '$lib/components/add-expert/AddExpertStatusCard.svelte';
+	import ApprovedServicesCard from '$lib/components/add-expert/ApprovedServicesCard.svelte';
 	import { goto } from '$app/navigation';
 
 	const client = useConvexClient();
@@ -53,17 +54,21 @@
 		}
 	);
 
-	// Query existing service assignments for the locked_final CV (for pre-selection)
+	// Query existing service assignments for this expert in this organization
+	// Query by userId + organizationId to get ALL approved assignments from locked_final CVs
+	// This ensures we show all approved services, not just those from one CV
 	const existingAssignments = useQuery(
 		api.expertServiceAssignments.getExpertServiceAssignments,
 		() => {
-			if (!foundUser || !currentOrgId || !cvData || scenario() !== 'cv_final') {
+			if (!foundUser || !currentOrgId || scenario() !== 'cv_final') {
 				return {
-					expertCVId: 'j1j1j1j1j1j1j1j1j1j1j1j1j1' as Id<'expertCVs'>
+					userId: 'j1j1j1j1j1j1j1j1j1j1j1j1j1' as Id<'users'>,
+					organizationId: 'j1j1j1j1j1j1j1j1j1j1j1j1j1' as Id<'organizations'>
 				};
 			}
 			return {
-				expertCVId: cvData._id as Id<'expertCVs'>
+				userId: foundUser._id as Id<'users'>,
+				organizationId: currentOrgId as Id<'organizations'>
 			};
 		}
 	);
@@ -143,24 +148,99 @@
 	function startCreatingNewCVVersion() {
 		creatingNewCVVersion = true;
 		
-		// Pre-select services from existing assignments
-		if (existingAssignments?.data && serviceVersions?.data) {
-			const approvedAssignments = existingAssignments.data.filter(
-				(assignment: any) => assignment.status === 'approved'
-			);
-			
-			selectedServices = [];
-			serviceRoles = {};
-			
-			approvedAssignments.forEach((assignment: any) => {
-				const serviceVersionId = assignment.serviceVersionId;
-				if (serviceVersionId) {
-					selectedServices.push(serviceVersionId);
-					serviceRoles[serviceVersionId] = assignment.role || 'regular';
-				}
-			});
-		}
+		// Clear selected services - approved services are shown separately
+		// Only new services should be selectable
+		selectedServices = [];
+		serviceRoles = {};
 	}
+
+	// Get approved services for this expert (from locked_final CVs only)
+	// Filter to only include assignments from locked_final CVs to show truly approved services
+	const approvedServicesForExpert = $derived.by(() => {
+		if (!existingAssignments?.data || !serviceVersions?.data || scenario() !== 'cv_final') {
+			return [];
+		}
+
+		console.log('🔍 Debug approvedServicesForExpert:');
+		console.log('  - existingAssignments.data:', existingAssignments.data);
+		console.log('  - serviceVersions.data length:', serviceVersions.data?.length);
+
+		// Filter for approved assignments from locked_final CVs only
+		const approvedAssignments = existingAssignments.data.filter(
+			(assignment: any) => 
+				assignment.status === 'approved' && 
+				assignment.expertCV && 
+				assignment.expertCV.status === 'locked_final'
+		);
+
+		console.log('  - approvedAssignments (from locked_final CVs) count:', approvedAssignments.length);
+		console.log('  - approvedAssignments:', approvedAssignments.map((a: any) => ({
+			serviceVersionId: a.serviceVersionId,
+			role: a.role,
+			status: a.status,
+			cvStatus: a.expertCV?.status,
+			serviceVersion: a.serviceVersion?.name
+		})));
+
+		// Deduplicate: if expert has same service approved in multiple CVs, keep only one
+		// Prefer the one with 'lead' role, or the most recent one
+		const serviceMap = new Map<string, any>();
+		approvedAssignments.forEach((assignment: any) => {
+			const serviceId = assignment.serviceVersionId;
+			const existing = serviceMap.get(serviceId);
+			
+			if (!existing) {
+				serviceMap.set(serviceId, assignment);
+			} else {
+				// Prefer lead role over regular
+				if (assignment.role === 'lead' && existing.role !== 'lead') {
+					serviceMap.set(serviceId, assignment);
+				}
+				// If same role, prefer more recent CV
+				else if (assignment.expertCV?.createdAt && existing.expertCV?.createdAt) {
+					if (assignment.expertCV.createdAt > existing.expertCV.createdAt) {
+						serviceMap.set(serviceId, assignment);
+					}
+				}
+			}
+		});
+
+		const deduplicatedAssignments = Array.from(serviceMap.values());
+
+		// Match assignments with service versions and include role
+		const result: Array<{
+			serviceVersion: any;
+			role: 'regular' | 'lead';
+			assignment: any;
+		}> = [];
+
+		deduplicatedAssignments.forEach((assignment: any) => {
+			const serviceVersion = serviceVersions.data.find(
+				(sv: any) => sv._id === assignment.serviceVersionId
+			);
+			if (serviceVersion) {
+				result.push({
+					serviceVersion,
+					role: assignment.role || 'regular',
+					assignment
+				});
+			} else {
+				console.warn('  ⚠️ Service version not found for assignment:', {
+					serviceVersionId: assignment.serviceVersionId,
+					role: assignment.role,
+					status: assignment.status
+				});
+			}
+		});
+
+		console.log('  - Final result count:', result.length);
+		console.log('  - Final result:', result.map((r: any) => ({
+			name: r.serviceVersion.name,
+			role: r.role
+		})));
+
+		return result;
+	});
 
 	// Get available services for organization (full service objects with IDs)
 	const availableServices = $derived.by(() => {
@@ -186,6 +266,21 @@
 
 		// Return full service objects, not just names
 		return approvedVersions;
+	});
+
+	// Get new available services (exclude already approved for expert)
+	const newAvailableServices = $derived.by(() => {
+		if (!availableServices || scenario() !== 'cv_final') {
+			return availableServices;
+		}
+
+		const approvedServiceIds = new Set(
+			approvedServicesForExpert.map((item: any) => item.serviceVersion._id)
+		);
+
+		return availableServices.filter(
+			(service: any) => !approvedServiceIds.has(service._id)
+		);
 	});
 
 	function toggleService(serviceId: string) {
@@ -530,45 +625,35 @@
 
 				{:else if scenario() === 'cv_final'}
 					{#if creatingNewCVVersion}
+						<!-- Approved Services Card -->
+						{#if approvedServicesForExpert.length > 0}
+							<div class="mb-6">
+								<ApprovedServicesCard approvedServices={approvedServicesForExpert} />
+							</div>
+						{/if}
+
 						<!-- Service Selection for New CV Version -->
 						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
 							<div class="mb-6">
-								<h2 class="text-xl font-bold text-gray-800 mb-2">Select Services for New CV Version</h2>
+								<h2 class="text-xl font-bold text-gray-800 mb-2">Select New Services</h2>
 								<p class="text-gray-600">
-									Services that are already approved are included automatically and cannot be modified. You can only add new services.
+									Select additional services to add to this expert's profile. Services that are already approved are shown above.
 								</p>
 								<p class="text-sm text-gray-500 mt-2">
 									Creating version {cvData?.version ? cvData.version + 1 : 2}
 								</p>
 							</div>
 
-							{#if existingAssignments?.data}
-								{@const readOnlyServices = existingAssignments.data
-									.filter((assignment: any) => assignment.status === 'approved')
-									.map((assignment: any) => assignment.serviceVersionId)}
-								
-								<ServiceSelection
-									availableServices={availableServices}
-									selectedServices={selectedServices}
-									serviceRoles={serviceRoles}
-									onServiceToggle={toggleService}
-									onServiceRoleToggle={toggleServiceRole}
-									isLoading={serviceVersions?.isLoading || organizationApprovals?.isLoading}
-									hasLeadExpert={hasLeadExpert}
-									readOnlyServices={readOnlyServices}
-								/>
-							{:else}
-								<ServiceSelection
-									availableServices={availableServices}
-									selectedServices={selectedServices}
-									serviceRoles={serviceRoles}
-									onServiceToggle={toggleService}
-									onServiceRoleToggle={toggleServiceRole}
-									isLoading={serviceVersions?.isLoading || organizationApprovals?.isLoading}
-									hasLeadExpert={hasLeadExpert}
-									readOnlyServices={[]}
-								/>
-							{/if}
+							<ServiceSelection
+								availableServices={newAvailableServices}
+								selectedServices={selectedServices}
+								serviceRoles={serviceRoles}
+								onServiceToggle={toggleService}
+								onServiceRoleToggle={toggleServiceRole}
+								isLoading={serviceVersions?.isLoading || organizationApprovals?.isLoading}
+								hasLeadExpert={hasLeadExpert}
+								readOnlyServices={[]}
+							/>
 
 							<div class="mt-6">
 								<!-- Error Message -->
